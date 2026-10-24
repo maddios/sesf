@@ -200,9 +200,9 @@ class CarShow extends Model
     /**
      * @return HasMany<ShowRegistration, $this>
      */
-    public function registrations(): HasMany // @phpstan-ignore-line later-wave class
+    public function registrations(): HasMany
     {
-        return $this->hasMany(ShowRegistration::class, 'show_id'); // @phpstan-ignore-line later-wave class
+        return $this->hasMany(ShowRegistration::class, 'show_id');
     }
 
     /**

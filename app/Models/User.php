@@ -205,12 +205,11 @@ class User extends Authenticatable
     /**
      * Show registrations (legacy registrations()).
      *
-     * @return HasMany<CarShowRegistration, $this>
+     * @return HasMany<ShowRegistration, $this>
      */
-    public function registrations(): HasMany // @phpstan-ignore-line later-wave class
+    public function registrations(): HasMany
     {
-        // tested in integration wave (CarShowRegistration model arrives later)
-        return $this->hasMany(CarShowRegistration::class, 'user_id'); // @phpstan-ignore-line later-wave class
+        return $this->hasMany(ShowRegistration::class, 'user_id');
     }
 
     /**

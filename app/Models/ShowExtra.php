@@ -65,9 +65,9 @@ class ShowExtra extends Model
     /**
      * @return BelongsToMany<ShowRegistration, $this>
      */
-    public function registration(): BelongsToMany // @phpstan-ignore-line later-wave class
+    public function registration(): BelongsToMany
     {
-        return $this->belongsToMany(ShowRegistration::class, 'show_extra_registration', 'show_extra_id', 'registration_id') // @phpstan-ignore-line later-wave class
+        return $this->belongsToMany(ShowRegistration::class, 'show_extra_registration', 'show_extra_id', 'registration_id')
             ->withPivot('num_extras');
     }
 }

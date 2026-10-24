@@ -163,11 +163,11 @@ class Car extends Model
     /**
      * Show registrations this car is entered in (show_registration_car).
      *
-     * @return BelongsToMany<CarShowRegistration, $this>
+     * @return BelongsToMany<ShowRegistration, $this>
      */
-    public function registrations(): BelongsToMany // @phpstan-ignore-line later-wave class
+    public function registrations(): BelongsToMany
     {
-        return $this->belongsToMany(CarShowRegistration::class, 'show_registration_car', 'car_id', 'registration_id'); // @phpstan-ignore-line later-wave class
+        return $this->belongsToMany(ShowRegistration::class, 'show_registration_car', 'car_id', 'registration_id');
     }
 
     /**
