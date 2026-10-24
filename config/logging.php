@@ -81,6 +81,15 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Dev-only record of mail cancelled by RedirectMailInDev (email_debug on, no dev address).
+        // Deliberately not part of the default stack and not forwarded to Datadog.
+        'mail-debug' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/mail-debug.log'),
+            'level' => 'info',
+            'max_files' => 7,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),

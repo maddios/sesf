@@ -3,6 +3,23 @@
 use Illuminate\Support\Str;
 use Pdo\Mysql;
 
+/*
+|--------------------------------------------------------------------------
+| Legacy SQL modes
+|--------------------------------------------------------------------------
+|
+| The live server's default. Zero dates ('0000-00-00 ...') must stay accepted, so
+| NO_ZERO_DATE, NO_ZERO_IN_DATE and ONLY_FULL_GROUP_BY are deliberately absent. The mysql and
+| testing_mariadb connections both use this list; a unit test keeps them identical.
+|
+*/
+$legacySqlModes = [
+    'STRICT_TRANS_TABLES',
+    'ERROR_FOR_DIVISION_BY_ZERO',
+    'NO_AUTO_CREATE_USER',
+    'NO_ENGINE_SUBSTITUTION',
+];
+
 return [
 
     /*
@@ -57,7 +74,8 @@ return [
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'strict' => true,
+            'strict' => false,
+            'modes' => $legacySqlModes,
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
@@ -82,6 +100,25 @@ return [
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
+        ],
+
+        // Ephemeral test database (docker compose profile "test"). Tests only; never
+        // point this at the shared sesf_dev database. Read exclusively from DB_TEST_*,
+        // never from DB_* (the local .env holds the dev values).
+        'testing_mariadb' => [
+            'driver' => 'mysql',
+            'host' => env('DB_TEST_HOST', 'testdb'),
+            'port' => env('DB_TEST_PORT', '3306'),
+            'database' => env('DB_TEST_DATABASE', 'sesf_test'),
+            'username' => env('DB_TEST_USERNAME', 'root'),
+            'password' => env('DB_TEST_PASSWORD', 'test'),
+            'charset' => 'utf8',
+            'collation' => 'utf8_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => false,
+            'modes' => $legacySqlModes,
+            'engine' => null,
         ],
 
         'pgsql' => [
