@@ -3,15 +3,6 @@
 use App\Models\LoginEmailSignin;
 use App\Models\User;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
-
-beforeEach(function () {
-    DB::connection('testing_mariadb')->table('user_type')->insertOrIgnore([
-        ['id' => 1, 'name' => 'Regular'],
-        ['id' => 2, 'name' => 'Judge'],
-        ['id' => 3, 'name' => 'Administrator'],
-    ]);
-});
 
 test('maps to login_email_signin without timestamps and with the daily quota', function () {
     $row = new LoginEmailSignin;

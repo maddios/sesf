@@ -3,11 +3,6 @@
 use App\Enums\AgendaType;
 use App\Models\CarShow;
 use App\Models\CarShowAgenda;
-use Illuminate\Support\Facades\DB;
-
-beforeEach(function () {
-    DB::table('show_agenda_type')->insertOrIgnore([['id' => 1, 'name' => 'Agenda'], ['id' => 2, 'name' => 'Judging']]);
-});
 
 test('uses the show_agenda table with timestamps and guards only id', function () {
     $agenda = new CarShowAgenda;

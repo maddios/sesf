@@ -12,12 +12,6 @@ use App\Models\Sponsor;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
-beforeEach(function () {
-    DB::table('user_type')->insertOrIgnore([['id' => 1, 'name' => 'Regular'], ['id' => 2, 'name' => 'Judge'], ['id' => 3, 'name' => 'Administrator']]);
-    DB::table('sponsor_type')->insertOrIgnore([['id' => 1, 'name' => 'M'], ['id' => 2, 'name' => 'Gold'], ['id' => 3, 'name' => 'Silber'], ['id' => 4, 'name' => 'Bronzit']]);
-    DB::table('show_extra_type')->insertOrIgnore([['id' => 1, 'name' => 'Cars'], ['id' => 2, 'name' => 'People'], ['id' => 3, 'name' => 'Registration'], ['id' => 4, 'name' => 'Numeric List']]);
-});
-
 afterEach(fn () => Carbon::setTestNow());
 
 /**
@@ -57,8 +51,6 @@ function carShowInsertRegistration(int $showId, string $tag): int
         'date_registered' => '2024-01-01 00:00:00', 'email' => "{$tag}@example.test", 'location_id' => $locationId,
         'password' => 'x', 'address1' => '1 Main', 'city' => 'Raleigh', 'state' => 'NC', 'zip' => '27601',
     ]);
-    $db->table('car_body')->insertOrIgnore(['id' => 1, 'name' => 'Sedan']);
-    $db->table('car_type')->insertOrIgnore(['id' => 1, 'name' => 'Classic']);
     $carId = (int) $db->table('car')->insertGetId([
         'user_id' => $userId, 'body_id' => 1, 'type_id' => 1, 'nickname' => $tag,
     ]);

@@ -11,15 +11,6 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
-beforeEach(function () {
-    // Schema dump has no rows; user.type_id has a foreign key to user_type.
-    DB::connection('testing_mariadb')->table('user_type')->insertOrIgnore([
-        ['id' => 1, 'name' => 'Regular'],
-        ['id' => 2, 'name' => 'Judge'],
-        ['id' => 3, 'name' => 'Administrator'],
-    ]);
-});
-
 test('maps to the legacy user table with timestamps and guarded id', function () {
     $user = new User;
 

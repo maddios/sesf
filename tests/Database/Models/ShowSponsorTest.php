@@ -4,11 +4,6 @@ use App\Enums\SponsorType;
 use App\Models\CarShow;
 use App\Models\ShowSponsor;
 use App\Models\Sponsor;
-use Illuminate\Support\Facades\DB;
-
-beforeEach(function () {
-    DB::table('sponsor_type')->insertOrIgnore([['id' => 1, 'name' => 'M'], ['id' => 2, 'name' => 'Gold'], ['id' => 3, 'name' => 'Silber'], ['id' => 4, 'name' => 'Bronzit']]);
-});
 
 test('uses the show_sponsor table with timestamps and guards only id', function () {
     $pivot = new ShowSponsor;

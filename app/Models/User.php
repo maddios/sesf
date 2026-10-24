@@ -197,10 +197,9 @@ class User extends Authenticatable
      *
      * @return HasMany<Car, $this>
      */
-    public function cars(): HasMany // @phpstan-ignore-line later-wave class
+    public function cars(): HasMany
     {
-        // tested in integration wave (Car model arrives later)
-        return $this->hasMany(Car::class, 'user_id'); // @phpstan-ignore-line later-wave class
+        return $this->hasMany(Car::class, 'user_id');
     }
 
     /**

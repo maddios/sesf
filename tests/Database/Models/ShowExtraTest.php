@@ -4,11 +4,6 @@ use App\Enums\ExtraType;
 use App\Models\CarShow;
 use App\Models\ShowExtra;
 use Illuminate\Database\QueryException;
-use Illuminate\Support\Facades\DB;
-
-beforeEach(function () {
-    DB::table('show_extra_type')->insertOrIgnore([['id' => 1, 'name' => 'Cars'], ['id' => 2, 'name' => 'People'], ['id' => 3, 'name' => 'Registration'], ['id' => 4, 'name' => 'Numeric List']]);
-});
 
 test('uses the show_extra table with timestamps and guards only id', function () {
     $extra = new ShowExtra;

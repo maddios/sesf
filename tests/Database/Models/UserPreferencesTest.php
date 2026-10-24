@@ -3,15 +3,6 @@
 use App\Models\User;
 use App\Models\UserPreferences;
 use Illuminate\Database\QueryException;
-use Illuminate\Support\Facades\DB;
-
-beforeEach(function () {
-    DB::connection('testing_mariadb')->table('user_type')->insertOrIgnore([
-        ['id' => 1, 'name' => 'Regular'],
-        ['id' => 2, 'name' => 'Judge'],
-        ['id' => 3, 'name' => 'Administrator'],
-    ]);
-});
 
 test('maps to the legacy user_preferences table with timestamps', function () {
     $preferences = new UserPreferences;

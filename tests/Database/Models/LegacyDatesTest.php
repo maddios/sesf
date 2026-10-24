@@ -28,14 +28,12 @@ function legacyDatesCarModel(): Model
 }
 
 /**
- * Inserts a car row with the given timestamps and returns its id. Parent rows that car
- * requires (car_body, car_type) are created inside the test transaction.
+ * Inserts a car row with the given timestamps and returns its id. The car_body and car_type
+ * rows it references come from the lookup fixture.
  */
 function insertLegacyDatesCar(string $createdAt, string $updatedAt): int
 {
     $db = DB::connection('testing_mariadb');
-    $db->table('car_body')->insert(['id' => 1, 'name' => 'Sedan']);
-    $db->table('car_type')->insert(['id' => 1, 'name' => 'Classic']);
 
     return (int) $db->table('car')->insertGetId([
         'user_id' => null,

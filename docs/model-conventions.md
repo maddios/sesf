@@ -65,6 +65,9 @@ Follow it exactly when adding or changing a model.
 - Database tests use the `tests/Database` setup (LoadsLegacySchema) on `testing_mariadb` (`sesf_test`).
   Each test runs in a transaction that is rolled back, so do not commit, run DDL or issue `SET` statements.
 - Never connect to `sesf_dev`.
+- Lookup tables are pre-seeded from `tests/Fixtures/lookup-data.sql`; do not insert them in `tests/factories` or tests.
+- Reference them by id, e.g. `UserType::Regular->value`, `CarFactory::TYPE_CAR`, `CarBodyFactory::E24`.
+- Regenerate `tests/Fixtures/lookup-data.sql` from the live reference tables when they change.
 
 ## Known schema hazards
 

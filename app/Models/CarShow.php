@@ -216,9 +216,9 @@ class CarShow extends Model
     /**
      * @return BelongsToMany<CarBody, $this>
      */
-    public function carBodies(): BelongsToMany // @phpstan-ignore-line later-wave class
+    public function carBodies(): BelongsToMany
     {
-        return $this->belongsToMany(CarBody::class, 'car_body_show', 'show_id', 'body_id'); // @phpstan-ignore-line later-wave class
+        return $this->belongsToMany(CarBody::class, 'car_body_show', 'show_id', 'body_id');
     }
 
     /**
@@ -227,10 +227,10 @@ class CarShow extends Model
      *
      * @return BelongsToMany<CarBody, $this>
      */
-    public function judgingBodies(): BelongsToMany // @phpstan-ignore-line later-wave class
+    public function judgingBodies(): BelongsToMany
     {
-        return $this->belongsToMany(CarBody::class, 'judging_show_body', 'car_show_id', 'car_body_id') // @phpstan-ignore-line later-wave class
-            ->withPivot('judging_type_id'); // tested in integration wave
+        return $this->belongsToMany(CarBody::class, 'judging_show_body', 'car_show_id', 'car_body_id')
+            ->withPivot('judging_type_id');
     }
 
     /**
@@ -289,8 +289,8 @@ class CarShow extends Model
     /**
      * @return HasMany<Gallery, $this>
      */
-    public function galleries(): HasMany // @phpstan-ignore-line later-wave class
+    public function galleries(): HasMany
     {
-        return $this->hasMany(Gallery::class, 'show_id'); // @phpstan-ignore-line later-wave class
+        return $this->hasMany(Gallery::class, 'show_id');
     }
 }

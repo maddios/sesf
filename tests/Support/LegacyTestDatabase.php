@@ -23,6 +23,12 @@ final class LegacyTestDatabase
     /** Schema change files applied after the dump, relative to the project root. */
     public const SQL_DIRECTORY = 'database/sql';
 
+    /** Reference rows exported from the live lookup tables, relative to the project root. */
+    public const LOOKUP_FIXTURE = 'tests/Fixtures/lookup-data.sql';
+
+    /** A lookup table that is non-empty once the lookup fixture has been applied. */
+    private const LOOKUP_PROBE_TABLE = 'user_type';
+
     /** Statement separator used by the dump and by database/sql files. */
     private const STATEMENT_SEPARATOR = ";\n\n";
 
@@ -32,7 +38,8 @@ final class LegacyTestDatabase
      * Makes the test database match the legacy schema, once per process:
      *
      *  1. loads the dump if none of its tables exist yet (fails on a partial schema);
-     *  2. applies every database/sql file (see applySqlDirectory).
+     *  2. applies every database/sql file (see applySqlDirectory);
+     *  3. applies the lookup fixture (see loadLookupFixture).
      *
      * The ready flag is set only after both steps succeed, so a failing statement fails
      * every test that needs the database, not just the first one.
@@ -43,6 +50,7 @@ final class LegacyTestDatabase
         ConnectionInterface $connection,
         string $schemaPath,
         ?string $sqlDirectory = null,
+        ?string $lookupFixturePath = null,
     ): void {
         if (self::$ready) {
             return;
@@ -88,8 +96,50 @@ final class LegacyTestDatabase
         }
 
         self::applySqlDirectory($connection, $sqlDirectory ?? base_path(self::SQL_DIRECTORY));
+        self::loadLookupFixture($connection, $lookupFixturePath ?? base_path(self::LOOKUP_FIXTURE));
 
         self::$ready = true;
+    }
+
+    /**
+     * Inserts the reference rows in the lookup fixture. The fixture is committed outside the
+     * per-test transaction, so it is applied at most once per database: if the probe table
+     * already has rows, the fixture is skipped. Foreign key checks are restored even when a
+     * statement fails.
+     *
+     * @throws RuntimeException when the file is unreadable or a statement fails; the message names the file.
+     */
+    public static function loadLookupFixture(ConnectionInterface $connection, string $fixturePath): void
+    {
+        $name = basename($fixturePath);
+
+        $sql = file_get_contents($fixturePath);
+        if ($sql === false) {
+            throw new RuntimeException("Cannot read lookup fixture [{$name}] at [{$fixturePath}].");
+        }
+
+        $loaded = (int) $connection->selectOne(
+            'select count(*) as n from `'.self::LOOKUP_PROBE_TABLE.'`'
+        )->n;
+        if ($loaded > 0) {
+            return;
+        }
+
+        try {
+            foreach (self::statements($sql) as $statement) {
+                try {
+                    $connection->unprepared($statement);
+                } catch (Throwable $e) {
+                    throw new RuntimeException(
+                        "Lookup fixture [{$name}] failed: {$e->getMessage()}",
+                        0,
+                        $e,
+                    );
+                }
+            }
+        } finally {
+            $connection->unprepared('SET FOREIGN_KEY_CHECKS=1');
+        }
     }
 
     /**
