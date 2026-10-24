@@ -129,3 +129,77 @@ test('copy is atomic: a failure in the judging insert rolls back the body rows',
     expect(DB::table('car_body_show')->where('show_id', $target->id)->count())->toBe(0)
         ->and(DB::table('judging_show_body')->where('car_show_id', $target->id)->count())->toBe(0);
 });
+
+test('copy refuses a target that already has car bodies and changes nothing', function () {
+    $source = CarShow::factory()->create();
+    $target = CarShow::factory()->create();
+    cloneSeedBodies($source->id, [1, 2]);
+    cloneSeedJudging($source->id, 1, 1);
+    cloneSeedBodies($target->id, [1]);
+
+    expect(fn () => (new CloneShowConfiguration)->copy($target, $source))
+        ->toThrow(InvalidArgumentException::class, 'already configured (1 car bodies, 0 judging rows)');
+
+    expect(DB::table('car_body_show')->where('show_id', $target->id)->count())->toBe(1);
+    expect(DB::table('judging_show_body')->where('car_show_id', $target->id)->count())->toBe(0);
+});
+
+test('copy refuses a target that has only judging rows (no unique key would stop duplicates)', function () {
+    $source = CarShow::factory()->create();
+    $target = CarShow::factory()->create();
+    cloneSeedBodies($source->id, [1]);
+    cloneSeedJudging($source->id, 1, 1);
+    cloneSeedJudging($target->id, 1, 1);
+
+    expect(fn () => (new CloneShowConfiguration)->copy($target, $source))
+        ->toThrow(InvalidArgumentException::class, 'already configured (0 car bodies, 1 judging rows)');
+
+    expect(DB::table('car_body_show')->where('show_id', $target->id)->count())->toBe(0);
+    expect(DB::table('judging_show_body')->where('car_show_id', $target->id)->count())->toBe(1);
+});
+
+test('copy a second time onto the same target is refused', function () {
+    $source = CarShow::factory()->create();
+    $target = CarShow::factory()->create();
+    cloneSeedBodies($source->id, [1, 2]);
+    cloneSeedJudging($source->id, 1, 1);
+
+    (new CloneShowConfiguration)->copy($target, $source);
+
+    expect(fn () => (new CloneShowConfiguration)->copy($target, $source))
+        ->toThrow(InvalidArgumentException::class, 'already configured');
+    expect(DB::table('judging_show_body')->where('car_show_id', $target->id)->count())->toBe(1);
+});
+
+test('copy of a source with bodies but no judging rows copies the bodies only', function () {
+    $source = CarShow::factory()->create();
+    $target = CarShow::factory()->create();
+    cloneSeedBodies($source->id, [2, 3]);
+
+    (new CloneShowConfiguration)->copy($target, $source);
+
+    expect(DB::table('car_body_show')->where('show_id', $target->id)->count())->toBe(2);
+    expect(DB::table('judging_show_body')->where('car_show_id', $target->id)->count())->toBe(0);
+});
+
+test('every check runs inside the copy transaction, after both shows are locked', function () {
+    $source = CarShow::factory()->create();
+    $target = CarShow::factory()->create();
+    cloneSeedBodies($source->id, [1]);
+    $outerLevel = DB::transactionLevel();
+    $selects = [];
+    DB::listen(function (QueryExecuted $query) use (&$selects): void {
+        if (str_starts_with(strtolower(ltrim($query->sql)), 'select')) {
+            $selects[] = [strtolower($query->sql), $query->connection->transactionLevel()];
+        }
+    });
+
+    (new CloneShowConfiguration)->copy($target, $source);
+
+    expect($selects)->toHaveCount(4);
+    expect($selects[0][0])->toContain('`car_show`')->toContain('order by `id` asc')->toEndWith('for update');
+    foreach ($selects as [$sql, $level]) {
+        expect($level)->toBe($outerLevel + 1);
+        expect(str_ends_with($sql, 'for update') || str_ends_with($sql, 'lock in share mode'))->toBeTrue();
+    }
+});

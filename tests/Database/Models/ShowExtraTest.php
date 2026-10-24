@@ -5,13 +5,13 @@ use App\Models\CarShow;
 use App\Models\ShowExtra;
 use Illuminate\Database\QueryException;
 
-test('uses the show_extra table with timestamps and guards only id', function () {
+test('uses the show_extra table with timestamps and guards its privilege and money columns', function () {
     $extra = new ShowExtra;
 
     expect($extra->getTable())->toBe('show_extra')
         ->and($extra->getKeyName())->toBe('id')
         ->and($extra->usesTimestamps())->toBeTrue()
-        ->and($extra->getGuarded())->toBe(['id']);
+        ->and($extra->getGuarded())->toBe(['id', 'price']);
 });
 
 test('casts type to ExtraType, price to money, and min/max/flags', function () {
@@ -50,4 +50,25 @@ test('toJson keys: price stays a string with two decimals', function () {
     $extra = ShowExtra::factory()->create(['price' => 3]);
 
     expect(json_decode($extra->toJson(), true)['price'])->toBe('3.00');
+});
+
+test('price accepts up to the double(10,2) limit and rejects more', function () {
+    expect(fn () => (new ShowExtra)->setAttribute('price', '99999999.99'))->not->toThrow(InvalidArgumentException::class);
+    expect(fn () => (new ShowExtra)->setAttribute('price', '100000000.00'))->toThrow(InvalidArgumentException::class);
+});
+
+test('auth_key is public by design, so it is not hidden and appears in toArray() and toJson()', function () {
+    $extra = ShowExtra::factory()->create(['auth_key' => 'public-key-123'])->refresh();
+
+    expect($extra->getHidden())->toBe([])
+        ->and($extra->toArray())->toHaveKey('auth_key', 'public-key-123')
+        ->and(json_decode($extra->toJson(), true))->toHaveKey('auth_key', 'public-key-123');
+});
+
+test('mass assignment ignores the guarded price column', function () {
+    $extra = new ShowExtra;
+    $extra->fill(['price' => '1.00', 'name' => 'Lunch']);
+
+    expect($extra->getAttributes())->not->toHaveKey('price')
+        ->and($extra->name)->toBe('Lunch');
 });

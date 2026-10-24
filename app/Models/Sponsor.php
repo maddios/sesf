@@ -39,7 +39,7 @@ class Sponsor extends Model
 
     public $timestamps = true;
 
-    protected $guarded = ['id'];
+    protected $guarded = ['id', 'is_enabled'];
 
     /** Internal notes are for staff only and never appear in the SPA JSON. */
     protected $hidden = ['internal_notes'];

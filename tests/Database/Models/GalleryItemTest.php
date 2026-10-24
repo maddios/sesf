@@ -6,6 +6,7 @@ use App\Models\Gallery;
 use App\Models\GalleryItem;
 use App\Models\User;
 use App\Support\NumericPath;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\File;
 
@@ -20,13 +21,13 @@ function galleryImageRoot(): string
     return $root;
 }
 
-test('uses the gallery_item table with timestamps and guards only id', function (): void {
+test('uses the gallery_item table with timestamps and guards its privilege and money columns', function (): void {
     $item = new GalleryItem;
 
     expect($item->getTable())->toBe('gallery_item')
         ->and($item->getKeyName())->toBe('id')
         ->and($item->usesTimestamps())->toBeTrue()
-        ->and($item->getGuarded())->toBe(['id']);
+        ->and($item->getGuarded())->toBe(['id', 'user_id']);
 });
 
 test('casts type_id to GalleryItemType and date_taken to a datetime', function (): void {
@@ -134,4 +135,20 @@ test('factory states create valid items', function (): void {
     expect($video->type_id)->toBe(GalleryItemType::Video)
         ->and($video->user)->not->toBeNull()
         ->and(GalleryItem::factory()->create()->type_id)->toBe(GalleryItemType::Image);
+});
+
+test('only the Image type can be persisted; Video and Other are make()-only', function () {
+    // Only Image has a lookup row (gallery_item_type id 1), so the foreign key rejects the others.
+    expect(GalleryItem::factory()->video()->make()->type_id)->toBe(GalleryItemType::Video);
+    expect(GalleryItem::factory()->state(['type_id' => GalleryItemType::Other->value])->make()->type_id)
+        ->toBe(GalleryItemType::Other);
+    expect(fn () => GalleryItem::factory()->video()->create())->toThrow(QueryException::class);
+});
+
+test('mass assignment ignores the guarded owner column', function () {
+    $item = new GalleryItem;
+    $item->fill(['user_id' => 3, 'title' => 'Shot']);
+
+    expect($item->getAttributes())->not->toHaveKey('user_id')
+        ->and($item->title)->toBe('Shot');
 });

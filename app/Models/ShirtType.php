@@ -30,7 +30,7 @@ class ShirtType extends Model
 
     public $timestamps = false;
 
-    protected $guarded = ['id'];
+    protected $guarded = ['id', 'price'];
 
     /**
      * @return array<string, string>
@@ -38,7 +38,7 @@ class ShirtType extends Model
     protected function casts(): array
     {
         return [
-            'price' => Money2::class,
+            'price' => Money2::class.':9999.99',
         ];
     }
 

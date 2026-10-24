@@ -47,9 +47,14 @@ class Waiver extends Model
 
     public $timestamps = true;
 
-    protected $guarded = ['id'];
+    protected $guarded = ['id', 'tracking_id', 'waiver_id', 'has_signed', 'signed_at', 'waiver_data', 'has_pdf'];
 
-    protected $hidden = ['waiver_data'];
+    /**
+     * waiver_data holds the signature. tracking_id and request_waiver_url are the capability token
+     * of the public sign link, so they are hidden too. Flows that need them read them explicitly
+     * (getAttribute() or signUrl()).
+     */
+    protected $hidden = ['waiver_data', 'request_waiver_url', 'tracking_id'];
 
     /**
      * @return array<string, string>

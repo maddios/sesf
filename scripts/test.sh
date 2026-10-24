@@ -5,12 +5,12 @@
 #   scripts/test.sh --filter LegacySchema
 #   KEEP_TESTDB=1 scripts/test.sh       # leave the testdb container running afterwards
 #
-# - Starts the `testdb` service (compose profile "test"): MariaDB 10.11 on tmpfs, no
+# - Starts the `testdb` service (compose profile "test"): MariaDB 10.11.19 on tmpfs, no
 #   published port, schema loaded by the tests themselves into sesf_test. The shared
 #   sesf_dev database is never used by tests.
-# - Runs pest in the `app` service as uid 1000 with the repo bind-mounted. This needs
-#   the dev-store mountpoints from scripts/dev-setup.sh, because compose mounts them for
-#   every `app` container. Run that script once first.
+# - Runs pest in the `test` service (compose profile "test"): same image and uid as `app`,
+#   with only the repo bind-mounted. It does not need the dev-store mountpoints, so
+#   scripts/dev-setup.sh is not required.
 # - Removes only the testdb container afterwards. It does not run `compose down`, which
 #   would also stop a running dev `app` or `vite` container.
 set -euo pipefail
@@ -37,4 +37,4 @@ fi
 
 docker compose --profile test up -d --wait testdb
 
-docker compose run --rm "${tty_flag[@]}" -e DB_TEST_HOST=testdb app vendor/bin/pest "$@"
+docker compose --profile test run --rm "${tty_flag[@]}" -e DB_TEST_HOST=testdb test vendor/bin/pest "$@"

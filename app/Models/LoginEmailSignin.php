@@ -14,7 +14,9 @@ use Illuminate\Support\Carbon;
 /**
  * One emailed sign-in request (legacy `login_email_signin`). The table has only created_at,
  * so timestamps are off. Token and code are stored as hashes; generating them is not this
- * model's job (auth slice).
+ * model's job (auth slice). token_hash, code_hash and request_ip are hidden.
+ *
+ * Mass assignment: used_at is guarded, so only the code that consumes the request sets it.
  *
  * @property int $id
  * @property int $user_id
@@ -41,7 +43,13 @@ class LoginEmailSignin extends Model
 
     public $timestamps = false;
 
-    protected $guarded = ['id'];
+    protected $guarded = ['id', 'used_at'];
+
+    /**
+     * Secrets and the requester's IP never appear in toArray() or toJson(). token_hash and code_hash
+     * are the stored sign-in secrets, and request_ip is personal data.
+     */
+    protected $hidden = ['token_hash', 'code_hash', 'request_ip'];
 
     /**
      * @return array<string, string>

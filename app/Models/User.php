@@ -30,6 +30,13 @@ use Illuminate\Support\Facades\Hash;
  *
  * Geocoding: saving an address does not call Google. UserObserver queues GeocodeUserAddress.
  *
+ * Mass assignment: the guarded columns are the identity and privilege columns (id, is_admin,
+ * type_id), the credentials (password, remember_token), the soft-delete marker and date_registered.
+ * Write them with setters, forceFill() or a query-builder update, never with fill() or create().
+ *
+ * Hidden: password and remember_token. imagePath is a server filesystem path, so it is an accessor
+ * for internal use only and is not in $appends.
+ *
  * @property int $id
  * @property CarbonInterface|null $date_registered
  * @property string|null $first
@@ -74,7 +81,7 @@ class User extends Authenticatable
 
     public $timestamps = true;
 
-    protected $guarded = ['id'];
+    protected $guarded = ['id', 'is_admin', 'type_id', 'password', 'remember_token', 'deleted_at', 'date_registered'];
 
     protected $hidden = ['password', 'remember_token'];
 
@@ -85,7 +92,6 @@ class User extends Authenticatable
         'firstNameLastInitial',
         'fullName',
         'imageURL',
-        'imagePath',
     ];
 
     /** Columns that, when changed, require the coordinates to be looked up again. */

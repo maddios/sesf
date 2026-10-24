@@ -9,7 +9,7 @@ test('maps to login_email_signin without timestamps and with the daily quota', f
 
     expect($row->getTable())->toBe('login_email_signin')
         ->and($row->usesTimestamps())->toBeFalse()
-        ->and($row->getGuarded())->toBe(['id'])
+        ->and($row->getGuarded())->toBe(['id', 'used_at'])
         ->and(LoginEmailSignin::DAILY_QUOTA)->toBe(100);
 });
 
@@ -86,4 +86,22 @@ test('used and expired rows still count toward the quota', function () {
     LoginEmailSignin::factory()->for($user)->create();
 
     expect(LoginEmailSignin::isAvailable())->toBeFalse();
+});
+
+test('token_hash, code_hash and request_ip are hidden from toArray() and toJson()', function () {
+    $row = LoginEmailSignin::factory()->create()->refresh();
+
+    expect($row->getHidden())->toBe(['token_hash', 'code_hash', 'request_ip'])
+        ->and($row->toArray())->not->toHaveKeys(['token_hash', 'code_hash', 'request_ip'])
+        ->and(json_decode($row->toJson(), true))->not->toHaveKeys(['token_hash', 'code_hash', 'request_ip'])
+        ->and($row->request_ip)->not->toBeNull();
+});
+
+test('mass assignment ignores used_at but still fills the hashes', function () {
+    $row = new LoginEmailSignin;
+    $row->fill(['used_at' => now(), 'token_hash' => 'abc', 'code_hash' => 'def']);
+
+    expect($row->getAttributes())->not->toHaveKey('used_at')
+        ->and($row->token_hash)->toBe('abc')
+        ->and($row->code_hash)->toBe('def');
 });

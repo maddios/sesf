@@ -31,7 +31,7 @@ test('maps to the legacy car table with timestamps and guarded id', function () 
     expect($car->getTable())->toBe('car')
         ->and($car->getKeyName())->toBe('id')
         ->and($car->usesTimestamps())->toBeTrue()
-        ->and($car->getGuarded())->toBe(['id']);
+        ->and($car->getGuarded())->toBe(['id', 'user_id', 'is_confirmed']);
 });
 
 test('casts flags to boolean and foreign keys to integer', function () {
@@ -192,4 +192,12 @@ test('restrictCarsByBodyByShow keeps only bodies allowed at the show and adds bo
 
     expect($rows->pluck('id')->all())->toBe([$match->id]);
     expect($first?->getAttribute('body_name'))->toBe('e63 (Coupe)');
+});
+
+test('mass assignment ignores the guarded owner and confirmation columns', function () {
+    $car = new Car;
+    $car->fill(['user_id' => 3, 'is_confirmed' => true, 'model' => 'Coupe']);
+
+    expect($car->getAttributes())->not->toHaveKeys(['user_id', 'is_confirmed'])
+        ->and($car->model)->toBe('Coupe');
 });

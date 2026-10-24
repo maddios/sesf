@@ -16,6 +16,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * Legacy show extra (table show_extra). Ports app/models/ShowExtra.php.
  * The legacy type() relation (show_extra_type) has no model yet, so type_id is cast to ExtraType.
  *
+ * auth_key is NOT hidden, on purpose. It is the public key used in extras landing URLs by design,
+ * so toArray() and toJson() include it. Do not add it to $hidden.
+ *
+ * Money: price is double(10,2), read and written through Money2 with max 99999999.99.
+ *
  * @property int $id
  * @property bool $is_enabled
  * @property int $show_id
@@ -38,7 +43,7 @@ class ShowExtra extends Model
 
     public $timestamps = true;
 
-    protected $guarded = ['id'];
+    protected $guarded = ['id', 'price'];
 
     /**
      * @return array<string, string>
@@ -47,7 +52,7 @@ class ShowExtra extends Model
     {
         return [
             'type_id' => ExtraType::class,
-            'price' => Money2::class,
+            'price' => Money2::class.':99999999.99',
             'is_enabled' => 'boolean',
             'min_value' => 'integer',
             'max_value' => 'integer',

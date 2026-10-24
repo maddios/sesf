@@ -15,10 +15,24 @@ use InvalidArgumentException;
  * set(): int, float or numeric string to a float with 2 decimals, e.g. "12.345" to 12.35.
  *        Null and blank strings store null. Non-numeric input throws InvalidArgumentException.
  *
+ * Optional max argument (cast string "Money2:9999.99"): set() rejects amounts whose absolute value
+ * is larger than max, with InvalidArgumentException. Use the DDL limit of the column:
+ * float(6,2) is 9999.99, float(8,2) is 999999.99, double(10,2) is 99999999.99.
+ * Without a max, any finite amount is accepted (the database then decides). Negative amounts are
+ * allowed either way. Non-strict MySQL clamps out-of-range floats silently, so the max is the guard.
+ *
  * @implements CastsAttributes<?string, float|int|string|null>
  */
 final class Money2 implements CastsAttributes
 {
+    /** Largest accepted absolute amount in cents, or null for no limit. */
+    private readonly ?int $maxCents;
+
+    public function __construct(?string $max = null)
+    {
+        $this->maxCents = $max === null || trim($max) === '' ? null : Money::toCents(trim($max));
+    }
+
     public function get(Model $model, string $key, mixed $value, array $attributes): ?string
     {
         if ($value === null) {
@@ -38,7 +52,13 @@ final class Money2 implements CastsAttributes
             return null;
         }
 
-        return self::toCents($value) / 100;
+        $cents = self::toCents($value);
+
+        if ($this->maxCents !== null && abs($cents) > $this->maxCents) {
+            throw new InvalidArgumentException('Money value is larger than the column allows.');
+        }
+
+        return $cents / 100;
     }
 
     /**

@@ -32,7 +32,7 @@ class ShirtAdhocSale extends Model
 
     public $timestamps = true;
 
-    protected $guarded = ['id'];
+    protected $guarded = ['id', 'created_by_user_id'];
 
     /**
      * @return array<string, string>

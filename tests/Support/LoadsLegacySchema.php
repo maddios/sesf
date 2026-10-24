@@ -3,7 +3,6 @@
 namespace Tests\Support;
 
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 
 /**
  * For database tests (tests/Database/**). Runs against the ephemeral testing_mariadb
@@ -23,20 +22,15 @@ trait LoadsLegacySchema
     protected function setUpLoadsLegacySchema(): void
     {
         $config = config('database.connections.'.LegacyTestDatabase::CONNECTION);
-        LegacyTestDatabase::assertSafe(is_array($config) ? $config : []);
+
+        // Runs for every test: the config and the live session are re-checked each time.
+        LegacyTestDatabase::assertConnected(
+            DB::connection(LegacyTestDatabase::CONNECTION),
+            is_array($config) ? $config : [],
+        );
 
         config(['database.default' => LegacyTestDatabase::CONNECTION]);
         $connection = DB::connection(LegacyTestDatabase::CONNECTION);
-
-        // Defence in depth: the server must agree with the config about which database it is.
-        $actual = (string) $connection->selectOne('select database() as db')->db;
-        if ($actual !== LegacyTestDatabase::REQUIRED_DATABASE) {
-            throw new RuntimeException(sprintf(
-                'Refusing to run database tests: session is connected to database [%s], expected [%s].',
-                $actual,
-                LegacyTestDatabase::REQUIRED_DATABASE,
-            ));
-        }
 
         LegacyTestDatabase::ensureSchema($connection, base_path(LegacyTestDatabase::SCHEMA_FILE));
 

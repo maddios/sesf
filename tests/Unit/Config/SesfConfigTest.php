@@ -52,3 +52,71 @@ it('casts the boolean flags to bool', function () {
 it('reads the timezone from APP_TIMEZONE', function () {
     expect(config('app.timezone'))->toBeString();
 });
+
+/**
+ * Loads config/sesf.php with the given environment variables (null = unset), as the env()
+ * helper sees them, then restores the previous values. The app's own config is not changed.
+ *
+ * @param  array<string, string|null>  $env
+ * @return array<string, mixed>
+ */
+function loadSesfConfigWithEnv(array $env): array
+{
+    $keys = array_keys($env);
+    $saved = [];
+    foreach ($keys as $key) {
+        $saved[$key] = [$_ENV[$key] ?? null, $_SERVER[$key] ?? null, getenv($key)];
+    }
+
+    try {
+        foreach ($env as $key => $value) {
+            if ($value === null) {
+                unset($_ENV[$key], $_SERVER[$key]);
+                putenv($key);
+            } else {
+                $_ENV[$key] = $value;
+                $_SERVER[$key] = $value;
+                putenv("{$key}={$value}");
+            }
+        }
+
+        return require base_path('config/sesf.php');
+    } finally {
+        foreach ($saved as $key => [$envValue, $serverValue, $processValue]) {
+            if ($envValue === null) {
+                unset($_ENV[$key]);
+            } else {
+                $_ENV[$key] = $envValue;
+            }
+            if ($serverValue === null) {
+                unset($_SERVER[$key]);
+            } else {
+                $_SERVER[$key] = $serverValue;
+            }
+            if ($processValue === false) {
+                putenv($key);
+            } else {
+                putenv("{$key}={$processValue}");
+            }
+        }
+    }
+}
+
+it('defaults email_debug on outside production when SESF_EMAIL_DEBUG is unset', function () {
+    expect(loadSesfConfigWithEnv(['APP_ENV' => 'local', 'SESF_EMAIL_DEBUG' => null])['email_debug'])->toBeTrue()
+        ->and(loadSesfConfigWithEnv(['APP_ENV' => 'testing', 'SESF_EMAIL_DEBUG' => null])['email_debug'])->toBeTrue();
+});
+
+it('defaults email_debug off in production when SESF_EMAIL_DEBUG is unset', function () {
+    expect(loadSesfConfigWithEnv(['APP_ENV' => 'production', 'SESF_EMAIL_DEBUG' => null])['email_debug'])->toBeFalse();
+});
+
+it('reads SESF_EMAIL_DEBUG as a boolean string, whatever APP_ENV is', function (string $value, bool $expected) {
+    expect(loadSesfConfigWithEnv(['APP_ENV' => 'production', 'SESF_EMAIL_DEBUG' => $value])['email_debug'])->toBe($expected);
+})->with([
+    ['true', true],
+    ['1', true],
+    ['false', false],
+    ['0', false],
+    ['off', false],
+]);

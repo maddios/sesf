@@ -10,7 +10,7 @@ test('uses the shirt_type table without timestamps', function () {
 
     expect($type->getTable())->toBe('shirt_type')
         ->and($type->usesTimestamps())->toBeFalse()
-        ->and($type->getGuarded())->toBe(['id']);
+        ->and($type->getGuarded())->toBe(['id', 'price']);
 });
 
 test('fixture rows are present and price is a Money2 string', function () {
@@ -36,4 +36,16 @@ test('shirts and adhocSaleItems are hasMany on shirt.type_id and adhoc item type
         ->and($type->adhocSaleItems->pluck('id')->all())->toContain($item->id)
         ->and($shirt->shirtType->getKey())->toBe($type->getKey())
         ->and($item->shirtType->getKey())->toBe($type->getKey());
+});
+
+test('price rejects amounts above the float(6,2) limit', function () {
+    expect(fn () => (new ShirtType)->setAttribute('price', '10000.00'))->toThrow(InvalidArgumentException::class);
+});
+
+test('mass assignment ignores the guarded price column', function () {
+    $type = new ShirtType;
+    $type->fill(['price' => '0.01', 'name' => 'Hat']);
+
+    expect($type->getAttributes())->not->toHaveKey('price')
+        ->and($type->name)->toBe('Hat');
 });

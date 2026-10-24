@@ -8,12 +8,12 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
-test('uses the waiver table with timestamps and guards only id', function () {
+test('uses the waiver table with timestamps and guards its privilege and money columns', function () {
     $waiver = new Waiver;
 
     expect($waiver->getTable())->toBe('waiver')
         ->and($waiver->usesTimestamps())->toBeTrue()
-        ->and($waiver->getGuarded())->toBe(['id']);
+        ->and($waiver->getGuarded())->toBe(['id', 'tracking_id', 'waiver_id', 'has_signed', 'signed_at', 'waiver_data', 'has_pdf']);
 });
 
 test('has_signed and has_pdf are boolean, waiver_data is an array, signed_at is a datetime', function () {
@@ -110,7 +110,7 @@ test('relations: registration, guest and carShow, and the registration inverse',
 test('guest waiver and the circular user_guest pair work both ways', function () {
     $guest = UserGuest::factory()->create();
     $waiver = Waiver::factory()->forGuest($guest)->create();
-    $guest->update(['waiver_id' => $waiver->id]);
+    $guest->forceFill(['waiver_id' => $waiver->id])->save();
     $guest->refresh();
 
     expect($waiver->guest->getKey())->toBe($guest->id)
@@ -128,4 +128,45 @@ test('adhoc carShow relation', function () {
 test('a waiver for a missing registration violates the foreign key', function () {
     expect(fn () => Waiver::factory()->create(['show_registration_id' => 999999999]))
         ->toThrow(QueryException::class);
+});
+
+test('toArray() and toJson() omit the hidden waiver data and the sign-link token', function () {
+    $waiver = Waiver::factory()->signed()->create([
+        'tracking_id' => str_repeat('b', 32),
+        'request_waiver_url' => 'https://sesf.example/waiver_sign/t/'.str_repeat('b', 32),
+    ])->refresh();
+
+    expect($waiver->getHidden())->toBe(['waiver_data', 'request_waiver_url', 'tracking_id'])
+        ->and($waiver->toArray())->not->toHaveKeys(['waiver_data', 'tracking_id', 'request_waiver_url'])
+        ->and(json_decode($waiver->toJson(), true))->not->toHaveKeys(['waiver_data', 'tracking_id', 'request_waiver_url']);
+});
+
+test('the sign-link token stays readable through getAttribute() and signUrl()', function () {
+    config(['app.url' => 'https://sesf.example']);
+    $waiver = Waiver::factory()->create([
+        'tracking_id' => str_repeat('c', 32),
+        'request_waiver_url' => 'https://sesf.example/waiver_sign/t/'.str_repeat('c', 32),
+    ])->refresh();
+
+    expect($waiver->getAttribute('tracking_id'))->toBe(str_repeat('c', 32))
+        ->and($waiver->getAttribute('request_waiver_url'))->toBe('https://sesf.example/waiver_sign/t/'.str_repeat('c', 32))
+        ->and($waiver->signUrl())->toBe('https://sesf.example/waiver_sign/t/'.str_repeat('c', 32));
+});
+
+test('mass assignment ignores guarded signing columns', function () {
+    $waiver = new Waiver;
+    $waiver->fill([
+        'id' => 999,
+        'tracking_id' => 'forged',
+        'waiver_id' => 'forged',
+        'has_signed' => true,
+        'signed_at' => now(),
+        'waiver_data' => ['signature' => 'forged'],
+        'has_pdf' => true,
+        'show_registration_id' => 7,
+    ]);
+
+    expect($waiver->getKey())->toBeNull()
+        ->and($waiver->getAttributes())->not->toHaveKeys(['tracking_id', 'waiver_id', 'has_signed', 'signed_at', 'waiver_data', 'has_pdf'])
+        ->and($waiver->show_registration_id)->toBe(7);
 });

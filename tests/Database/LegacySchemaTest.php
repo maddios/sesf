@@ -69,9 +69,12 @@ test('the safety guard refuses any database other than sesf_test', function () {
         ->toThrow(RuntimeException::class);
 });
 
-test('the safety guard refuses a missing host', function () {
+test('the safety guard refuses a missing host and any host outside the allow-list', function () {
     expect(fn () => LegacyTestDatabase::assertSafe(['host' => '', 'database' => 'sesf_test']))
-        ->toThrow(RuntimeException::class, 'no host configured');
+        ->toThrow(RuntimeException::class, 'Allowed hosts');
+
+    expect(fn () => LegacyTestDatabase::assertSafe(['host' => 'mysql', 'database' => 'sesf_test']))
+        ->toThrow(RuntimeException::class, 'Allowed hosts');
 });
 
 test('each test runs inside a transaction on the test connection', function () {

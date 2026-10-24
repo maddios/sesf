@@ -6,13 +6,13 @@ use App\Models\ShowSponsor;
 use App\Models\Sponsor;
 use Illuminate\Support\Facades\DB;
 
-test('uses the sponsor table with timestamps and guards only id', function () {
+test('uses the sponsor table with timestamps and guards its privilege and money columns', function () {
     $sponsor = new Sponsor;
 
     expect($sponsor->getTable())->toBe('sponsor')
         ->and($sponsor->getKeyName())->toBe('id')
         ->and($sponsor->usesTimestamps())->toBeTrue()
-        ->and($sponsor->getGuarded())->toBe(['id']);
+        ->and($sponsor->getGuarded())->toBe(['id', 'is_enabled']);
 });
 
 test('is_enabled is boolean and internal_notes is hidden from JSON', function () {
@@ -82,4 +82,12 @@ test('disabled sponsors are stored as not enabled', function () {
 
     expect($sponsor->is_enabled)->toBeFalse()
         ->and(DB::table('sponsor')->where('id', $sponsor->id)->value('is_enabled'))->toBe(0);
+});
+
+test('mass assignment ignores the guarded enabled flag', function () {
+    $sponsor = new Sponsor;
+    $sponsor->fill(['is_enabled' => true, 'name' => 'Acme']);
+
+    expect($sponsor->getAttributes())->not->toHaveKey('is_enabled')
+        ->and($sponsor->name)->toBe('Acme');
 });

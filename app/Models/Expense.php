@@ -32,7 +32,7 @@ class Expense extends Model
 
     public $timestamps = true;
 
-    protected $guarded = ['id'];
+    protected $guarded = ['id', 'amount'];
 
     /**
      * @return array<string, string>
@@ -40,7 +40,7 @@ class Expense extends Model
     protected function casts(): array
     {
         return [
-            'amount' => Money2::class,
+            'amount' => Money2::class.':999999.99',
         ];
     }
 

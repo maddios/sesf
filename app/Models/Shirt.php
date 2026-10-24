@@ -40,7 +40,7 @@ class Shirt extends Model
 
     public $timestamps = true;
 
-    protected $guarded = ['id'];
+    protected $guarded = ['id', 'price', 'is_handed_out'];
 
     /**
      * @return array<string, string>
@@ -52,7 +52,7 @@ class Shirt extends Model
             'registration_id' => 'integer',
             'type_id' => 'integer',
             'show_id' => 'integer',
-            'price' => Money2::class,
+            'price' => Money2::class.':9999.99',
             'is_handed_out' => 'boolean',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',

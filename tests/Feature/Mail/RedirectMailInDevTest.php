@@ -1,9 +1,12 @@
 <?php
 
 use App\Listeners\RedirectMailInDev;
+use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Mail\Transport\ArrayTransport;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Mockery\MockInterface;
 use Symfony\Component\Mime\Email;
 
 beforeEach(function () {
@@ -26,6 +29,17 @@ function deliveredMessages(): array
         ->map(fn ($sent) => $sent->getOriginalMessage())
         ->values()
         ->all();
+}
+
+/**
+ * Expects exactly one write to the mail-debug log channel and returns a spy on it.
+ */
+function expectMailDebugChannel(): MockInterface
+{
+    $channel = Mockery::spy();
+    Log::shouldReceive('channel')->with('mail-debug')->once()->andReturn($channel);
+
+    return $channel;
 }
 
 function sendToAllRecipients(): void
@@ -74,7 +88,7 @@ it('leaves recipients alone when email_debug is off', function () {
 
 it('cancels the send and logs it when email_debug is on and dev_address is empty', function () {
     config(['sesf.dev_address' => '']);
-    $log = Log::spy();
+    $log = expectMailDebugChannel();
 
     sendToAllRecipients();
 
@@ -94,7 +108,7 @@ it('cancels the send and logs it when email_debug is on and dev_address is empty
 
 it('logs the html body stripped of tags when there is no text part', function () {
     config(['sesf.dev_address' => '']);
-    $log = Log::spy();
+    $log = expectMailDebugChannel();
 
     Mail::html('<p>Hi <b>there</b></p>', function ($message) {
         $message->to('alice@example.com')->subject('HTML only');
@@ -107,7 +121,7 @@ it('logs the html body stripped of tags when there is no text part', function ()
 
 it('truncates the logged body to 20000 characters', function () {
     config(['sesf.dev_address' => '']);
-    $log = Log::spy();
+    $log = expectMailDebugChannel();
 
     Mail::raw(str_repeat('x', 25000), function ($message) {
         $message->to('alice@example.com')->subject('Long');
@@ -116,4 +130,36 @@ it('truncates the logged body to 20000 characters', function () {
     $log->shouldHaveReceived('info')->once()->with(Mockery::on(function (string $line) {
         return str_contains($line, str_repeat('x', 20000)) && ! str_contains($line, str_repeat('x', 20001));
     }));
+});
+
+it('lets later MessageSending listeners run after a redirect', function () {
+    $ran = false;
+    Event::listen(MessageSending::class, function () use (&$ran) {
+        $ran = true;
+    });
+
+    sendToAllRecipients();
+
+    expect($ran)->toBeTrue()
+        ->and(deliveredMessages())->toHaveCount(1);
+});
+
+it('lets later MessageSending listeners run when email_debug is off', function () {
+    config(['sesf.email_debug' => false]);
+    $ran = false;
+    Event::listen(MessageSending::class, function () use (&$ran) {
+        $ran = true;
+    });
+
+    sendToAllRecipients();
+
+    expect($ran)->toBeTrue();
+});
+
+it('does not log to the mail-debug channel when the dev address is set', function () {
+    Log::shouldReceive('channel')->never();
+
+    sendToAllRecipients();
+
+    expect(deliveredMessages())->toHaveCount(1);
 });

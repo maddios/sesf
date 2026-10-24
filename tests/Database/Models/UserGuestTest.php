@@ -7,13 +7,13 @@ use App\Models\User;
 use App\Models\UserGuest;
 use Illuminate\Support\Facades\DB;
 
-test('uses the user_guest table with timestamps and guards only id', function () {
+test('uses the user_guest table with timestamps and guards its privilege and money columns', function () {
     $guest = new UserGuest;
 
     expect($guest->getTable())->toBe('user_guest')
         ->and($guest->getKeyName())->toBe('id')
         ->and($guest->usesTimestamps())->toBeTrue()
-        ->and($guest->getGuarded())->toBe(['id']);
+        ->and($guest->getGuarded())->toBe(['id', 'has_signed', 'signature_image', 'waiver_id']);
 });
 
 test('type_id casts to UserGuestType and has_signed to boolean', function () {
@@ -79,4 +79,41 @@ test('the default factory state puts the guest on the show of its registration',
     $guest = UserGuest::factory()->create()->refresh();
 
     expect($guest->registration->show_id)->toBe($guest->show_id);
+});
+
+test('toArray() and toJson() omit the hidden signature image', function () {
+    $guest = UserGuest::factory()->signed()->create()->refresh();
+
+    expect($guest->getHidden())->toBe(['signature_image'])
+        ->and($guest->toArray())->not->toHaveKeys(['signature_image'])
+        ->and(json_decode($guest->toJson(), true))->not->toHaveKeys(['signature_image']);
+});
+
+test('mass assignment ignores guarded signing columns', function () {
+    $guest = new UserGuest;
+    $guest->fill([
+        'id' => 999,
+        'has_signed' => true,
+        'signature_image' => 'forged',
+        'waiver_id' => 5,
+        'first' => 'Ada',
+    ]);
+
+    expect($guest->getKey())->toBeNull()
+        ->and($guest->getAttributes())->not->toHaveKeys(['has_signed', 'signature_image', 'waiver_id'])
+        ->and($guest->first)->toBe('Ada');
+});
+
+test('the default guest belongs to the owner of its registration', function () {
+    $guest = UserGuest::factory()->create()->refresh();
+
+    expect($guest->user_id)->toBe($guest->registration->user_id);
+});
+
+test('an explicit registration_id also sets the guest user to that registration owner', function () {
+    $registration = ShowRegistration::factory()->create();
+
+    $guest = UserGuest::factory()->create(['registration_id' => $registration->id])->refresh();
+
+    expect($guest->user_id)->toBe($registration->user_id);
 });

@@ -45,7 +45,7 @@ class Answer extends Model
 
     public $timestamps = true;
 
-    protected $guarded = ['id'];
+    protected $guarded = ['id', 'user_id', 'deleted_at'];
 
     /**
      * @return array<string, string>

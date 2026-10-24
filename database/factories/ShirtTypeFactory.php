@@ -28,7 +28,9 @@ class ShirtTypeFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => fake()->unique()->words(3, true).' T-Shirt',
+            // shirt_type.name is varchar(30). A unique six-digit number keeps the name short
+            // (at most 18 characters) and unique for the life of the test process.
+            'name' => 'Tee '.fake()->unique()->numerify('######').' T-Shirt',
             'price' => 35.00,
         ];
     }

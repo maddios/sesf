@@ -38,13 +38,70 @@ function registrationRawRow(array $overrides = []): int
     ], $overrides));
 }
 
-test('uses the show_registration table, id key, timestamps and guards only id', function () {
+test('uses the show_registration table, id key, timestamps and guards id, invoice, money and state', function () {
     $registration = new ShowRegistration;
 
     expect($registration->getTable())->toBe('show_registration')
         ->and($registration->getKeyName())->toBe('id')
         ->and($registration->usesTimestamps())->toBeTrue()
-        ->and($registration->getGuarded())->toBe(['id']);
+        ->and($registration->getGuarded())->toBe([
+            'id', 'invoice_id', 'is_paid', 'amount_owed', 'amount_received', 'amount_received_actual',
+            'discount', 'is_cancelled', 'is_checked_in', 'date_checked_in',
+        ]);
+});
+
+test('mass assignment ignores the guarded invoice, money and state columns', function () {
+    $registration = new ShowRegistration([
+        'show_id' => 5,
+        'user_id' => 6,
+        'donation' => 3,
+        'invoice_id' => 99,
+        'is_paid' => true,
+        'amount_owed' => 10,
+        'amount_received' => 10,
+        'amount_received_actual' => 10,
+        'discount' => 5,
+        'is_cancelled' => true,
+        'is_checked_in' => true,
+        'date_checked_in' => '2026-01-01 00:00:00',
+    ]);
+
+    expect($registration->show_id)->toBe(5);
+    expect($registration->user_id)->toBe(6);
+    expect($registration->donation)->toBe(3);
+    expect(array_keys($registration->getAttributes()))->toEqualCanonicalizing(['show_id', 'user_id', 'donation']);
+});
+
+test('an unknown legacy payment_method_id reads as null and the raw value is kept on save', function () {
+    $id = registrationRawRow(['payment_method_id' => 9]);
+    $registration = ShowRegistration::query()->findOrFail($id);
+
+    expect($registration->payment_method_id)->toBeNull();
+    expect(json_decode($registration->toJson(), true)['payment_method_id'])->toBeNull();
+
+    $registration->discount_note = 'legacy';
+    $registration->save();
+
+    expect((int) DB::table('show_registration')->where('id', $id)->value('payment_method_id'))->toBe(9);
+    expect((int) $registration->getRawOriginal('payment_method_id'))->toBe(9);
+});
+
+test('payment_method_id accepts the enum, its int and numeric strings, and rejects unknown values', function () {
+    $registration = new ShowRegistration;
+
+    $registration->payment_method_id = PaymentMethod::Check;
+    expect($registration->getAttributes()['payment_method_id'])->toBe(2);
+    expect($registration->payment_method_id)->toBe(PaymentMethod::Check);
+
+    $registration->setAttribute('payment_method_id', 1);
+    expect($registration->payment_method_id)->toBe(PaymentMethod::PayPal);
+
+    $registration->setAttribute('payment_method_id', '2');
+    expect($registration->payment_method_id)->toBe(PaymentMethod::Check);
+
+    expect(fn () => $registration->setAttribute('payment_method_id', 9))->toThrow(InvalidArgumentException::class, 'Unknown payment method [9]');
+    expect(fn () => $registration->setAttribute('payment_method_id', null))->toThrow(InvalidArgumentException::class);
+    expect($registration->payment_method_id)->toBe(PaymentMethod::Check);
 });
 
 test('money columns use Money2 and round half up on decimal strings', function () {

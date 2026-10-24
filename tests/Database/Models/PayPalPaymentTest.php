@@ -2,14 +2,15 @@
 
 use App\Models\PayPalPayment;
 use App\Models\ShowRegistration;
+use Illuminate\Database\Eloquent\MassAssignmentException;
 use Illuminate\Support\Facades\DB;
 
-test('uses the paypal_payment table with timestamps and guards only id', function () {
+test('uses the paypal_payment table with timestamps and guards its privilege and money columns', function () {
     $payment = new PayPalPayment;
 
     expect($payment->getTable())->toBe('paypal_payment')
         ->and($payment->usesTimestamps())->toBeTrue()
-        ->and($payment->getGuarded())->toBe(['id']);
+        ->and($payment->getGuarded())->toBe(['*']);
 });
 
 test('money columns are Money2 strings with two decimals', function () {
@@ -80,4 +81,41 @@ test('scopes completed and forTxn', function () {
 
     expect(PayPalPayment::query()->completed()->pluck('id')->all())->toBe([$paid->id])
         ->and(PayPalPayment::query()->forTxn('TXN-PENDING')->count())->toBe(1);
+});
+
+test('toArray() and toJson() omit every hidden column', function () {
+    $payment = PayPalPayment::factory()->create()->refresh();
+
+    $expected = [
+        'payer_email', 'first_name', 'last_name', 'address_street', 'address_city', 'address_state',
+        'address_zip', 'address_country', 'username', 'PASSWORD', 'verify_sign', 'entirepost',
+        'receiver_email', 'custom',
+    ];
+
+    expect($payment->getHidden())->toEqualCanonicalizing($expected)
+        ->and($payment->toArray())->not->toHaveKeys($expected)
+        ->and(json_decode($payment->toJson(), true))->not->toHaveKeys($expected);
+});
+
+test('mass assignment is refused for every column because the whole model is guarded', function () {
+    $payment = new PayPalPayment;
+    $attributes = [
+        'payment_status' => 'Completed',
+        'paypal_verified' => 'VERIFIED',
+        'mc_gross' => '999.00',
+        'amount1' => '999.00',
+        'txn_id' => 'FORGED',
+        'registration_id' => 7,
+        'item_name' => 'forged',
+    ];
+
+    expect(fn () => $payment->fill($attributes))->toThrow(MassAssignmentException::class);
+    expect($payment->getAttributes())->toBe([]);
+});
+
+test('forceFill is the write path for IPN rows', function () {
+    $payment = (new PayPalPayment)->forceFill(['paypal_verified' => 'VERIFIED', 'mc_gross' => '12.30']);
+
+    expect($payment->paypal_verified)->toBe('VERIFIED')
+        ->and($payment->mc_gross)->toBe('12.30');
 });

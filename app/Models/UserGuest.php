@@ -42,7 +42,7 @@ class UserGuest extends Model
 
     public $timestamps = true;
 
-    protected $guarded = ['id'];
+    protected $guarded = ['id', 'has_signed', 'signature_image', 'waiver_id'];
 
     protected $hidden = ['signature_image'];
 

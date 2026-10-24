@@ -14,8 +14,10 @@ return [
     'waiver_health_notice_email' => env('SESF_WAIVER_HEALTH_NOTICE_EMAIL', ''),
 
     // When true, every outgoing mail is redirected to dev_address (see RedirectMailInDev).
+    // Fails safe: the default is on everywhere except production, so a missing variable in
+    // production never disables the guard in other environments it was meant for.
     // Parsed with FILTER_VALIDATE_BOOLEAN so the string "false" is false.
-    'email_debug' => filter_var(env('SESF_EMAIL_DEBUG', false), FILTER_VALIDATE_BOOLEAN),
+    'email_debug' => filter_var(env('SESF_EMAIL_DEBUG', env('APP_ENV') !== 'production'), FILTER_VALIDATE_BOOLEAN),
     'dev_address' => env('SESF_DEV_ADDRESS', ''),
 
     'email_logo_url' => env('SESF_EMAIL_LOGO_URL', ''),

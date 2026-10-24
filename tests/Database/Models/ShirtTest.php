@@ -8,13 +8,13 @@ use App\Models\User;
 use Database\Factories\ShirtTypeFactory;
 use Illuminate\Support\Facades\DB;
 
-test('uses the shirt table with timestamps and guards only id', function () {
+test('uses the shirt table with timestamps and guards its privilege and money columns', function () {
     $shirt = new Shirt;
 
     expect($shirt->getTable())->toBe('shirt')
         ->and($shirt->getKeyName())->toBe('id')
         ->and($shirt->usesTimestamps())->toBeTrue()
-        ->and($shirt->getGuarded())->toBe(['id']);
+        ->and($shirt->getGuarded())->toBe(['id', 'price', 'is_handed_out']);
 });
 
 test('price is a Money2 string and is_handed_out is boolean', function () {
@@ -89,4 +89,24 @@ test('no legacy accessor is appended to JSON', function () {
 
     expect($shirt->toArray())->not->toHaveKey('name')
         ->and(json_decode($shirt->toJson(), true))->not->toHaveKey('name');
+});
+
+test('price rejects amounts above the float(6,2) limit', function () {
+    expect(fn () => (new Shirt)->setAttribute('price', '10000.00'))->toThrow(InvalidArgumentException::class);
+    expect(fn () => (new Shirt)->setAttribute('price', '9999.99'))->not->toThrow(InvalidArgumentException::class);
+});
+
+test('mass assignment ignores guarded price and handed-out columns', function () {
+    $shirt = new Shirt;
+    $shirt->fill(['price' => '1.00', 'is_handed_out' => true, 'type_id' => 3]);
+
+    expect($shirt->getAttributes())->not->toHaveKeys(['price', 'is_handed_out'])
+        ->and($shirt->type_id)->toBe(3);
+});
+
+test('the factory price follows the catalogue price of its shirt type', function () {
+    $shirt = Shirt::factory()->create()->refresh();
+
+    expect($shirt->price)->toBe(ShirtType::query()->findOrFail(ShirtTypeFactory::MENS_M_TSHIRT)->price)
+        ->and($shirt->price)->toBe('35.00');
 });

@@ -42,7 +42,7 @@ class GalleryItem extends Model
 
     public $timestamps = true;
 
-    protected $guarded = ['id'];
+    protected $guarded = ['id', 'user_id'];
 
     protected $appends = ['imageURL'];
 

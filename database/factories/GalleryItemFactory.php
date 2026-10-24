@@ -8,8 +8,11 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * Creates gallery items with a valid owner. Lookup rows come from tests/Fixtures/lookup-data.sql. Gallery membership is attached by the caller
- * through gallery_item_xref, which needs its own user_id.
+ * Creates gallery items with a valid owner. Lookup rows come from tests/Fixtures/lookup-data.sql.
+ * Gallery membership is attached by the caller through gallery_item_xref, which needs its own user_id.
+ *
+ * Only the Image type has a lookup row (gallery_item_type id 1), so only Image can be persisted.
+ * video() and the other non-Image types are for make() only: their foreign key fails on create().
  *
  * @extends Factory<GalleryItem>
  */

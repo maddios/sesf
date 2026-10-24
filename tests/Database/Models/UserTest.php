@@ -17,7 +17,7 @@ test('maps to the legacy user table with timestamps and guarded id', function ()
     expect($user->getTable())->toBe('user')
         ->and($user->getKeyName())->toBe('id')
         ->and($user->usesTimestamps())->toBeTrue()
-        ->and($user->getGuarded())->toBe(['id'])
+        ->and($user->getGuarded())->toBe(['id', 'is_admin', 'type_id', 'password', 'remember_token', 'deleted_at', 'date_registered'])
         ->and($user->getFillable())->toBe([]);
 });
 
@@ -83,7 +83,8 @@ test('the withoutPreferences state leaves the user without a preferences row', f
 });
 
 test('date_registered defaults to now and location_id defaults to 0 on create', function () {
-    $user = new User([
+    $user = new User;
+    $user->forceFill([
         'first' => 'Ann',
         'last' => 'Lee',
         'email' => 'ann.lee@example.test',
@@ -231,7 +232,7 @@ test('profileURL, fullName, firstNameLastInitial use the legacy formats', functi
 test('accessor keys appear in toArray and toJson', function () {
     $user = User::factory()->create();
 
-    $keys = ['cityState', 'fullAddress', 'profileURL', 'firstNameLastInitial', 'fullName', 'imageURL', 'imagePath'];
+    $keys = ['cityState', 'fullAddress', 'profileURL', 'firstNameLastInitial', 'fullName', 'imageURL'];
 
     $array = $user->toArray();
     $json = json_decode($user->toJson(), true);
@@ -321,4 +322,39 @@ test('the legacy column spellings are used for coordinates', function () {
 
     expect($fresh->lattitude)->toBe(28.5)
         ->and($fresh->longitude)->toBe(-81.3);
+});
+
+test('toArray() and toJson() omit every hidden column', function () {
+    $user = User::factory()->create()->refresh();
+
+    expect($user->getHidden())->toBe(['password', 'remember_token'])
+        ->and($user->toArray())->not->toHaveKeys($user->getHidden())
+        ->and(json_decode($user->toJson(), true))->not->toHaveKeys($user->getHidden());
+});
+
+test('imagePath is not appended, but the accessor still works for internal use', function () {
+    $user = User::factory()->create()->refresh();
+
+    expect($user->getAppends())->not->toContain('imagePath')
+        ->and($user->toArray())->not->toHaveKey('imagePath')
+        ->and(json_decode($user->toJson(), true))->not->toHaveKey('imagePath')
+        ->and($user->imagePath)->toBe(config('sesf.member_image_root').$user->id.'/');
+});
+
+test('mass assignment ignores guarded privilege, credential and state columns', function () {
+    $user = new User;
+    $user->fill([
+        'id' => 999,
+        'is_admin' => true,
+        'type_id' => UserType::Administrator,
+        'password' => 'plain-text',
+        'remember_token' => 'token',
+        'deleted_at' => now(),
+        'date_registered' => '2001-01-01 00:00:00',
+        'first' => 'Ann',
+    ]);
+
+    expect($user->getKey())->toBeNull()
+        ->and($user->getAttributes())->not->toHaveKeys(['is_admin', 'type_id', 'password', 'remember_token', 'deleted_at', 'date_registered'])
+        ->and($user->first)->toBe('Ann');
 });

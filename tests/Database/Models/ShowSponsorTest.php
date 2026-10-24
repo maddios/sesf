@@ -5,13 +5,13 @@ use App\Models\CarShow;
 use App\Models\ShowSponsor;
 use App\Models\Sponsor;
 
-test('uses the show_sponsor table with timestamps and guards only id', function () {
+test('uses the show_sponsor table with timestamps and guards its privilege and money columns', function () {
     $pivot = new ShowSponsor;
 
     expect($pivot->getTable())->toBe('show_sponsor')
         ->and($pivot->getKeyName())->toBe('id')
         ->and($pivot->usesTimestamps())->toBeTrue()
-        ->and($pivot->getGuarded())->toBe(['id']);
+        ->and($pivot->getGuarded())->toBe(['id', 'is_primary']);
 });
 
 test('casts type_id to SponsorType and is_primary to boolean', function () {
@@ -48,4 +48,12 @@ test('sponsor and show relations resolve in both directions', function () {
     expect($pivot->sponsor->id)->toBe($sponsor->id)
         ->and($pivot->show->id)->toBe($show->id)
         ->and($show->sponsors->pluck('id')->all())->toBe([$sponsor->id]);
+});
+
+test('mass assignment ignores the guarded primary flag', function () {
+    $pivot = new ShowSponsor;
+    $pivot->fill(['is_primary' => true, 'sort_order' => 3]);
+
+    expect($pivot->getAttributes())->not->toHaveKey('is_primary')
+        ->and($pivot->sort_order)->toBe(3);
 });

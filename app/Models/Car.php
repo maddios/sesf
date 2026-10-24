@@ -47,7 +47,7 @@ class Car extends Model
 
     public $timestamps = true;
 
-    protected $guarded = ['id'];
+    protected $guarded = ['id', 'user_id', 'is_confirmed'];
 
     protected $appends = ['imageURL', 'profileURL', 'name', 'fullName', 'editableModel'];
 

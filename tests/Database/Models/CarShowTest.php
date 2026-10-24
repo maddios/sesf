@@ -63,13 +63,13 @@ function carShowInsertRegistration(int $showId, string $tag): int
     return $userId;
 }
 
-test('uses the car_show table, id key, timestamps and guards only id', function () {
+test('uses the car_show table, id key, timestamps and guards its privilege and money columns', function () {
     $show = new CarShow;
 
     expect($show->getTable())->toBe('car_show')
         ->and($show->getKeyName())->toBe('id')
         ->and($show->usesTimestamps())->toBeTrue()
-        ->and($show->getGuarded())->toBe(['id'])
+        ->and($show->getGuarded())->toBe(['id', 'price_car', 'price_adult', 'price_child', 'is_active', 'is_judging_released'])
         ->and($show->getFillable())->toBe([]);
 });
 
@@ -94,7 +94,7 @@ test('uses the legacy date and flag casts and the money cast', function () {
         ->and($show->shirt_stock_json)->toBe(['3' => 10, '5' => 0]);
 
     expect($show->getCasts())->toMatchArray([
-        'price_car' => Money2::class,
+        'price_car' => Money2::class.':9999.99',
         'date_start' => 'date',
         'date_active' => 'datetime',
         'is_schedule_pdf' => 'boolean',
@@ -331,4 +331,23 @@ test('factory states set the documented fields', function () {
         ->and(CarShow::factory()->withSchedulePdf()->create()->is_schedule_pdf)->toBeTrue()
         ->and(CarShow::factory()->judgingReleased()->create()->is_judging_released)->toBeTrue()
         ->and(CarShow::factory()->active()->create()->is_active)->toBeTrue();
+});
+
+test('the three prices reject amounts above the float(6,2) limit', function (string $column) {
+    expect(fn () => (new CarShow)->setAttribute($column, '10000.00'))->toThrow(InvalidArgumentException::class);
+})->with(['price_car', 'price_adult', 'price_child']);
+
+test('mass assignment ignores guarded prices and state flags', function () {
+    $show = new CarShow;
+    $show->fill([
+        'price_car' => '1.00',
+        'price_adult' => '1.00',
+        'price_child' => '1.00',
+        'is_active' => true,
+        'is_judging_released' => true,
+        'short_name' => 'FORGE',
+    ]);
+
+    expect($show->getAttributes())->not->toHaveKeys(['price_car', 'price_adult', 'price_child', 'is_active', 'is_judging_released'])
+        ->and($show->short_name)->toBe('FORGE');
 });

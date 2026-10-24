@@ -21,7 +21,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * Sensitive columns are in $hidden, so toArray() and toJson() never include them. They are:
  * payer and buyer identity (payer_email, first_name, last_name, username), the postal address,
- * verify_sign, the legacy PASSWORD column and entirepost (the full raw post body).
+ * verify_sign, the legacy PASSWORD column, entirepost (the full raw post body), and the seller side
+ * receiver_email and custom (the custom field can carry internal references).
+ *
+ * Mass assignment: $guarded is ['*'], so nothing can be filled. Rows are written by the IPN
+ * handler with forceFill() or an explicit query, after it has verified the post.
  *
  * registration_id was never set by the legacy code, so it is usually null. The relation is still
  * defined for the rows that have it.
@@ -84,9 +88,11 @@ class PayPalPayment extends Model
 
     public $timestamps = true;
 
-    protected $guarded = ['id'];
+    protected $guarded = ['*'];
 
     protected $hidden = [
+        'receiver_email',
+        'custom',
         'payer_email',
         'first_name',
         'last_name',

@@ -25,7 +25,7 @@ jobs:
     # sql_mode is set per connection (config/database.php testing_mariadb) instead of by flags.
     services:
       mariadb:
-        image: mariadb:10.11
+        image: mariadb:10.11.19
         env:
           MARIADB_ROOT_PASSWORD: test
           MARIADB_DATABASE: sesf_test

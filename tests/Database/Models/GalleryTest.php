@@ -6,13 +6,13 @@ use App\Models\GalleryItem;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
-test('uses the gallery table with timestamps and guards only id', function (): void {
+test('uses the gallery table with timestamps and guards its privilege and money columns', function (): void {
     $gallery = new Gallery;
 
     expect($gallery->getTable())->toBe('gallery')
         ->and($gallery->getKeyName())->toBe('id')
         ->and($gallery->usesTimestamps())->toBeTrue()
-        ->and($gallery->getGuarded())->toBe(['id']);
+        ->and($gallery->getGuarded())->toBe(['id', 'user_id', 'is_enabled']);
 });
 
 test('is_enabled reads as a boolean', function (): void {
@@ -186,4 +186,12 @@ test('factory states create rows whose foreign keys resolve', function (): void 
         expect($gallery->show)->not->toBeNull()
             ->and($gallery->user)->not->toBeNull();
     }
+});
+
+test('mass assignment ignores the guarded owner and enabled columns', function () {
+    $gallery = new Gallery;
+    $gallery->fill(['user_id' => 3, 'is_enabled' => true, 'title' => 'Cars']);
+
+    expect($gallery->getAttributes())->not->toHaveKeys(['user_id', 'is_enabled'])
+        ->and($gallery->title)->toBe('Cars');
 });

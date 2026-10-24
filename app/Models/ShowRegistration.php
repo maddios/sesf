@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\UniqueConstraintViolationException;
+use InvalidArgumentException;
 
 /**
  * A member's registration for one car show (legacy table show_registration).
@@ -23,7 +25,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * Invoice numbers: a new registration without invoice_id gets one from
  * App\Services\Registration\InvoiceNumberAllocator (resolved from the container, so tests can
- * replace it). Legacy save() took max + 1 without a lock.
+ * replace it). Legacy save() took max + 1 without a lock. save() allocates and inserts in one
+ * transaction (a savepoint when the caller already has one open). If the insert still hits the
+ * (invoice_id, show_id) unique key, the savepoint is rolled back and the number is allocated again,
+ * up to INSERT_ATTEMPTS times. An explicit invoice_id is never replaced. See docs/concurrency.md.
+ *
+ * Mass assignment: the invoice number, money and state columns are guarded. Code that changes
+ * them assigns them explicitly (e.g. $registration->is_paid = true) after its own checks.
+ *
+ * payment_method_id: legacy rows may hold values that are not PaymentMethod cases (the column has
+ * no FK). Reading such a value returns null instead of throwing, and the stored value is kept
+ * unless something assigns a new one (read it with getRawOriginal('payment_method_id')).
+ * Assigning an unknown value throws InvalidArgumentException.
  *
  * Fixed defects: legacy showName and shortDate read attributes that this table does not have
  * (name, date_start). They now read the show through carShow(). profileURL uses the show's name.
@@ -40,7 +53,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $amount_received_actual
  * @property int $donation
  * @property bool $is_paid
- * @property PaymentMethod $payment_method_id
+ * @property PaymentMethod|null $payment_method_id
  * @property bool $is_cancelled
  * @property bool $is_checked_in
  * @property CarbonInterface|null $date_checked_in
@@ -65,7 +78,24 @@ class ShowRegistration extends Model
 
     public $timestamps = true;
 
-    protected $guarded = ['id'];
+    /** Attempts for one insert when the invoice unique key fails (see save()). */
+    public const INSERT_ATTEMPTS = 3;
+
+    protected $guarded = [
+        'id',
+        'invoice_id',
+        'is_paid',
+        'amount_owed',
+        'amount_received',
+        'amount_received_actual',
+        'discount',
+        'is_cancelled',
+        'is_checked_in',
+        'date_checked_in',
+    ];
+
+    /** True while invoice_id holds a number allocated by the creating hook (not one set by the caller). */
+    private bool $invoiceAllocated = false;
 
     protected $appends = ['profileURL', 'shortDate', 'showName'];
 
@@ -83,7 +113,6 @@ class ShowRegistration extends Model
             'amount_received_actual' => Money2::class,
             'donation' => 'integer',
             'is_paid' => 'boolean',
-            'payment_method_id' => PaymentMethod::class,
             'is_cancelled' => 'boolean',
             'is_checked_in' => 'boolean',
             'date_checked_in' => 'datetime',
@@ -103,17 +132,89 @@ class ShowRegistration extends Model
             if (empty($registration->invoice_id)) {
                 $registration->invoice_id = app(InvoiceNumberAllocator::class)
                     ->allocate((int) $registration->show_id);
+                $registration->invoiceAllocated = true;
             }
         });
     }
 
     /**
-     * The invoice number is allocated and the row is inserted in one transaction, so the
-     * car_show lock taken by the allocator is held until the insert commits.
+     * The invoice number is allocated and the row is inserted in one transaction, so the locks
+     * taken by the allocator are held until the insert commits. Each attempt is its own
+     * transaction level: inside a caller's transaction it is a savepoint, so a failed insert is
+     * rolled back without touching the caller's earlier work.
+     *
+     * Only a violation of the (invoice_id, show_id) key on an allocated number is retried. Any
+     * other error, or the last failed attempt, is rethrown.
+     *
+     * @throws UniqueConstraintViolationException
      */
     public function save(array $options = []): bool
     {
-        return $this->getConnection()->transaction(fn (): bool => parent::save($options));
+        $connection = $this->getConnection();
+
+        for ($attempt = 1; ; $attempt++) {
+            try {
+                return $connection->transaction(fn (): bool => parent::save($options));
+            } catch (UniqueConstraintViolationException $e) {
+                $retry = $this->invoiceAllocated
+                    && ! $this->exists
+                    && $attempt < self::INSERT_ATTEMPTS
+                    && self::isInvoiceKeyViolation($e);
+
+                if (! $retry) {
+                    throw $e;
+                }
+
+                // Let the creating hook allocate again (with fresh locking reads).
+                $this->setAttribute('invoice_id', null);
+                $this->invoiceAllocated = false;
+            } finally {
+                if ($this->exists) {
+                    $this->invoiceAllocated = false;
+                }
+            }
+        }
+    }
+
+    /**
+     * MariaDB reports "for key 'invoice_id'", MySQL 8 "for key 'show_registration.invoice_id'".
+     */
+    private static function isInvoiceKeyViolation(UniqueConstraintViolationException $e): bool
+    {
+        return preg_match("/for key '(?:[^']*\\.)?invoice_id'/", $e->getMessage()) === 1;
+    }
+
+    /**
+     * Tolerant read: an unknown legacy value reads as null instead of throwing ValueError.
+     */
+    public function getPaymentMethodIdAttribute(mixed $value): ?PaymentMethod
+    {
+        if ($value instanceof PaymentMethod) {
+            return $value;
+        }
+
+        return is_int($value) || is_string($value) ? PaymentMethod::tryFromLegacy($value) : null;
+    }
+
+    /**
+     * Stores the enum's int value. Accepts a PaymentMethod or its int / numeric-string value.
+     *
+     * @throws InvalidArgumentException for null or a value that is not a PaymentMethod case.
+     */
+    public function setPaymentMethodIdAttribute(mixed $value): void
+    {
+        $method = $value instanceof PaymentMethod
+            ? $value
+            : (is_int($value) || is_string($value) ? PaymentMethod::tryFromLegacy($value) : null);
+
+        if ($method === null) {
+            throw new InvalidArgumentException(sprintf(
+                'Unknown payment method [%s].',
+                is_scalar($value) ? (string) $value : get_debug_type($value),
+            ));
+        }
+
+        $this->attributes['payment_method_id'] = $method->value;
     }
 
     /**

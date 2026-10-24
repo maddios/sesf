@@ -35,7 +35,7 @@ class ShowSponsor extends Model
 
     public $timestamps = true;
 
-    protected $guarded = ['id'];
+    protected $guarded = ['id', 'is_primary'];
 
     /**
      * @return array<string, string>

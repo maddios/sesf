@@ -8,12 +8,12 @@ use Carbon\CarbonInterface;
 use Database\Factories\ShirtTypeFactory;
 use Illuminate\Database\QueryException;
 
-test('uses the shirt_adhoc_sale table with timestamps and guards only id', function () {
+test('uses the shirt_adhoc_sale table with timestamps and guards its privilege and money columns', function () {
     $sale = new ShirtAdhocSale;
 
     expect($sale->getTable())->toBe('shirt_adhoc_sale')
         ->and($sale->usesTimestamps())->toBeTrue()
-        ->and($sale->getGuarded())->toBe(['id']);
+        ->and($sale->getGuarded())->toBe(['id', 'created_by_user_id']);
 });
 
 test('show_id and created_by_user_id are integers and created_at is a datetime', function () {
@@ -64,4 +64,12 @@ test('shirt type id is smallint-safe for items', function () {
     $item = ShirtAdhocSaleItem::factory()->create(['type_id' => ShirtTypeFactory::MENS_S_POLO]);
 
     expect($item->refresh()->type_id)->toBe(ShirtTypeFactory::MENS_S_POLO);
+});
+
+test('mass assignment ignores the guarded creator column', function () {
+    $sale = new ShirtAdhocSale;
+    $sale->fill(['created_by_user_id' => 5, 'show_id' => 9]);
+
+    expect($sale->getAttributes())->not->toHaveKey('created_by_user_id')
+        ->and($sale->show_id)->toBe(9);
 });

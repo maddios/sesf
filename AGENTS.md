@@ -22,7 +22,7 @@ A guard refuses any database name other than `sesf_test`.
 - Artisan: `docker compose run --rm app php artisan <cmd>`
 - Composer: `docker compose run --rm app composer <cmd>`
 - npm: `docker compose run --rm node npm <cmd>`
-- Backend tests: `scripts/test.sh` (starts `testdb`, runs Pest in the app container, removes `testdb` afterwards; `KEEP_TESTDB=1` keeps it; extra args go to pest, e.g. `scripts/test.sh --filter Foo`)
+- Backend tests: `scripts/test.sh` (starts `testdb`, runs Pest in the `test` service, removes `testdb` afterwards; `KEEP_TESTDB=1` keeps it; extra args go to pest, e.g. `scripts/test.sh --filter Foo`)
 - Frontend tests: `docker compose run --rm node npm run test`
 - Lint/analysis: `composer lint`, `composer analyse` (Pint, Larastan), `npm run lint`, `npm run typecheck` (ESLint, vue-tsc)
 - Containers run as uid 1000. Stop everything with `docker compose down`.

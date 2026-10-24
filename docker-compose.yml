@@ -81,13 +81,32 @@ services:
     # is PID 1 and vite is its child; SIGTERM is forwarded to vite, so laravel-vite-plugin removes public/hot.
     command: sh -c "cmp -s package-lock.json node_modules/.package-lock.json || npm ci --no-audit --no-fund; exec ./node_modules/.bin/vite"
 
+  # Test runner (profile "test"). Same image and uid as app, but only the repo bind mount:
+  # no dev-store mounts, so tests run without scripts/dev-setup.sh. scripts/test.sh runs pest here.
+  test:
+    image: sesf-php:dev
+    build:
+      context: docker/php
+    profiles: ["test"]
+    working_dir: /app
+    user: "1000:1000"
+    environment:
+      COMPOSER_HOME: /tmp/composer
+      DB_TEST_HOST: testdb
+    volumes:
+      - .:/app
+    depends_on:
+      testdb:
+        condition: service_healthy
+
   # Ephemeral MariaDB for automated tests only (never the shared sesf_dev DB).
   # Schema is loaded by tests/Support/LoadsLegacySchema.php. Data lives on tmpfs,
   # and no host port is published, so only containers on this project network reach it.
-  # Pinned to the 10.11 LTS line (10.11.19 is the first release fixing the 10.11
-  # advisories; see docs/ci.md). Use scripts/test.sh rather than running this by hand.
+  # Pinned to 10.11.19, the newest exact 10.11 tag on Docker Hub and the first 10.11 release
+  # listed as fixing the current advisories (see docs/ci.md). Use scripts/test.sh rather than
+  # running this by hand.
   testdb:
-    image: mariadb:10.11
+    image: mariadb:10.11.19
     profiles: ["test"]
     environment:
       MARIADB_ROOT_PASSWORD: test

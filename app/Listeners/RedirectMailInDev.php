@@ -14,7 +14,11 @@ use Symfony\Component\Mime\Email;
  * - email_debug on, dev_address set: every recipient (To, Cc, Bcc) is replaced with dev_address,
  *   and the original To list is kept in X-SESF-Debug-Original-To.
  * - email_debug on, dev_address empty: the send is cancelled (returning false stops Laravel from
- *   sending) and the message is written to the log instead, so no real recipient gets mail.
+ *   sending) and the message is written to the `mail-debug` log channel instead, so no real
+ *   recipient gets mail.
+ *
+ * Laravel dispatches MessageSending with until(): the first non-null return value halts the
+ * other listeners. So "allow" returns null, not true, and later listeners still run.
  *
  * Laravel auto-discovers this listener from its type-hinted handle() method.
  */
@@ -24,10 +28,10 @@ class RedirectMailInDev
 
     private const LOG_BODY_LIMIT = 20000;
 
-    public function handle(MessageSending $event): bool
+    public function handle(MessageSending $event): ?bool
     {
         if (! config('sesf.email_debug')) {
-            return true;
+            return null;
         }
 
         $message = $event->message;
@@ -49,7 +53,7 @@ class RedirectMailInDev
         $message->to($devAddress);
         $headers->addTextHeader(self::ORIGINAL_TO_HEADER, $originalTo);
 
-        return true;
+        return null;
     }
 
     private function logCancelled(Email $message): void
@@ -57,7 +61,7 @@ class RedirectMailInDev
         $body = $message->getTextBody()
             ?? trim(strip_tags((string) $message->getHtmlBody()));
 
-        Log::info(
+        Log::channel('mail-debug')->info(
             '[mail not sent: email_debug on, no dev address] '.json_encode([
                 'from' => $this->format($message->getFrom()),
                 'to' => $this->format($message->getTo()),

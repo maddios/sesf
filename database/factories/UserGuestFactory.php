@@ -10,8 +10,10 @@ use App\Models\UserGuest;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * The guest's show_id is the registration's show, so the default creates the registration for
- * the show the guest was given. Use forRegistration() to attach to an existing registration.
+ * The default creates a registration for the guest's show, and the guest's user_id is that
+ * registration's owner. When the caller passes an existing registration_id, user_id follows the
+ * registration's owner too, so the guest and its registration never disagree. Use forRegistration()
+ * to attach to an existing registration.
  *
  * @extends Factory<UserGuest>
  */
@@ -25,7 +27,9 @@ class UserGuestFactory extends Factory
     public function definition(): array
     {
         return [
-            'user_id' => User::factory(),
+            'user_id' => fn (array $attributes): int => is_int($attributes['registration_id'] ?? null)
+                ? (int) ShowRegistration::query()->findOrFail($attributes['registration_id'])->user_id
+                : (int) User::factory()->create()->getKey(),
             'first' => fake()->firstName(),
             'last' => fake()->lastName(),
             'email' => fake()->unique()->safeEmail(),
@@ -35,7 +39,10 @@ class UserGuestFactory extends Factory
             'has_signed' => false,
             'signature_image' => null,
             'registration_id' => fn (array $attributes): int => ShowRegistration::factory()
-                ->create(['show_id' => $attributes['show_id']])
+                ->create([
+                    'show_id' => $attributes['show_id'],
+                    'user_id' => $attributes['user_id'],
+                ])
                 ->getKey(),
         ];
     }
@@ -45,6 +52,7 @@ class UserGuestFactory extends Factory
         return $this->state(fn (): array => [
             'registration_id' => $registration->id,
             'show_id' => $registration->show_id,
+            'user_id' => $registration->user_id,
         ]);
     }
 

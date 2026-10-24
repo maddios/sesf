@@ -17,6 +17,12 @@ final class LegacyTestDatabase
 
     public const CONNECTION = 'testing_mariadb';
 
+    /** Hosts allowed everywhere: the compose "testdb" service. */
+    public const COMPOSE_HOST = 'testdb';
+
+    /** Extra hosts allowed only when CI=true (the GitHub Actions services container). */
+    public const CI_HOSTS = ['127.0.0.1', 'localhost'];
+
     /** Structure-only dump of the live schema, relative to the project root. */
     public const SCHEMA_FILE = 'docs/legacy/schema-sesf_dev.sql';
 
@@ -102,12 +108,16 @@ final class LegacyTestDatabase
     }
 
     /**
-     * Inserts the reference rows in the lookup fixture. The fixture is committed outside the
-     * per-test transaction, so it is applied at most once per database: if the probe table
-     * already has rows, the fixture is skipped. Foreign key checks are restored even when a
-     * statement fails.
+     * Makes the lookup tables match the fixture. The fixture is committed outside the per-test
+     * transaction, so it is applied once per database. The fixture is complete when the probe
+     * table has rows and the LAST table in the fixture has its expected row count (the fixture
+     * is written in table order, so the last table is the one that proves the whole load ran).
      *
-     * @throws RuntimeException when the file is unreadable or a statement fails; the message names the file.
+     * Otherwise the fixture tables are truncated (FOREIGN_KEY_CHECKS=0) and reloaded, so a load
+     * that died halfway cannot leave a partial set behind. After loading, the last table is
+     * checked again. Foreign key checks are restored even when a statement fails.
+     *
+     * @throws RuntimeException when the file is unreadable, a statement fails, or the load is incomplete.
      */
     public static function loadLookupFixture(ConnectionInterface $connection, string $fixturePath): void
     {
@@ -118,14 +128,26 @@ final class LegacyTestDatabase
             throw new RuntimeException("Cannot read lookup fixture [{$name}] at [{$fixturePath}].");
         }
 
-        $loaded = (int) $connection->selectOne(
-            'select count(*) as n from `'.self::LOOKUP_PROBE_TABLE.'`'
-        )->n;
-        if ($loaded > 0) {
+        $expected = self::fixtureRowCounts($sql);
+        if ($expected['order'] === []) {
+            throw new RuntimeException("Lookup fixture [{$name}] has no INSERT statements.");
+        }
+
+        $last = $expected['order'][count($expected['order']) - 1];
+        $lastExpected = $expected['rows'][$last];
+
+        if (self::countRows($connection, self::LOOKUP_PROBE_TABLE) > 0
+            && self::countRows($connection, $last) === $lastExpected) {
             return;
         }
 
         try {
+            $connection->unprepared('SET FOREIGN_KEY_CHECKS=0');
+
+            foreach ($expected['order'] as $table) {
+                $connection->unprepared('TRUNCATE TABLE `'.$table.'`');
+            }
+
             foreach (self::statements($sql) as $statement) {
                 try {
                     $connection->unprepared($statement);
@@ -137,9 +159,102 @@ final class LegacyTestDatabase
                     );
                 }
             }
+
+            $actual = self::countRows($connection, $last);
+            if ($actual !== $lastExpected) {
+                throw new RuntimeException(sprintf(
+                    'Lookup fixture [%s] is incomplete: last table [%s] has %d rows, expected %d.',
+                    $name,
+                    $last,
+                    $actual,
+                    $lastExpected,
+                ));
+            }
         } finally {
             $connection->unprepared('SET FOREIGN_KEY_CHECKS=1');
         }
+    }
+
+    /**
+     * Rows each table receives from the INSERT statements in $sql, in order of first appearance.
+     * Counts VALUES tuples with a small scanner that skips quoted strings (including escaped
+     * quotes), so "),(" inside a value does not count as a row boundary.
+     *
+     * @return array{order: list<string>, rows: array<string, int>}
+     */
+    public static function fixtureRowCounts(string $sql): array
+    {
+        $order = [];
+        $rows = [];
+
+        foreach (self::statements($sql) as $statement) {
+            if (! preg_match('/^INSERT\s+(?:IGNORE\s+)?INTO\s+`([^`]+)`/i', $statement, $matches)) {
+                continue;
+            }
+
+            $table = $matches[1];
+            if (! array_key_exists($table, $rows)) {
+                $order[] = $table;
+                $rows[$table] = 0;
+            }
+
+            $rows[$table] += self::countTuples($statement);
+        }
+
+        return ['order' => $order, 'rows' => $rows];
+    }
+
+    private static function countTuples(string $statement): int
+    {
+        // The keyword follows the column list. A bare search would match columns such as valueStep.
+        if (! preg_match('/\)\s*VALUES\b/i', $statement, $matches, PREG_OFFSET_CAPTURE)) {
+            return 0;
+        }
+
+        $count = 0;
+        $depth = 0;
+        $inString = false;
+        $length = strlen($statement);
+
+        for ($i = $matches[0][1] + strlen($matches[0][0]); $i < $length; $i++) {
+            $char = $statement[$i];
+
+            if ($inString) {
+                if ($char === '\\') {
+                    $i++;
+
+                    continue;
+                }
+                if ($char === "'") {
+                    if (($statement[$i + 1] ?? '') === "'") {
+                        $i++;
+
+                        continue;
+                    }
+                    $inString = false;
+                }
+
+                continue;
+            }
+
+            if ($char === "'") {
+                $inString = true;
+            } elseif ($char === '(') {
+                if ($depth === 0) {
+                    $count++;
+                }
+                $depth++;
+            } elseif ($char === ')') {
+                $depth--;
+            }
+        }
+
+        return $count;
+    }
+
+    private static function countRows(ConnectionInterface $connection, string $table): int
+    {
+        return (int) $connection->selectOne('select count(*) as n from `'.$table.'`')->n;
     }
 
     /**
@@ -208,11 +323,35 @@ final class LegacyTestDatabase
     }
 
     /**
-     * @param  array{host?: mixed, database?: mixed}  $connection  Laravel connection config (or a subset).
+     * Per-test check, run by LoadsLegacySchema at the start of every database test (not only
+     * once per process): the connection config must pass assertSafe(), and the live session
+     * must report the required database.
      *
-     * @throws RuntimeException when the database name is not sesf_test or the host is empty.
+     * @param  array<string, mixed>  $config  Laravel config of the testing_mariadb connection.
+     *
+     * @throws RuntimeException when the config or the live session points anywhere else.
      */
-    public static function assertSafe(array $connection): void
+    public static function assertConnected(ConnectionInterface $connection, array $config, ?bool $ci = null): void
+    {
+        self::assertSafe($config, $ci);
+
+        $actual = (string) $connection->selectOne('select database() as db')->db;
+        if ($actual !== self::REQUIRED_DATABASE) {
+            throw new RuntimeException(sprintf(
+                'Refusing to run database tests: session is connected to database [%s], expected [%s].',
+                $actual,
+                self::REQUIRED_DATABASE,
+            ));
+        }
+    }
+
+    /**
+     * @param  array{host?: mixed, database?: mixed}  $connection  Laravel connection config (or a subset).
+     * @param  bool|null  $ci  Whether CI=true applies; null reads the CI environment variable.
+     *
+     * @throws RuntimeException when the database name is not sesf_test, or the host is not allowed.
+     */
+    public static function assertSafe(array $connection, ?bool $ci = null): void
     {
         $database = $connection['database'] ?? null;
         $host = $connection['host'] ?? null;
@@ -228,10 +367,18 @@ final class LegacyTestDatabase
             ));
         }
 
-        if (! is_string($host) || $host === '') {
+        $allowed = [self::COMPOSE_HOST];
+        if ($ci ?? filter_var(getenv('CI') ?: false, FILTER_VALIDATE_BOOLEAN)) {
+            $allowed = array_merge($allowed, self::CI_HOSTS);
+        }
+
+        if (! is_string($host) || ! in_array($host, $allowed, true)) {
             throw new RuntimeException(sprintf(
-                'Refusing to run database tests: connection "%s" has no host configured (DB_TEST_HOST).',
+                'Refusing to run database tests: connection "%s" points at host [%s]. '
+                .'Allowed hosts: [%s] (localhost and 127.0.0.1 only when CI=true).',
                 self::CONNECTION,
+                is_scalar($host) ? (string) $host : gettype($host),
+                implode(', ', $allowed),
             ));
         }
     }

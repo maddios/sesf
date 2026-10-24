@@ -22,7 +22,9 @@ class UserPreferencesFactory extends Factory
     public function definition(): array
     {
         return [
-            'user_id' => User::factory(),
+            // UserObserver creates a preferences row for every new user, so the parent user must be
+            // created without one, or this row would violate the unique user_id key.
+            'user_id' => User::factory()->withoutPreferences(),
             'show_car_on_attendees_page' => true,
             'allow_future_show_notifications' => true,
             'allow_system_email' => true,

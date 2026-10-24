@@ -61,7 +61,7 @@ class CarShow extends Model
 
     public $timestamps = true;
 
-    protected $guarded = ['id'];
+    protected $guarded = ['id', 'price_car', 'price_adult', 'price_child', 'is_active', 'is_judging_released'];
 
     protected $appends = ['imageURL', 'profileURL', 'shortDescription', 'regOpen', 'ended'];
 
@@ -71,9 +71,9 @@ class CarShow extends Model
     protected function casts(): array
     {
         return [
-            'price_car' => Money2::class,
-            'price_adult' => Money2::class,
-            'price_child' => Money2::class,
+            'price_car' => Money2::class.':9999.99',
+            'price_adult' => Money2::class.':9999.99',
+            'price_child' => Money2::class.':9999.99',
             'date_start' => 'date',
             'date_end' => 'date',
             'date_active' => 'datetime',

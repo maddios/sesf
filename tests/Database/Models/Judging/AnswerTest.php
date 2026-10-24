@@ -9,13 +9,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
-test('uses the legacy judging table with timestamps, soft deletes and guards only id', function (): void {
+test('uses the legacy judging table with timestamps, soft deletes and guards its privilege and money columns', function (): void {
     $answer = new Answer;
 
     expect($answer->getTable())->toBe('show_registration_car_judging')
         ->and($answer->getKeyName())->toBe('id')
         ->and($answer->usesTimestamps())->toBeTrue()
-        ->and($answer->getGuarded())->toBe(['id'])
+        ->and($answer->getGuarded())->toBe(['id', 'user_id', 'deleted_at'])
         ->and(in_array(SoftDeletes::class, class_uses_recursive($answer), true))->toBeTrue();
 });
 
@@ -134,4 +134,12 @@ test('images relation links to AnswerImage in both directions', function (): voi
 
     expect($answer->images()->pluck('show_registration_car_judging_image.id')->all())->toBe([$image->id])
         ->and($image->answer->id)->toBe($answer->id);
+});
+
+test('mass assignment ignores the guarded judge and deletion columns', function () {
+    $answer = new Answer;
+    $answer->fill(['user_id' => 9, 'deleted_at' => now(), 'data' => '5']);
+
+    expect($answer->getAttributes())->not->toHaveKeys(['user_id', 'deleted_at'])
+        ->and($answer->data)->toBe('5');
 });

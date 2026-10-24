@@ -30,8 +30,15 @@ class CloneShowConfiguration
     /**
      * Copies car_body_show and judging_show_body rows from $source to $target in one transaction.
      *
+     * Every check runs inside the transaction, after both car_show rows are locked (in id order,
+     * so two clones cannot deadlock on them). The checks are locking reads, so they see the latest
+     * committed rows even when the caller's transaction holds an older snapshot. A target that
+     * already has any car body or judging row is refused: car_body_show would hit its primary key
+     * and judging_show_body (no unique key) would get duplicate rows.
+     *
      * @throws InvalidArgumentException when the shows are the same, either show is missing,
-     *                                  or the source has no car bodies configured.
+     *                                  the source has no car bodies configured, or the target
+     *                                  is already configured.
      */
     public function copy(CarShow $target, CarShow $source): void
     {
@@ -42,17 +49,35 @@ class CloneShowConfiguration
             throw new InvalidArgumentException('Cannot clone car/judging setup from the same event.');
         }
 
-        if (! CarShow::query()->whereKey($targetId)->exists() || ! CarShow::query()->whereKey($sourceId)->exists()) {
-            throw new InvalidArgumentException('Source or target event was not found.');
-        }
-
-        if (DB::table('car_body_show')->where('show_id', $sourceId)->doesntExist()) {
-            throw new InvalidArgumentException(
-                'The selected event has no eligible car bodies configured (car_body_show is empty).'
-            );
-        }
-
         DB::transaction(function () use ($targetId, $sourceId): void {
+            $locked = CarShow::query()
+                ->whereKey([$targetId, $sourceId])
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->pluck('id');
+
+            if ($locked->count() !== 2) {
+                throw new InvalidArgumentException('Source or target event was not found.');
+            }
+
+            $sourceBodies = DB::table('car_body_show')->where('show_id', $sourceId)->sharedLock()->count();
+            if ($sourceBodies === 0) {
+                throw new InvalidArgumentException(
+                    'The selected event has no eligible car bodies configured (car_body_show is empty).'
+                );
+            }
+
+            $targetBodies = DB::table('car_body_show')->where('show_id', $targetId)->lockForUpdate()->count();
+            $targetJudging = DB::table('judging_show_body')->where('car_show_id', $targetId)->lockForUpdate()->count();
+            if ($targetBodies > 0 || $targetJudging > 0) {
+                throw new InvalidArgumentException(sprintf(
+                    'The target event is already configured (%d car bodies, %d judging rows). '
+                    .'Remove its setup before cloning.',
+                    $targetBodies,
+                    $targetJudging,
+                ));
+            }
+
             DB::insert(
                 'INSERT INTO car_body_show (body_id, show_id) SELECT body_id, ? FROM car_body_show WHERE show_id = ?',
                 [$targetId, $sourceId],
