@@ -45,7 +45,7 @@ test('uses the show_registration table, id key, timestamps and guards id, invoic
         ->and($registration->getKeyName())->toBe('id')
         ->and($registration->usesTimestamps())->toBeTrue()
         ->and($registration->getGuarded())->toBe([
-            'id', 'invoice_id', 'is_paid', 'amount_owed', 'amount_received', 'amount_received_actual',
+            'id', 'invoice_id', 'waiver_id', 'has_signed', 'is_judge', 'is_paid', 'amount_owed', 'amount_received', 'amount_received_actual',
             'discount', 'is_cancelled', 'is_checked_in', 'date_checked_in',
         ]);
 });
@@ -56,6 +56,9 @@ test('mass assignment ignores the guarded invoice, money and state columns', fun
         'user_id' => 6,
         'donation' => 3,
         'invoice_id' => 99,
+        'waiver_id' => 4,
+        'has_signed' => true,
+        'is_judge' => true,
         'is_paid' => true,
         'amount_owed' => 10,
         'amount_received' => 10,
@@ -104,6 +107,26 @@ test('payment_method_id accepts the enum, its int and numeric strings, and rejec
     expect($registration->payment_method_id)->toBe(PaymentMethod::Check);
 });
 
+test('money columns accept up to 9999.99 (float(6,2)) and reject larger amounts', function (string $column) {
+    $registration = new ShowRegistration;
+
+    $registration->setAttribute($column, '9999.99');
+    expect($registration->getAttribute($column))->toBe('9999.99');
+
+    $registration->setAttribute($column, '-9999.99');
+    expect($registration->getAttribute($column))->toBe('-9999.99');
+
+    expect(fn () => $registration->setAttribute($column, '10000.00'))
+        ->toThrow(InvalidArgumentException::class, 'larger than the column allows');
+    expect(fn () => $registration->setAttribute($column, '-10000'))
+        ->toThrow(InvalidArgumentException::class);
+})->with(['amount_owed', 'amount_received', 'amount_received_actual', 'discount']);
+
+test('a negative amount_received_actual passes the cast but the unsigned column rejects it', function () {
+    expect(fn () => ShowRegistration::factory()->create(['amount_received_actual' => '-1.00']))
+        ->toThrow(QueryException::class, 'Out of range value');
+});
+
 test('money columns use Money2 and round half up on decimal strings', function () {
     $registration = ShowRegistration::factory()->create([
         'amount_owed' => '12.345',
@@ -134,6 +157,7 @@ test('flags are booleans, donation is an int, and payment method is the enum', f
 });
 
 test('arrival_date is a date and arrival_time is free text', function () {
+    Carbon::setTestNow('2026-03-10 23:59:59');
     $registration = ShowRegistration::factory()->withArrival()->create()->refresh();
 
     expect($registration->arrival_date)->toBeInstanceOf(Carbon::class)

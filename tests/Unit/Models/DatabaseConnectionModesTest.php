@@ -8,7 +8,7 @@ test('mysql and testing_mariadb use identical SQL modes', function () {
         ->and($live)->toBe($test);
 });
 
-test('both connections are non-strict and use the legacy zero-date-friendly modes', function (string $connection) {
+test('both connections set the legacy SQL modes explicitly: STRICT_TRANS_TABLES on, zero-date and ONLY_FULL_GROUP_BY modes off', function (string $connection) {
     $modes = config("database.connections.{$connection}.modes");
 
     expect(config("database.connections.{$connection}.strict"))->toBeFalse()

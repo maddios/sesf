@@ -19,7 +19,8 @@ use InvalidArgumentException;
  * is larger than max, with InvalidArgumentException. Use the DDL limit of the column:
  * float(6,2) is 9999.99, float(8,2) is 999999.99, double(10,2) is 99999999.99.
  * Without a max, any finite amount is accepted (the database then decides). Negative amounts are
- * allowed either way. Non-strict MySQL clamps out-of-range floats silently, so the max is the guard.
+ * allowed either way. Strict MySQL (STRICT_TRANS_TABLES) rejects out-of-range floats with an error
+ * rather than clamping them, so the max gives a clear exception before the write.
  *
  * @implements CastsAttributes<?string, float|int|string|null>
  */

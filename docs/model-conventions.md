@@ -52,7 +52,7 @@ Follow it exactly when adding or changing a model.
 
 - Money: `float(6,2)` columns use `'price' => Money2::class` (App\Models\Casts\Money2). No float math on money.
   Pass the column limit so writes are checked: `Money2::class.':9999.99'` for float(6,2), `':999999.99'` for
-  float(8,2), `':99999999.99'` for double(10,2). Non-strict MySQL clamps out-of-range values silently.
+  float(8,2), `':99999999.99'` for double(10,2). Strict MySQL rejects out-of-range values with an error; it does not clamp them.
 - `tinyint(1)` flags: `'boolean'`.
 - `date` columns: `'date'`. `datetime` and `timestamp` columns: `'datetime'`.
 - Use only the `date` and `datetime` casts. The `timestamp` and `immutable_*` casts are not zero-date safe.
@@ -110,7 +110,9 @@ Follow it exactly when adding or changing a model.
   HasLegacyDates reads them as null. Do not use the `timestamp` cast.
 - Money: 15 `float(6,2)` columns. Use Money2, which rounds on decimal strings.
 - SQL modes: the `mysql` and `testing_mariadb` connections share one list in config/database.php
-  (zero dates allowed, so no NO_ZERO_DATE, NO_ZERO_IN_DATE or ONLY_FULL_GROUP_BY). `strict` is false.
+  (zero dates allowed, so no NO_ZERO_DATE, NO_ZERO_IN_DATE or ONLY_FULL_GROUP_BY). Laravel's `strict` flag
+  is false, so Laravel adds no modes of its own; STRICT_TRANS_TABLES is on through the explicit list.
+  live server global sql_mode at audit time: STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION (MariaDB 10.3.39)
 - Missing FKs: 38 of 65 tables have no FOREIGN KEY constraints. Integrity is app-side. A `belongsTo`
   may point at a missing row, so treat it as nullable and test it.
 - Charset: the connection is utf8 but most tables are latin1 (55 of 65 CREATE statements).

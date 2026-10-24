@@ -5,6 +5,7 @@ use App\Models\ShowRegistration;
 use App\Models\User;
 use App\Services\Registration\InvoiceNumberAllocator;
 use Illuminate\Database\Connection;
+use Illuminate\Database\DeadlockException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Database\QueryException;
@@ -79,20 +80,65 @@ test('gaps are not filled: the next number is max + 1', function () {
     expect((new InvoiceNumberAllocator)->allocate($show->id))->toBe(4);
 });
 
-test('the show lock and the max read are both locking reads', function () {
+test('only the show row is locked; both max reads are plain reads, one on the committed-read connection', function () {
     $show = CarShow::factory()->create();
     $selects = [];
     DB::listen(function (QueryExecuted $query) use (&$selects): void {
         if (str_starts_with(strtolower(ltrim($query->sql)), 'select')) {
-            $selects[] = strtolower($query->sql);
+            $selects[] = [$query->connectionName, strtolower($query->sql)];
         }
     });
 
     (new InvoiceNumberAllocator)->allocate($show->id);
 
-    expect($selects)->toHaveCount(2);
-    expect($selects[0])->toContain('`car_show`')->toEndWith('for update');
-    expect($selects[1])->toContain('max(`invoice_id`)')->toEndWith('for update');
+    $default = LegacyTestDatabase::CONNECTION;
+    $read = $default.InvoiceNumberAllocator::READ_CONNECTION_SUFFIX;
+
+    expect($selects)->toHaveCount(3);
+    expect($selects[0][0])->toBe($default);
+    expect($selects[0][1])->toContain('`car_show`')->toEndWith('for update');
+    expect($selects[1][0])->toBe($default);
+    expect($selects[1][1])->toContain('max(`invoice_id`)');
+    expect(str_contains($selects[1][1], 'for update'))->toBeFalse();
+    expect($selects[2][0])->toBe($read);
+    expect($selects[2][1])->toContain('max(`invoice_id`)');
+    expect(str_contains($selects[2][1], 'for update'))->toBeFalse();
+    expect(DB::connection($read)->transactionLevel())->toBe(0);
+});
+
+test('the committed-read connection is reused within the process', function () {
+    $allocator = new InvoiceNumberAllocator;
+    $connection = (new ShowRegistration)->getConnection();
+
+    expect($allocator->committedReadConnection($connection))->toBe($allocator->committedReadConnection($connection));
+    expect($allocator->committedReadConnection($connection)->getDatabaseName())->toBe(LegacyTestDatabase::REQUIRED_DATABASE);
+});
+
+test('three registrations for one show inside one outer transaction get 1, 2, 3', function () {
+    $show = CarShow::factory()->create();
+
+    $numbers = DB::transaction(fn (): array => [
+        ShowRegistration::factory()->create(['show_id' => $show->id])->invoice_id,
+        ShowRegistration::factory()->create(['show_id' => $show->id])->invoice_id,
+        ShowRegistration::factory()->create(['show_id' => $show->id])->invoice_id,
+    ]);
+
+    expect($numbers)->toBe([1, 2, 3]);
+});
+
+test('a deadlock inside a caller transaction is not retried and says to retry the whole transaction', function () {
+    $show = CarShow::factory()->create();
+    $allocator = Mockery::mock(InvoiceNumberAllocator::class);
+    $allocator->shouldReceive('allocate')->once()->andThrow(new QueryException(
+        LegacyTestDatabase::CONNECTION,
+        'select 1',
+        [],
+        new PDOException('SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock; try restarting transaction'),
+    ));
+    app()->instance(InvoiceNumberAllocator::class, $allocator);
+
+    expect(fn () => ShowRegistration::factory()->create(['show_id' => $show->id]))
+        ->toThrow(DeadlockException::class, 'retry it as a whole');
 });
 
 test('allocation sees a registration committed after the caller took its snapshot', function () {

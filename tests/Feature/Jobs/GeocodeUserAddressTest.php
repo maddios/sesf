@@ -9,8 +9,8 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 
 /*
- * Runs on the default in-memory SQLite connection (RefreshDatabase). Only the columns the
- * job touches are created here; the full legacy schema is covered by tests/Database.
+ * Runs on the default in-memory SQLite connection. There are no migrations and no RefreshDatabase.
+ * Only the columns the job touches are created here; the full legacy schema is covered by tests/Database.
  */
 beforeEach(function () {
     config(['sesf.google.geocode_key' => 'test-key']);
