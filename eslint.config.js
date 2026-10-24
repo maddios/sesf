@@ -10,6 +10,13 @@ export default tseslint.config(
     tseslint.configs.recommended,
     pluginVue.configs['flat/recommended'],
     {
+        // Config files run in Node and read process.env.
+        files: ['vite.config.js'],
+        languageOptions: {
+            globals: { process: 'readonly' },
+        },
+    },
+    {
         files: ['**/*.vue'],
         languageOptions: {
             parserOptions: {

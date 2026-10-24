@@ -10,8 +10,9 @@ type changes on existing data).
 
 ## Running things (Docker, from repo root)
 
+- First time, and after changing `DEV_STORE_DIR`: run `scripts/dev-setup.sh` once before `docker compose up`. It checks the dev store, creates the mountpoint dirs as your user, and copies `.env.example` to `.env` if missing.
 - App (artisan serve): `docker compose up -d app` then http://localhost:8000
-- Vite dev server: `docker compose up -d vite` then http://localhost:5173
+- Vite asset/HMR server (not the app): `docker compose up -d vite` then http://localhost:5173
 - Artisan: `docker compose run --rm app php artisan <cmd>`
 - Composer: `docker compose run --rm app composer <cmd>`
 - npm: `docker compose run --rm node npm <cmd>`
@@ -33,7 +34,8 @@ type changes on existing data).
 ## File store
 
 Dev uploads and documents live outside git in `DEV_STORE_DIR` (default `/var/www/sesf-dev-store`).
-docker-compose bind-mounts it read-write over these repo paths:
+docker-compose bind-mounts it read-write over these repo paths. Compose fails if a store subdirectory
+is missing (`create_host_path: false`); run `scripts/dev-setup.sh` to see which ones are absent:
 
 - `public/images/{members,cars,shows,sponsor,gallery,judging}`
 - `public/packet`, `public/waivers`

@@ -27,18 +27,55 @@ export interface SessionPayload {
 
 export type SessionFetcher = () => Promise<SessionPayload>;
 
+/** Thrown when /login/authenticate returns a body that is not a usable session. The session stays unresolved. */
+export class InvalidSessionPayloadError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidSessionPayloadError';
+  }
+}
+
 const defaultFetcher: SessionFetcher = () => api.post<SessionPayload>('/login/authenticate');
 
-export function toAuthUser(payload: SessionPayload): AuthUser {
+/** Legacy PHP/MySQL often sends integers as strings, so ids and levels are coerced with Number(). */
+function toNumber(value: unknown): number | undefined {
+  if (typeof value !== 'number' && typeof value !== 'string') {
+    return undefined;
+  }
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function toText(value: unknown): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+  return typeof value === 'number' ? String(value) : '';
+}
+
+/**
+ * Validates and maps the login payload. user_id must be a finite positive number (string or number);
+ * a missing or unparseable level/type becomes 0 and missing text fields become ''.
+ * Throws InvalidSessionPayloadError otherwise.
+ */
+export function toAuthUser(payload: unknown): AuthUser {
+  if (typeof payload !== 'object' || payload === null) {
+    throw new InvalidSessionPayloadError('Session payload is not an object');
+  }
+  const raw = payload as Record<string, unknown>;
+  const userId = toNumber(raw.user_id);
+  if (userId === undefined || userId <= 0) {
+    throw new InvalidSessionPayloadError('Session payload has an invalid user_id');
+  }
   return {
-    userId: payload.user_id,
-    userLevel: payload.user_level,
-    typeId: payload.type_id,
-    email: payload.email,
-    firstName: payload.first_name,
-    profileUrl: payload.profileURL,
-    slideOutName: payload.slideOutName,
-    fullAddress: payload.fullAddress,
+    userId,
+    userLevel: toNumber(raw.user_level) ?? 0,
+    typeId: toNumber(raw.type_id) ?? 0,
+    email: toText(raw.email),
+    firstName: toText(raw.first_name),
+    profileUrl: toText(raw.profileURL),
+    slideOutName: toText(raw.slideOutName),
+    fullAddress: toText(raw.fullAddress),
   };
 }
 
@@ -48,6 +85,8 @@ export const useAuthStore = defineStore('auth', () => {
   const resolved = ref(false);
   /** The single running session check, shared by concurrent callers. */
   let inFlight: Promise<void> | null = null;
+  /** Incremented by clear(). A check started under an older generation is stale and its result is dropped. */
+  let generation = 0;
 
   const isLoggedIn = computed(() => user.value !== null);
   const userLevel = computed(() => user.value?.userLevel ?? 0);
@@ -62,6 +101,7 @@ export const useAuthStore = defineStore('auth', () => {
    * arriving mid-check cannot mark the session resolved before the check finishes.
    */
   function clear() {
+    generation += 1;
     user.value = null;
     if (inFlight === null) {
       resolved.value = true;
@@ -69,9 +109,20 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function runCheck(fetcher: SessionFetcher): Promise<void> {
+    const startedAt = generation;
     try {
-      setUser(toAuthUser(await fetcher()));
+      const next = toAuthUser(await fetcher());
+      if (startedAt !== generation) {
+        // Logged out (clear) while the check was in flight: keep the logged-out state.
+        resolved.value = true;
+        return;
+      }
+      setUser(next);
     } catch (error) {
+      if (startedAt !== generation) {
+        resolved.value = true;
+        return;
+      }
       if (error instanceof ApiError && error.status === 401) {
         user.value = null;
         resolved.value = true;

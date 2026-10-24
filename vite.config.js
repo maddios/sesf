@@ -13,11 +13,12 @@ export default defineConfig({
         tailwindcss(),
     ],
     server: {
-        host: '0.0.0.0',
+        // VITE_HOST / VITE_HMR_HOST let Docker or LAN setups override the bind address and HMR host.
+        host: process.env.VITE_HOST ?? 'localhost',
         port: 5173,
         strictPort: true,
         hmr: {
-            host: 'localhost',
+            host: process.env.VITE_HMR_HOST ?? 'localhost',
             clientPort: 5173,
         },
         watch: {

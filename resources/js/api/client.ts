@@ -20,7 +20,7 @@ export interface ApiClientOptions {
 }
 
 /** Bodies sent untouched; the browser sets Content-Type (multipart boundary for FormData). */
-export type PassthroughBody = FormData | Blob | URLSearchParams | ArrayBuffer;
+export type PassthroughBody = FormData | Blob | URLSearchParams | ArrayBuffer | ArrayBufferView;
 
 export type RequestBody = Record<string, unknown> | unknown[] | string | number | boolean | null | PassthroughBody;
 
@@ -51,22 +51,22 @@ export function readXsrfToken(cookieString: string = typeof document === 'undefi
 }
 
 function isPassthroughBody(body: RequestBody): body is PassthroughBody {
-  return body instanceof FormData || body instanceof Blob || body instanceof URLSearchParams || body instanceof ArrayBuffer;
+  return (
+    body instanceof FormData ||
+    body instanceof Blob ||
+    body instanceof URLSearchParams ||
+    body instanceof ArrayBuffer ||
+    ArrayBuffer.isView(body)
+  );
 }
 
-/** Reads the body as text and parses JSON when possible; empty bodies become null. Throws only if reading fails. */
-async function readPayload(response: Response): Promise<unknown> {
-  if (response.status === 204) {
-    return undefined;
-  }
-  const text = await response.text();
-  if (text === '') {
-    return null;
-  }
+type ParsedBody = { ok: true; value: unknown } | { ok: false };
+
+function parseJson(text: string): ParsedBody {
   try {
-    return JSON.parse(text) as unknown;
+    return { ok: true, value: JSON.parse(text) as unknown };
   } catch {
-    return text;
+    return { ok: false };
   }
 }
 
@@ -92,7 +92,8 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     const init: RequestInit = { method, headers, credentials: 'same-origin' };
     if (body !== undefined) {
       if (isPassthroughBody(body)) {
-        init.body = body;
+        // Typed arrays over a SharedArrayBuffer are typed wider than BodyInit; fetch accepts them at runtime.
+        init.body = body as BodyInit;
       } else {
         headers['Content-Type'] = 'application/json';
         init.body = JSON.stringify(body);
@@ -101,22 +102,41 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
 
     const response = await fetchImpl(path, init);
 
-    let payload: unknown = null;
+    let text = '';
     let readFailed = false;
-    try {
-      payload = await readPayload(response);
-    } catch {
-      readFailed = true;
+    if (response.status !== 204) {
+      try {
+        text = await response.text();
+      } catch {
+        readFailed = true;
+      }
     }
 
     if (response.status === 401) {
       options.onUnauthorized?.();
     }
-    if (!response.ok || readFailed) {
-      const message = readFailed ? `Failed to read response body (status ${response.status})` : undefined;
-      throw new ApiError(response.status, payload, message);
+    if (readFailed) {
+      throw new ApiError(response.status, null, `Failed to read response body (status ${response.status})`);
     }
-    return payload as T;
+
+    if (!response.ok) {
+      // Error bodies are kept as-is: parsed JSON when possible, otherwise the raw text.
+      const parsed = text === '' ? null : parseJson(text);
+      const payload = parsed === null ? null : parsed.ok ? parsed.value : text;
+      throw new ApiError(response.status, payload);
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+    if (text === '') {
+      throw new ApiError(response.status, text, `Expected JSON response but received an empty body (status ${response.status})`);
+    }
+    const parsed = parseJson(text);
+    if (!parsed.ok) {
+      throw new ApiError(response.status, text, `Expected JSON response but received a non-JSON body (status ${response.status})`);
+    }
+    return parsed.value as T;
   }
 
   return {

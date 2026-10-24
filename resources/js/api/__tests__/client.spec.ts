@@ -52,6 +52,17 @@ describe('api client', () => {
     expect(headers['Content-Type']).toBe('application/json');
   });
 
+  it('exposes put, patch and delete wrappers with the matching methods', async () => {
+    const fetchImpl = vi.fn().mockImplementation(async () => jsonResponse(200, { ok: true }));
+    const api = createApiClient({ fetchImpl });
+    await api.put('/a', { x: 1 });
+    await api.patch('/b', { y: 2 });
+    await api.delete('/c').catch(() => undefined);
+    expect((fetchImpl.mock.calls[0] as [string, RequestInit])[1].method).toBe('PUT');
+    expect((fetchImpl.mock.calls[1] as [string, RequestInit])[1].method).toBe('PATCH');
+    expect((fetchImpl.mock.calls[2] as [string, RequestInit])[1].method).toBe('DELETE');
+  });
+
   it('omits X-XSRF-TOKEN when there is no cookie', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, {}));
     await createApiClient({ fetchImpl }).get('/api/me');
@@ -72,6 +83,8 @@ describe('api client', () => {
     ['Blob', () => new Blob(['hello'])],
     ['URLSearchParams', () => new URLSearchParams({ a: '1' })],
     ['ArrayBuffer', () => new ArrayBuffer(8)],
+    ['Uint8Array', () => new Uint8Array([1, 2, 3])],
+    ['DataView', () => new DataView(new ArrayBuffer(4))],
   ])('passes a %s body through untouched without a JSON Content-Type', async (_name, make) => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, {}));
     const body = make();
@@ -147,18 +160,55 @@ describe('api client', () => {
     expect(onUnauthorized).not.toHaveBeenCalled();
   });
 
-  it('resolves a 200 empty body to null instead of throwing', async () => {
+  it('rejects a 200 empty body as ApiError instead of resolving success', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       new Response('', { status: 200, headers: { 'Content-Type': 'application/json' } }),
     );
-    await expect(createApiClient({ fetchImpl }).get('/x')).resolves.toBeNull();
+    const error = await createApiClient({ fetchImpl }).get('/x').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(200);
+    expect((error as ApiError).body).toBe('');
+    expect((error as ApiError).message).toMatch(/Expected JSON response/);
   });
 
-  it('falls back to the raw text for truncated JSON on a 200', async () => {
+  it('rejects truncated JSON on a 200 as ApiError with the raw text', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       new Response('{"user_id": 4', { status: 200, headers: { 'Content-Type': 'application/json' } }),
     );
-    await expect(createApiClient({ fetchImpl }).get('/x')).resolves.toBe('{"user_id": 4');
+    const error = await createApiClient({ fetchImpl }).get('/x').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(200);
+    expect((error as ApiError).body).toBe('{"user_id": 4');
+    expect((error as ApiError).message).toMatch(/Expected JSON response/);
+  });
+
+  it('rejects an HTML login page served with a 200 as ApiError', async () => {
+    const html = '<!doctype html><html><body>Please log in</body></html>';
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(html, { status: 200, headers: { 'Content-Type': 'text/html' } }));
+    const error = await createApiClient({ fetchImpl }).get('/x').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(200);
+    expect((error as ApiError).body).toBe(html);
+  });
+
+  it('rejects a 201 empty body as ApiError', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response('', { status: 201 }));
+    await expect(createApiClient({ fetchImpl }).post('/x', {})).rejects.toMatchObject({ status: 201 });
+  });
+
+  it('resolves a 200 JSON body typed as T', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, { id: 7 }));
+    await expect(createApiClient({ fetchImpl }).get<{ id: number }>('/x')).resolves.toEqual({ id: 7 });
+  });
+
+  it('resolves a 204 with an empty body to undefined without a JSON check', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    await expect(createApiClient({ fetchImpl }).post('/x', {})).resolves.toBeUndefined();
+  });
+
+  it('keeps 4xx/5xx empty bodies as null, not a parse error', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response('', { status: 404 }));
+    await expect(createApiClient({ fetchImpl }).get('/x')).rejects.toMatchObject({ status: 404, body: null });
   });
 
   it('keeps the raw text for truncated JSON on a 500 and rejects with ApiError', async () => {

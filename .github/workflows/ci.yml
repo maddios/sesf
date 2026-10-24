@@ -136,6 +136,7 @@ jobs:
             -e 's/^DB_CONNECTION=.*/DB_CONNECTION=sqlite/' \
             -e 's/^SESSION_DRIVER=.*/SESSION_DRIVER=file/' \
             -e 's/^CACHE_STORE=.*/CACHE_STORE=file/' \
+            -e 's|^DB_DATABASE=.*|DB_DATABASE=${{ github.workspace }}/database/database.sqlite|' \
             .env
           php artisan key:generate
           touch database/database.sqlite

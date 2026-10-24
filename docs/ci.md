@@ -4,7 +4,7 @@ Workflow: `.github/workflows/ci.yml` (PRs and pushes to `master`).
 
 - **backend**: PHP 8.5, `.env` from example, then Pint (`composer lint`), Larastan (`composer analyse`), `composer audit --locked`, and Pest with coverage (`--min=85`).
 - **frontend**: Node 24, `npm ci`, then `npm run lint`, `npm run typecheck`, `npm run test:coverage`, `npm audit --audit-level=low`.
-- **e2e** (needs backend and frontend): `.env` from example with `DB_CONNECTION=sqlite`, `SESSION_DRIVER=file`, `CACHE_STORE=file`, SQLite migrate, build assets, install Playwright Chromium, serve Laravel on port 8000 with `APP_ENV=testing`, run `npm run e2e`. Uploads `playwright-report` on failure.
+- **e2e** (needs backend and frontend): `.env` from example with `DB_CONNECTION=sqlite`, `DB_DATABASE` set to the absolute path `database/database.sqlite` in the workspace (`artisan serve` runs from `public/`, so a relative path would resolve there), `SESSION_DRIVER=file`, `CACHE_STORE=file`, SQLite migrate, build assets, install Playwright Chromium, serve Laravel on port 8000 with `APP_ENV=testing`, run `npm run e2e`. Uploads `playwright-report` on failure.
 
 Local equivalents (repo root):
 
