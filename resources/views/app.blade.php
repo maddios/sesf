@@ -3,6 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="referrer" content="strict-origin-when-cross-origin">
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <title>Southeast Sharkfest</title>
         @vite(['resources/css/app.css', 'resources/js/app.ts'])

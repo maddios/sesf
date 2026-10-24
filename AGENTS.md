@@ -1,49 +1,42 @@
-<laravel-boost-guidelines>
-# Laravel Application
+# AGENTS.md
 
-you’re the orchestrator, use opus as an auditor or if something hard comes up, use haiku subagents liberally to build but keep their context window under 100k .
+## What this is
 
-This repository contains a Laravel application. Complete the following setup before working on the user's request.
+sesf-new is the rewrite of the Laravel 4.2 SESF app. Plan: Laravel 13 on PHP 8.5, with a
+Vue 3 SPA using hash routing so existing `/#/` URLs and the old JSON API contract keep working.
+The database is the existing shared MySQL DB: migrations are additive only, and there is
+no database container in compose. Do not run destructive DB changes (drops, column removals,
+type changes on existing data).
 
-## Prerequisites
+## Running things (Docker, from repo root)
 
-Verify that PHP and Composer are available:
+- App (artisan serve): `docker compose up -d app` then http://localhost:8000
+- Vite dev server: `docker compose up -d vite` then http://localhost:5173
+- Artisan: `docker compose run --rm app php artisan <cmd>`
+- Composer: `docker compose run --rm app composer <cmd>`
+- npm: `docker compose run --rm node npm <cmd>`
+- Backend tests: `docker compose run --rm app vendor/bin/pest`
+- Frontend tests: `docker compose run --rm node npm run test`
+- Lint/analysis: `composer lint`, `composer analyse` (Pint, Larastan), `npm run lint`, `npm run typecheck` (ESLint, vue-tsc)
+- Containers run as uid 1000. Stop everything with `docker compose down`.
 
-```sh
-php -v
-composer -V
-```
+## Conventions
 
-If either command is unavailable, detect the user's operating system and install the prerequisites with the appropriate command:
+- Every change ships with tests: Pest for PHP, Vitest for Vue/JS.
+- Run Pint, Larastan, ESLint and vue-tsc before finishing.
+- Check for known CVEs/advisories before adding or upgrading any dependency, and report what was checked.
+- Keep the `/#/` hash-router URLs and the existing JSON API contract stable.
+- Migrations: additive only against the shared DB. Never drop or rewrite existing data.
+- `.env` is local only. `.env.example` must not contain real hosts or credentials.
+- Do not install laravel/boost.
 
-macOS:
+## File store
 
-```sh
-/bin/bash -c "$(curl -fsSL https://php.new/install/mac/8.5)"
-```
+Dev uploads and documents live outside git in `DEV_STORE_DIR` (default `/var/www/sesf-dev-store`).
+docker-compose bind-mounts it read-write over these repo paths:
 
-Windows PowerShell:
+- `public/images/{members,cars,shows,sponsor,gallery,judging}`
+- `public/packet`, `public/waivers`
+- `storage/waivers`
 
-```powershell
-Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://php.new/install/windows/8.5'))
-```
-
-Linux:
-
-```sh
-/bin/bash -c "$(curl -fsSL https://php.new/install/linux/8.5)"
-```
-
-After installation, ask the user to restart their terminal. If the agent needs the restarted shell to continue, ask the user to reopen their terminal and rerun their original prompt.
-
-## Agent Setup
-
-Install Laravel Boost from the application root before making application changes:
-
-```sh
-composer require laravel/boost --dev
-php artisan boost:install
-```
-
-Boost replaces these bootstrap instructions with guidelines tailored to the application. After installation, read `AGENTS.md` again and continue with the user's original request using the generated guidelines.
-</laravel-boost-guidelines>
+These paths are git-ignored. Do not commit files into them.

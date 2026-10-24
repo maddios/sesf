@@ -26,6 +26,18 @@ dataset('rejected amounts', [
     'empty string' => [''],
     'NAN' => [NAN],
     'INF' => [INF],
+    'string too large for int cents' => ['99999999999999999999'],
+    'float too large for int cents' => [1e20],
+    'one cent over PHP_INT_MAX' => ['92233720368547758.08'],
+    'whole dollars over the cent limit' => ['92233720368547759.00'],
+    'fraction over the cent limit' => ['92233720368547758.9'],
+    'absurdly long digit string' => [str_repeat('9', 400)],
+]);
+
+dataset('largest valid amounts', [
+    'exactly PHP_INT_MAX cents' => ['92233720368547758.07', PHP_INT_MAX],
+    'largest whole dollars that fit' => ['92233720368547757.99', 9223372036854775799],
+    'largest whole dollars with zero cents' => ['92233720368547758.00', 9223372036854775800],
 ]);
 
 dataset('formatted amounts', [
@@ -39,9 +51,20 @@ test('toCents converts amounts to integer cents', function (string|float $amount
     expect(Money::toCents($amount))->toBe($expected);
 })->with('amounts to cents');
 
+test('toCents accepts the largest amounts that fit in int cents', function (string $amount, int $expected) {
+    expect(Money::toCents($amount))->toBe($expected);
+})->with('largest valid amounts');
+
 test('toCents rejects invalid amounts', function (string|float $amount) {
     Money::toCents($amount);
 })->with('rejected amounts')->throws(InvalidArgumentException::class);
+
+test('toCents rejects oversized amounts with a clear message', function (string|float $amount) {
+    Money::toCents($amount);
+})->with([
+    'string too large' => ['99999999999999999999'],
+    'float too large' => [1e20],
+])->throws(InvalidArgumentException::class, 'Amount is too large.');
 
 test('format renders cents as a dollar string', function (int $cents, string $expected) {
     expect(Money::format($cents))->toBe($expected);

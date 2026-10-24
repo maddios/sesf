@@ -23,6 +23,10 @@ final class Money
             if ($amount < 0) {
                 throw new InvalidArgumentException('Amount must not be negative.');
             }
+            // Reject before formatting so huge floats never reach the integer math.
+            if ($amount > PHP_INT_MAX / 100) {
+                throw new InvalidArgumentException('Amount is too large.');
+            }
             // Normalise -0.0 so it does not render as "-0.00000000".
             $amount = $amount == 0.0 ? 0.0 : $amount;
             $amount = sprintf('%.8F', $amount);
@@ -38,16 +42,27 @@ final class Money
             throw new InvalidArgumentException("Invalid amount: \"{$amount}\".");
         }
 
-        $dollars = (int) $m[1];
-        $fraction = str_pad($m[2] ?? '', 3, '0');
-
-        $cents = $dollars * 100 + (int) substr($fraction, 0, 2);
-
-        if ($fraction[2] >= '5') {
-            $cents++;
+        // Digits-only check before casting: (int) saturates or overflows on long strings.
+        $wholeDigits = ltrim($m[1], '0');
+        if (strlen($wholeDigits) > 18) {
+            throw new InvalidArgumentException('Amount is too large.');
         }
 
-        return $cents;
+        $dollars = (int) $wholeDigits;
+        if ($dollars > intdiv(PHP_INT_MAX, 100)) {
+            throw new InvalidArgumentException('Amount is too large.');
+        }
+
+        $fraction = str_pad($m[2] ?? '', 3, '0');
+
+        $base = $dollars * 100;
+        $extra = (int) substr($fraction, 0, 2) + ($fraction[2] >= '5' ? 1 : 0);
+
+        if ($extra > PHP_INT_MAX - $base) {
+            throw new InvalidArgumentException('Amount is too large.');
+        }
+
+        return $base + $extra;
     }
 
     /**

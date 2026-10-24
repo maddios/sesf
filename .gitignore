@@ -31,3 +31,14 @@ Thumbs.db
 /test-results
 
 /build
+
+# Dev file store mount points (bind-mounted from DEV_STORE_DIR; user-generated content, never committed)
+/public/images/members
+/public/images/cars
+/public/images/shows
+/public/images/sponsor
+/public/images/gallery
+/public/images/judging
+/public/packet
+/public/waivers
+/storage/waivers

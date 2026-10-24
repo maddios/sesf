@@ -13,6 +13,13 @@ export default defineConfig({
         tailwindcss(),
     ],
     server: {
+        host: '0.0.0.0',
+        port: 5173,
+        strictPort: true,
+        hmr: {
+            host: 'localhost',
+            clientPort: 5173,
+        },
         watch: {
             ignored: ['**/storage/framework/views/**'],
         },
@@ -26,12 +33,11 @@ export default defineConfig({
             include: ['resources/js/**'],
             exclude: ['resources/js/test/**', 'resources/js/**/*.d.ts', 'resources/js/**/__tests__/**'],
             reporter: ['text', 'html', 'lcov'],
-            // TODO: raise these thresholds to 80 once real application code exists.
             thresholds: {
-                lines: 0,
-                statements: 0,
-                functions: 0,
-                branches: 0,
+                lines: 80,
+                statements: 80,
+                functions: 80,
+                branches: 80,
             },
         },
     },

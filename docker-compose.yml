@@ -9,6 +9,18 @@ services:
       COMPOSER_HOME: /tmp/composer
     volumes:
       - .:/app
+      # Dev file store: the already-copied production-like store, mounted
+      # read-write over the (git-ignored) repo-relative paths. DEV_STORE_DIR
+      # is set in the local .env; see .env.example.
+      - ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/public/images/members:/app/public/images/members
+      - ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/public/images/cars:/app/public/images/cars
+      - ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/public/images/shows:/app/public/images/shows
+      - ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/public/images/sponsor:/app/public/images/sponsor
+      - ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/public/images/gallery:/app/public/images/gallery
+      - ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/public/images/judging:/app/public/images/judging
+      - ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/public/packet:/app/public/packet
+      - ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/public/waivers:/app/public/waivers
+      - ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/storage/waivers:/app/storage/waivers
     ports:
       - "8000:8000"
     command: php artisan serve --host=0.0.0.0 --port=8000
@@ -19,3 +31,16 @@ services:
     user: "1000:1000"
     volumes:
       - .:/app
+
+  vite:
+    image: node:24
+    user: "1000:1000"
+    working_dir: /app
+    environment:
+      HOME: /tmp
+      npm_config_cache: /tmp/npm-cache
+    volumes:
+      - .:/app
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install --no-audit --no-fund && npm run dev -- --host 0.0.0.0"
