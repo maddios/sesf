@@ -1,0 +1,82 @@
+services:
+  app:
+    image: sesf-php:dev
+    build:
+      context: docker/php
+    working_dir: /app
+    user: "1000:1000"
+    environment:
+      COMPOSER_HOME: /tmp/composer
+    volumes:
+      - .:/app
+      # Dev file store: the already-copied production-like store, mounted
+      # read-write over the (git-ignored) repo-relative paths. DEV_STORE_DIR
+      # is optional (default /var/www/sesf-dev-store). Run scripts/dev-setup.sh
+      # once first: it creates the repo mountpoint dirs as the invoking user
+      # and checks the store. create_host_path: false makes compose fail
+      # instead of letting dockerd create missing host dirs (root-owned).
+      - type: bind
+        source: ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/public/images/members
+        target: /app/public/images/members
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/public/images/cars
+        target: /app/public/images/cars
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/public/images/shows
+        target: /app/public/images/shows
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/public/images/sponsor
+        target: /app/public/images/sponsor
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/public/images/gallery
+        target: /app/public/images/gallery
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/public/images/judging
+        target: /app/public/images/judging
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/public/packet
+        target: /app/public/packet
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/public/waivers
+        target: /app/public/waivers
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/storage/waivers
+        target: /app/storage/waivers
+        bind: {create_host_path: false}
+    ports:
+      - "8000:8000"
+    command: php artisan serve --host=0.0.0.0 --port=8000
+
+  node:
+    image: node:24
+    working_dir: /app
+    user: "1000:1000"
+    volumes:
+      - .:/app
+
+  vite:
+    image: node:24
+    init: true
+    user: "1000:1000"
+    working_dir: /app
+    environment:
+      HOME: /tmp
+      npm_config_cache: /tmp/npm-cache
+      VITE_HOST: 0.0.0.0
+    volumes:
+      - .:/app
+    ports:
+      - "5173:5173"
+    # npm ci runs when node_modules/.package-lock.json is missing or differs from package-lock.json
+    # (cmp fails on a missing file), so lockfile changes trigger a reinstall; never npm install.
+    # `npm run dev` does not forward SIGTERM to vite, so exec the vite binary directly. tini (init)
+    # is PID 1 and vite is its child; SIGTERM is forwarded to vite, so laravel-vite-plugin removes public/hot.
+    command: sh -c "cmp -s package-lock.json node_modules/.package-lock.json || npm ci --no-audit --no-fund; exec ./node_modules/.bin/vite"
