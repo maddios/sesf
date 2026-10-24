@@ -75,7 +75,8 @@ services:
       - .:/app
     ports:
       - "5173:5173"
-    # npm ci only when node_modules is missing; never npm install (lockfile stays untouched).
-    # `npm run dev` does not forward SIGTERM to vite, so exec the vite binary directly:
-    # node becomes PID 1 (under init) and laravel-vite-plugin removes public/hot on stop.
-    command: sh -c "[ -d node_modules ] || npm ci --no-audit --no-fund; exec ./node_modules/.bin/vite"
+    # npm ci runs when node_modules/.package-lock.json is missing or differs from package-lock.json
+    # (cmp fails on a missing file), so lockfile changes trigger a reinstall; never npm install.
+    # `npm run dev` does not forward SIGTERM to vite, so exec the vite binary directly. tini (init)
+    # is PID 1 and vite is its child; SIGTERM is forwarded to vite, so laravel-vite-plugin removes public/hot.
+    command: sh -c "cmp -s package-lock.json node_modules/.package-lock.json || npm ci --no-audit --no-fund; exec ./node_modules/.bin/vite"

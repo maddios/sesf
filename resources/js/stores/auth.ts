@@ -91,7 +91,9 @@ export const useAuthStore = defineStore('auth', () => {
   const isLoggedIn = computed(() => user.value !== null);
   const userLevel = computed(() => user.value?.userLevel ?? 0);
 
+  /** Logs in. Bumps the generation like clear(), so a session check started earlier cannot overwrite or null this user. */
   function setUser(next: AuthUser) {
+    generation += 1;
     user.value = next;
     resolved.value = true;
   }

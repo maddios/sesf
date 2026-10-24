@@ -291,6 +291,20 @@ describe('auth store', () => {
       expect(store.user).toEqual(sampleUser);
     });
 
+    it('a 401 from a check started before login does not log out the user who just logged in', async () => {
+      const store = useAuthStore();
+      const pending = deferred<SessionPayload>();
+      const check = store.ensureResolved(() => pending.promise);
+
+      store.setUser(sampleUser);
+      pending.reject(unauthorized());
+      await check;
+
+      expect(store.user).toEqual(sampleUser);
+      expect(store.isLoggedIn).toBe(true);
+      expect(store.resolved).toBe(true);
+    });
+
     it('a 401 from the check itself after a mid-check clear resolves as logged out', async () => {
       const store = useAuthStore();
       const pending = deferred<SessionPayload>();

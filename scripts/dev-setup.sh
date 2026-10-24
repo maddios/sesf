@@ -28,8 +28,8 @@ REQUIRED_DIRS=(
 # Shell env wins over .env (same precedence docker compose uses); .env is read, never sourced.
 if [ -n "${DEV_STORE_DIR:-}" ]; then
     store_dir="$DEV_STORE_DIR"
-elif [ -f .env ] && grep -q '^DEV_STORE_DIR=' .env; then
-    store_dir="$(grep '^DEV_STORE_DIR=' .env | tail -n 1 | cut -d= -f2- | tr -d '\r' | sed -e 's/^["'\'']//' -e 's/["'\'']$//')"
+elif [ -f .env ] && grep -Eq '^(export[[:space:]]+)?DEV_STORE_DIR=' .env; then
+    store_dir="$(grep -E '^(export[[:space:]]+)?DEV_STORE_DIR=' .env | tail -n 1 | sed -E -e 's/^export[[:space:]]+//' | cut -d= -f2- | tr -d '\r' | sed -e 's/^["'\'']//' -e 's/["'\'']$//')"
 else
     store_dir=""
 fi
