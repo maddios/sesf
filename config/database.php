@@ -84,6 +84,30 @@ return [
             ]) : [],
         ],
 
+        // Ephemeral test database (docker compose profile "test"). Tests only; never
+        // point this at the shared sesf_dev database. Read exclusively from DB_TEST_*,
+        // never from DB_* (the local .env holds the dev values).
+        'testing_mariadb' => [
+            'driver' => 'mysql',
+            'host' => env('DB_TEST_HOST', 'testdb'),
+            'port' => env('DB_TEST_PORT', '3306'),
+            'database' => env('DB_TEST_DATABASE', 'sesf_test'),
+            'username' => env('DB_TEST_USERNAME', 'root'),
+            'password' => env('DB_TEST_PASSWORD', 'test'),
+            'charset' => 'utf8',
+            'collation' => 'utf8_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'modes' => [
+                'STRICT_TRANS_TABLES',
+                'ERROR_FOR_DIVISION_BY_ZERO',
+                'NO_AUTO_CREATE_USER',
+                'NO_ENGINE_SUBSTITUTION',
+            ],
+            'engine' => null,
+        ],
+
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DB_URL'),

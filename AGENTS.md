@@ -4,9 +4,15 @@
 
 sesf-new is the rewrite of the Laravel 4.2 SESF app. Plan: Laravel 13 on PHP 8.5, with a
 Vue 3 SPA using hash routing so existing `/#/` URLs and the old JSON API contract keep working.
-The database is the existing shared MySQL DB: migrations are additive only, and there is
-no database container in compose. Do not run destructive DB changes (drops, column removals,
+The database is the existing shared MySQL DB (`sesf_dev`). Laravel migrations are not run against
+it. Schema changes are plain SQL files in `database/sql/`, applied by hand (see
+`database/sql/README.md`). Do not run destructive DB changes (drops, column removals,
 type changes on existing data).
+
+Tests never touch `sesf_dev`. They use a separate ephemeral MariaDB 10.11 (`testdb`, compose
+profile `test`, database `sesf_test`, tmpfs, no published port). Its schema comes from
+`docs/legacy/schema-sesf_dev.sql` plus `database/sql/`, loaded by `tests/Support/LoadsLegacySchema.php`.
+A guard refuses any database name other than `sesf_test`.
 
 ## Running things (Docker, from repo root)
 
@@ -16,7 +22,7 @@ type changes on existing data).
 - Artisan: `docker compose run --rm app php artisan <cmd>`
 - Composer: `docker compose run --rm app composer <cmd>`
 - npm: `docker compose run --rm node npm <cmd>`
-- Backend tests: `docker compose run --rm app vendor/bin/pest`
+- Backend tests: `scripts/test.sh` (starts `testdb`, runs Pest in the app container, removes `testdb` afterwards; `KEEP_TESTDB=1` keeps it; extra args go to pest, e.g. `scripts/test.sh --filter Foo`)
 - Frontend tests: `docker compose run --rm node npm run test`
 - Lint/analysis: `composer lint`, `composer analyse` (Pint, Larastan), `npm run lint`, `npm run typecheck` (ESLint, vue-tsc)
 - Containers run as uid 1000. Stop everything with `docker compose down`.
@@ -27,7 +33,8 @@ type changes on existing data).
 - Run Pint, Larastan, ESLint and vue-tsc before finishing.
 - Check for known CVEs/advisories before adding or upgrading any dependency, and report what was checked.
 - Keep the `/#/` hash-router URLs and the existing JSON API contract stable.
-- Migrations: additive only against the shared DB. Never drop or rewrite existing data.
+- Schema changes: additive SQL files in `database/sql/` only, idempotent (`IF NOT EXISTS`), rollback SQL in the header, renamed to `.sql.done` once applied by hand. Never drop or rewrite existing data.
+- Database tests (`tests/Database/**`) run inside a rolled-back transaction on `testing_mariadb`. Tests that need autocommit or DDL override `legacyTransactional()`.
 - `.env` is local only. `.env.example` must not contain real hosts or credentials.
 - Do not install laravel/boost.
 

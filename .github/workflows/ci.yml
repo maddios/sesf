@@ -20,6 +20,22 @@ jobs:
     name: Backend (Pint, Larastan, audit, Pest)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Ephemeral test DB, same image and healthcheck as docker-compose "testdb". Tests never
+    # use the shared sesf_dev DB. The GitHub services block cannot pass server args, so the
+    # sql_mode is set per connection (config/database.php testing_mariadb) instead of by flags.
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: test
+          MARIADB_DATABASE: sesf_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=2s
+          --health-timeout=5s
+          --health-retries=60
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -60,6 +76,9 @@ jobs:
         run: composer audit --locked
 
       - name: Tests with coverage
+        env:
+          DB_TEST_HOST: 127.0.0.1
+          DB_TEST_PORT: 3306
         run: vendor/bin/pest --coverage --min=85
 
   frontend:
@@ -128,19 +147,11 @@ jobs:
         run: composer install --no-interaction --prefer-dist
 
       - name: Prepare environment
-        # The committed .env.example points at an external MySQL; CI uses a
-        # throwaway SQLite database and file-based session/cache instead.
+        # The SPA shell route does not touch the database, and sessions and cache
+        # are file-based in .env.example, so no database is needed for E2E.
         run: |
           cp .env.example .env
-          sed -i \
-            -e 's/^DB_CONNECTION=.*/DB_CONNECTION=sqlite/' \
-            -e 's/^SESSION_DRIVER=.*/SESSION_DRIVER=file/' \
-            -e 's/^CACHE_STORE=.*/CACHE_STORE=file/' \
-            -e 's|^DB_DATABASE=.*|DB_DATABASE=${{ github.workspace }}/database/database.sqlite|' \
-            .env
           php artisan key:generate
-          touch database/database.sqlite
-          php artisan migrate --force
 
       - name: Install JS dependencies and build
         run: |
