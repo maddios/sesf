@@ -26,6 +26,10 @@ teardown() {
         return
     fi
     docker compose --profile test rm -sf testdb >/dev/null 2>&1 || true
+    # Compose leaves the project network behind; remove it so repeated runs (especially with
+    # distinct COMPOSE_PROJECT_NAMEs) don't exhaust Docker's address pool. Docker refuses to
+    # remove a network that still has containers attached, so a running dev stack is safe.
+    docker network rm "${COMPOSE_PROJECT_NAME:-$(basename "$REPO_ROOT")}_default" >/dev/null 2>&1 || true
 }
 trap teardown EXIT
 

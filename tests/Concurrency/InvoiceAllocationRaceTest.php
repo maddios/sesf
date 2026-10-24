@@ -4,6 +4,9 @@ use App\Models\CarShow;
 use App\Models\ShowRegistration;
 use App\Models\User;
 use App\Services\Registration\InvoiceNumberAllocator;
+use Illuminate\Database\Connection;
+use Illuminate\Database\DeadlockException;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\LegacyTestDatabase;
@@ -255,7 +258,7 @@ function deadlockingAllocator(int $failures, ArrayObject $calls): InvoiceNumberA
         /** @param  ArrayObject<int, int>  $calls */
         public function __construct(private int $failures, private ArrayObject $calls) {}
 
-        public function allocate(int $showId): int
+        public function allocate(int $showId, ?Connection $connection = null): int
         {
             $this->calls[] = $showId;
             if (count($this->calls) <= $this->failures) {
@@ -267,7 +270,7 @@ function deadlockingAllocator(int $failures, ArrayObject $calls): InvoiceNumberA
                 );
             }
 
-            return parent::allocate($showId);
+            return parent::allocate($showId, $connection);
         }
     };
 }
@@ -307,6 +310,170 @@ test('a deadlock that persists for CONCURRENCY_ATTEMPTS is rethrown', function (
         expect(DB::transactionLevel())->toBe(0);
         expect(ShowRegistration::query()->where('show_id', $show->id)->count())->toBe(0);
     } finally {
+        cleanupRaceFixtures([(int) $show->id], [(int) $user->id]);
+    }
+});
+
+/**
+ * Starts a process that holds the show row lock for $holdMs, and waits until it has the lock.
+ *
+ * @return resource The process handle; pass it to proc_close() to wait for the holder.
+ */
+function holdShowLock(int $showId, int $holdMs)
+{
+    $pipes = [];
+    $proc = proc_open(
+        [PHP_BINARY, __DIR__.'/Support/show-lock-holder.php', (string) $showId, (string) $holdMs],
+        [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+        base_path(),
+        array_merge(getenv(), ['APP_ENV' => 'testing']),
+    );
+    if (! is_resource($proc)) {
+        throw new RuntimeException('proc_open failed');
+    }
+    fclose($pipes[0]);
+    $line = (string) fgets($pipes[1]);
+    if (trim($line) !== 'LOCKED') {
+        proc_terminate($proc, 9);
+        throw new RuntimeException('Lock holder failed: '.$line.stream_get_contents($pipes[2]));
+    }
+
+    return $proc;
+}
+
+/**
+ * Real allocator that counts calls; with $nested it runs inside its own transaction level, like a
+ * hook or listener that opens a nested transaction (Laravel then throws DeadlockException).
+ *
+ * @param  ArrayObject<int, int>  $calls
+ */
+function countingAllocator(bool $nested, ArrayObject $calls): InvoiceNumberAllocator
+{
+    return new class($nested, $calls) extends InvoiceNumberAllocator
+    {
+        /** @param  ArrayObject<int, int>  $calls */
+        public function __construct(private bool $nested, private ArrayObject $calls) {}
+
+        public function allocate(int $showId, ?Connection $connection = null): int
+        {
+            $this->calls[] = $showId;
+            $connection ??= DB::connection();
+
+            return $this->nested
+                ? $connection->transaction(fn (): int => parent::allocate($showId, $connection))
+                : parent::allocate($showId, $connection);
+        }
+    };
+}
+
+test('a lock wait timeout on the show lock inside allocate() is retried when save() owns the transaction', function (bool $nested) {
+    $show = CarShow::factory()->create();
+    $user = User::factory()->create();
+    /** @var ArrayObject<int, int> $calls */
+    $calls = new ArrayObject;
+    app()->instance(InvoiceNumberAllocator::class, countingAllocator($nested, $calls));
+    DB::statement('SET SESSION innodb_lock_wait_timeout = 1');
+    // innodb_lock_wait_timeout = 1 fires after 1 s on 10.11 but after 1 to 2 s on 10.3 (its timeout
+    // thread wakes once a second). Held 2.5 s: attempt 1 always times out (by 2 s), and attempt 3
+    // starts after at least 2 s of waiting, so it gets the lock within its 1 s wait.
+    $holder = holdShowLock((int) $show->id, 2500);
+
+    try {
+        $registration = ShowRegistration::query()->create(['show_id' => $show->id, 'user_id' => $user->id]);
+
+        expect($calls->count())->toBeGreaterThanOrEqual(2);
+        expect($registration->invoice_id)->toBe(1);
+        expect(DB::transactionLevel())->toBe(0);
+        expect(ShowRegistration::query()->where('show_id', $show->id)->count())->toBe(1);
+    } finally {
+        proc_close($holder);
+        DB::statement('SET SESSION innodb_lock_wait_timeout = DEFAULT');
+        cleanupRaceFixtures([(int) $show->id], [(int) $user->id]);
+    }
+})->with(['allocator as is' => [false], 'allocator in a nested transaction' => [true]]);
+
+test('a lock wait timeout inside allocate() in a caller transaction throws DeadlockException saying so', function (bool $nested) {
+    $show = CarShow::factory()->create();
+    $user = User::factory()->create();
+    /** @var ArrayObject<int, int> $calls */
+    $calls = new ArrayObject;
+    app()->instance(InvoiceNumberAllocator::class, countingAllocator($nested, $calls));
+    DB::statement('SET SESSION innodb_lock_wait_timeout = 1');
+    // Held well past the longest 10.3 lock wait (2 s), so the attempt always times out.
+    $holder = holdShowLock((int) $show->id, 4000);
+
+    try {
+        DB::beginTransaction();
+        expect(fn () => ShowRegistration::query()->create(['show_id' => $show->id, 'user_id' => $user->id]))
+            ->toThrow(DeadlockException::class, "inside the caller's transaction");
+        expect($calls->count())->toBe(1);
+    } finally {
+        while (DB::transactionLevel() > 0) {
+            DB::rollBack();
+        }
+        proc_close($holder);
+        DB::statement('SET SESSION innodb_lock_wait_timeout = DEFAULT');
+        cleanupRaceFixtures([(int) $show->id], [(int) $user->id]);
+    }
+
+    expect(ShowRegistration::query()->where('show_id', $show->id)->count())->toBe(0);
+})->with(['allocator as is' => [false], 'allocator in a nested transaction' => [true]]);
+
+test('a deadlock after the insert (in a created listener) is retried and the row is not lost', function () {
+    $show = CarShow::factory()->create();
+    $user = User::factory()->create();
+    $fired = 0;
+    ShowRegistration::created(function (ShowRegistration $registration) use (&$fired, $user): void {
+        if ($registration->user_id === (int) $user->id && $fired++ === 0) {
+            throw new QueryException(
+                LegacyTestDatabase::CONNECTION,
+                'update x',
+                [],
+                new PDOException('SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock; try restarting transaction'),
+            );
+        }
+    });
+
+    try {
+        $registration = ShowRegistration::query()->create(['show_id' => $show->id, 'user_id' => $user->id]);
+
+        expect($fired)->toBe(2);
+        expect($registration->exists)->toBeTrue();
+        expect($registration->wasRecentlyCreated)->toBeTrue();
+        expect($registration->invoice_id)->toBe(1);
+        expect(ShowRegistration::query()->whereKey($registration->id)->exists())->toBeTrue();
+        expect(ShowRegistration::query()->where('show_id', $show->id)->count())->toBe(1);
+    } finally {
+        cleanupRaceFixtures([(int) $show->id], [(int) $user->id]);
+    }
+});
+
+test('the allocator locks and reads on the connection of the registration being saved', function () {
+    $config = config('database.connections.'.LegacyTestDatabase::CONNECTION);
+    LegacyTestDatabase::assertSafe(is_array($config) ? $config : []);
+    config(['database.connections.invoice_alt' => $config]);
+    $show = CarShow::factory()->create();
+    $user = User::factory()->create();
+    $queries = [];
+    DB::listen(function (QueryExecuted $query) use (&$queries): void {
+        $queries[] = [$query->connectionName, strtolower($query->sql)];
+    });
+
+    try {
+        $registration = (new ShowRegistration)->setConnection('invoice_alt');
+        $registration->fill(['show_id' => $show->id, 'user_id' => $user->id])->save();
+
+        $allocatorQueries = array_values(array_filter(
+            $queries,
+            fn (array $q): bool => str_contains($q[1], 'for update') || str_contains($q[1], 'max(`invoice_id`)') || str_starts_with($q[1], 'insert into `show_registration`'),
+        ));
+
+        expect(array_column($allocatorQueries, 0))->toBe(['invoice_alt', 'invoice_alt', 'invoice_alt_invoice_read', 'invoice_alt']);
+        expect($registration->invoice_id)->toBe(1);
+    } finally {
+        DB::purge('invoice_alt');
+        DB::purge('invoice_alt'.InvoiceNumberAllocator::READ_CONNECTION_SUFFIX);
         cleanupRaceFixtures([(int) $show->id], [(int) $user->id]);
     }
 });

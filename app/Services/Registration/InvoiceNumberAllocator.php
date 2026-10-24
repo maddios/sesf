@@ -8,6 +8,7 @@ use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use LogicException;
+use PDO;
 
 /**
  * Allocates the per-show invoice number for a new registration (legacy: max + 1, no lock).
@@ -42,40 +43,84 @@ class InvoiceNumberAllocator
     public const READ_CONNECTION_SUFFIX = '_invoice_read';
 
     /**
+     * Run it inside the transaction that inserts the row, on that row's connection. It opens no
+     * transaction level of its own when one is already open (so a lock wait or deadlock here
+     * surfaces at the caller's level, where ShowRegistration::save can retry it). Called outside
+     * any transaction, it wraps itself in one, which only makes sense for reads and tests.
+     *
+     * @param  Connection|null  $connection  The connection of the registration being saved.
+     *                                       Defaults to ShowRegistration's connection.
+     *
      * @throws ModelNotFoundException when the show does not exist.
      */
-    public function allocate(int $showId): int
+    public function allocate(int $showId, ?Connection $connection = null): int
     {
-        $connection = (new ShowRegistration)->getConnection();
+        $connection ??= (new ShowRegistration)->getConnection();
 
-        return $connection->transaction(function () use ($connection, $showId): int {
-            CarShow::query()->whereKey($showId)->lockForUpdate()->firstOrFail();
+        if ($connection->transactionLevel() === 0) {
+            return $connection->transaction(fn (): int => $this->allocateLocked($connection, $showId));
+        }
 
-            $own = (int) $connection->table('show_registration')
-                ->where('show_id', $showId)
-                ->max('invoice_id');
+        return $this->allocateLocked($connection, $showId);
+    }
 
-            $committed = (int) $this->committedReadConnection($connection)
-                ->table('show_registration')
-                ->useWritePdo()
-                ->where('show_id', $showId)
-                ->max('invoice_id');
+    private function allocateLocked(Connection $connection, int $showId): int
+    {
+        $show = $connection->table((new CarShow)->getTable())
+            ->where('id', $showId)
+            ->lockForUpdate()
+            ->first(['id']);
 
-            return max($own, $committed) + 1;
-        });
+        if ($show === null) {
+            throw (new ModelNotFoundException)->setModel(CarShow::class, [$showId]);
+        }
+
+        $own = (int) $connection->table('show_registration')
+            ->where('show_id', $showId)
+            ->max('invoice_id');
+
+        $committed = (int) $this->committedReadConnection($connection)
+            ->table('show_registration')
+            ->useWritePdo()
+            ->where('show_id', $showId)
+            ->max('invoice_id');
+
+        return max($own, $committed) + 1;
     }
 
     /**
      * A second session with the same config as $connection, kept open for reuse in this process.
      * It never opens a transaction, so every SELECT on it sees the latest committed rows.
+     *
+     * Fails closed (LogicException) when the config would make it share a session or a
+     * transaction: a persistent PDO (PDO::ATTR_PERSISTENT) may hand back the caller's own
+     * session, and autocommit off (PDO::ATTR_AUTOCOMMIT false, or @@autocommit = 0 after
+     * connecting) would pin one old snapshot.
      */
     public function committedReadConnection(Connection $connection): Connection
     {
         $name = $connection->getName().self::READ_CONNECTION_SUFFIX;
 
-        $read = array_key_exists($name, DB::getConnections())
-            ? DB::connection($name)
-            : DB::connectUsing($name, array_merge($connection->getConfig(), ['name' => $name]));
+        if (array_key_exists($name, DB::getConnections())) {
+            $read = DB::connection($name);
+        } else {
+            $config = array_merge($connection->getConfig(), ['name' => $name]);
+            $options = is_array($config['options'] ?? null) ? $config['options'] : [];
+
+            if (! empty($options[PDO::ATTR_PERSISTENT])) {
+                throw new LogicException("Connection [{$name}] cannot use PDO::ATTR_PERSISTENT: it could reuse the caller's session.");
+            }
+            if (array_key_exists(PDO::ATTR_AUTOCOMMIT, $options) && ! $options[PDO::ATTR_AUTOCOMMIT]) {
+                throw new LogicException("Connection [{$name}] needs autocommit; PDO::ATTR_AUTOCOMMIT is off.");
+            }
+
+            $read = DB::connectUsing($name, $config);
+
+            if ($read instanceof Connection && (int) $read->selectOne('select @@autocommit as ac')->ac !== 1) {
+                DB::purge($name);
+                throw new LogicException("Connection [{$name}] needs autocommit; the session has autocommit = 0.");
+            }
+        }
 
         if (! $read instanceof Connection) {
             throw new LogicException("Connection [{$name}] is not a database connection.");

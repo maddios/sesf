@@ -16,6 +16,9 @@ dataset('destructive command cases', [
     'testing_mariadb sesf_test is allowed' => [
         ['driver' => 'mysql', 'database' => 'sesf_test'], 'testing_mariadb', false,
     ],
+    'testing_mariadb pointed at sesf_dev is refused' => [
+        ['driver' => 'mysql', 'database' => 'sesf_dev'], 'testing_mariadb', true,
+    ],
     'sqlite in-memory is allowed' => [
         ['driver' => 'sqlite', 'database' => ':memory:'], 'sqlite', false,
     ],

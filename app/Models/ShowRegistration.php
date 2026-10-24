@@ -147,7 +147,7 @@ class ShowRegistration extends Model
         static::creating(function (ShowRegistration $registration): void {
             if (empty($registration->invoice_id)) {
                 $registration->invoice_id = app(InvoiceNumberAllocator::class)
-                    ->allocate((int) $registration->show_id);
+                    ->allocate((int) $registration->show_id, $registration->getConnection());
                 $registration->invoiceAllocated = true;
             }
         });
@@ -162,10 +162,14 @@ class ShowRegistration extends Model
      * Retries:
      *  - a violation of the (invoice_id, show_id) key on an allocated number: the savepoint is
      *    rolled back and the number allocated again, up to INSERT_ATTEMPTS attempts;
-     *  - a deadlock or lock wait timeout (1213 / 1205), up to CONCURRENCY_ATTEMPTS attempts, but
+     *  - a deadlock or lock wait timeout (1213 / 1205), wherever it happens in the attempt (the
+     *    allocator's show lock, the insert, a listener), up to CONCURRENCY_ATTEMPTS attempts, but
      *    only when save() opened the outermost transaction. Inside a caller's transaction the
      *    server may already have rolled the whole transaction back, so this cannot be retried
      *    here: a DeadlockException is thrown and the caller must retry its whole transaction.
+     *
+     * Before each retry the model is restored to its state before the failed attempt (exists,
+     * attributes, original), because the database rolled that attempt back.
      *
      * Anything else, or the last failed attempt, is rethrown.
      *
@@ -180,11 +184,13 @@ class ShowRegistration extends Model
         $concurrencyAttempt = 1;
 
         while (true) {
+            $before = $this->attemptSnapshot();
+
             try {
                 return $connection->transaction(fn (): bool => parent::save($options));
             } catch (UniqueConstraintViolationException $e) {
                 $retry = $this->invoiceAllocated
-                    && ! $this->exists
+                    && ! $before['exists']
                     && $insertAttempt < self::INSERT_ATTEMPTS
                     && self::isInvoiceKeyViolation($e);
 
@@ -194,14 +200,18 @@ class ShowRegistration extends Model
 
                 $insertAttempt++;
             } catch (DeadlockException $e) {
-                // Thrown by Laravel for a concurrency error inside a caller's transaction.
-                throw new DeadlockException(
-                    'Saving the registration hit a deadlock or lock wait timeout inside the caller\'s '
-                    .'transaction. That transaction may have been rolled back by the server; retry it as a whole. '
-                    .$e->getMessage(),
-                    is_int($e->getCode()) ? $e->getCode() : 0,
-                    $e,
-                );
+                // Laravel throws this for a concurrency error at a nested level (a listener's or
+                // hook's own transaction). When save() owns the outermost transaction, that
+                // transaction has been rolled back by now and the attempt can be retried.
+                if (! $outermost) {
+                    throw self::callerTransactionDeadlock($e);
+                }
+                if ($concurrencyAttempt >= self::CONCURRENCY_ATTEMPTS) {
+                    throw $e;
+                }
+
+                $concurrencyAttempt++;
+                usleep(random_int(5_000, 50_000));
             } catch (QueryException $e) {
                 if (! $outermost || $concurrencyAttempt >= self::CONCURRENCY_ATTEMPTS || ! $this->causedByConcurrencyError($e)) {
                     throw $e;
@@ -215,12 +225,50 @@ class ShowRegistration extends Model
                 }
             }
 
-            // Retrying: let the creating hook allocate again.
-            if ($this->invoiceAllocated) {
-                $this->setAttribute('invoice_id', null);
-                $this->invoiceAllocated = false;
-            }
+            // Retrying: the failed attempt was rolled back (whole transaction or savepoint), so
+            // put the model back as it was before it. This also clears an allocated invoice_id,
+            // so the creating hook allocates again, and undoes exists = true when the insert
+            // succeeded but a later statement in the same attempt failed.
+            $this->restoreAttemptSnapshot($before);
         }
+    }
+
+    /**
+     * @return array{exists: bool, wasRecentlyCreated: bool, attributes: array<string, mixed>, original: array<string, mixed>, changes: array<string, mixed>}
+     */
+    private function attemptSnapshot(): array
+    {
+        return [
+            'exists' => $this->exists,
+            'wasRecentlyCreated' => $this->wasRecentlyCreated,
+            'attributes' => $this->attributes,
+            'original' => $this->original,
+            'changes' => $this->changes,
+        ];
+    }
+
+    /**
+     * @param  array{exists: bool, wasRecentlyCreated: bool, attributes: array<string, mixed>, original: array<string, mixed>, changes: array<string, mixed>}  $snapshot
+     */
+    private function restoreAttemptSnapshot(array $snapshot): void
+    {
+        $this->exists = $snapshot['exists'];
+        $this->wasRecentlyCreated = $snapshot['wasRecentlyCreated'];
+        $this->attributes = $snapshot['attributes'];
+        $this->original = $snapshot['original'];
+        $this->changes = $snapshot['changes'];
+        $this->invoiceAllocated = false;
+    }
+
+    private static function callerTransactionDeadlock(DeadlockException $e): DeadlockException
+    {
+        return new DeadlockException(
+            'Saving the registration hit a deadlock or lock wait timeout inside the caller\'s '
+            .'transaction. That transaction may have been rolled back by the server; retry it as a whole. '
+            .$e->getMessage(),
+            is_int($e->getCode()) ? $e->getCode() : 0,
+            $e,
+        );
     }
 
     /**

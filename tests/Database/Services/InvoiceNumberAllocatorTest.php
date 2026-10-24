@@ -11,6 +11,7 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
+use Pdo\Mysql;
 use Tests\Support\LegacyTestDatabase;
 
 /**
@@ -29,9 +30,9 @@ function allocatorReturningFirst(array $first, ArrayObject $calls): InvoiceNumbe
          */
         public function __construct(private array $first, private ArrayObject $calls) {}
 
-        public function allocate(int $showId): int
+        public function allocate(int $showId, ?Connection $connection = null): int
         {
-            $number = $this->first !== [] ? array_shift($this->first) : parent::allocate($showId);
+            $number = $this->first !== [] ? array_shift($this->first) : parent::allocate($showId, $connection);
             $this->calls[] = $number;
 
             return $number;
@@ -84,7 +85,8 @@ test('only the show row is locked; both max reads are plain reads, one on the co
     $show = CarShow::factory()->create();
     $selects = [];
     DB::listen(function (QueryExecuted $query) use (&$selects): void {
-        if (str_starts_with(strtolower(ltrim($query->sql)), 'select')) {
+        // The one-time autocommit check on the new read connection is not part of the allocation.
+        if (str_starts_with(strtolower(ltrim($query->sql)), 'select') && ! str_contains($query->sql, '@@autocommit')) {
             $selects[] = [$query->connectionName, strtolower($query->sql)];
         }
     });
@@ -257,10 +259,48 @@ test('a failed insert on another key is not retried and leaves no row or gap', f
 test('the creating hook uses the allocator from the container', function () {
     $show = CarShow::factory()->create();
     $fake = Mockery::mock(InvoiceNumberAllocator::class);
-    $fake->shouldReceive('allocate')->once()->with($show->id)->andReturn(42);
+    $fake->shouldReceive('allocate')->once()
+        ->with($show->id, Mockery::on(fn ($c): bool => $c instanceof Connection && $c->getName() === LegacyTestDatabase::CONNECTION))
+        ->andReturn(42);
     app()->instance(InvoiceNumberAllocator::class, $fake);
 
     $registration = ShowRegistration::factory()->create(['show_id' => $show->id]);
 
     expect($registration->invoice_id)->toBe(42);
+});
+
+/**
+ * A lazily connected copy of the test connection with extra PDO options.
+ *
+ * @param  array<int, mixed>  $options
+ */
+function connectionWithOptions(string $name, array $options): Connection
+{
+    $config = config('database.connections.'.LegacyTestDatabase::CONNECTION);
+    LegacyTestDatabase::assertSafe(is_array($config) ? $config : []);
+    config(['database.connections.'.$name => array_merge($config, ['options' => $options])]);
+
+    return DB::connection($name);
+}
+
+test('the committed-read connection refuses a persistent PDO', function () {
+    $connection = connectionWithOptions('guard_persistent', [PDO::ATTR_PERSISTENT => true]);
+
+    expect(fn () => (new InvoiceNumberAllocator)->committedReadConnection($connection))
+        ->toThrow(LogicException::class, 'PDO::ATTR_PERSISTENT');
+});
+
+test('the committed-read connection refuses PDO::ATTR_AUTOCOMMIT off', function () {
+    $connection = connectionWithOptions('guard_autocommit_option', [PDO::ATTR_AUTOCOMMIT => false]);
+
+    expect(fn () => (new InvoiceNumberAllocator)->committedReadConnection($connection))
+        ->toThrow(LogicException::class, 'PDO::ATTR_AUTOCOMMIT is off');
+});
+
+test('the committed-read connection refuses a session that starts with autocommit = 0', function () {
+    $connection = connectionWithOptions('guard_autocommit_session', [Mysql::ATTR_INIT_COMMAND => 'SET autocommit = 0']);
+
+    expect(fn () => (new InvoiceNumberAllocator)->committedReadConnection($connection))
+        ->toThrow(LogicException::class, 'the session has autocommit = 0');
+    expect(array_key_exists('guard_autocommit_session_invoice_read', DB::getConnections()))->toBeFalse();
 });
