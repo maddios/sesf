@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\JudgingType;
 use App\Models\Concerns\HasLegacyDates;
+use App\Models\Judging\Answer;
 use Carbon\CarbonInterface;
 use Database\Factories\ShowRegistrationCarFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -68,11 +69,10 @@ class ShowRegistrationCar extends Model
     }
 
     /**
-     * @return HasMany<ShowRegistrationCarJudging, $this>
+     * @return HasMany<Answer, $this>
      */
-    public function judgingAnswers(): HasMany // @phpstan-ignore-line later-wave class
+    public function judgingAnswers(): HasMany
     {
-        // untested: the judging answer model arrives in the judging wave
-        return $this->hasMany(ShowRegistrationCarJudging::class, 'show_registration_car_id'); // @phpstan-ignore-line later-wave class
+        return $this->hasMany(Answer::class, 'show_registration_car_id');
     }
 }

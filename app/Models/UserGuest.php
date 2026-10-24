@@ -100,9 +100,8 @@ class UserGuest extends Model
     /**
      * @return BelongsTo<Waiver, $this>
      */
-    public function waiver(): BelongsTo // @phpstan-ignore-line later-wave class
+    public function waiver(): BelongsTo
     {
-        // untested: the Waiver model arrives in the next wave
-        return $this->belongsTo(Waiver::class, 'waiver_id'); // @phpstan-ignore-line later-wave class
+        return $this->belongsTo(Waiver::class, 'waiver_id');
     }
 }

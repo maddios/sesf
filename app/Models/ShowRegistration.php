@@ -199,27 +199,24 @@ class ShowRegistration extends Model
     /**
      * @return HasMany<Shirt, $this>
      */
-    public function shirts(): HasMany // @phpstan-ignore-line later-wave class
+    public function shirts(): HasMany
     {
-        // untested: the Shirt model arrives in the next wave
-        return $this->hasMany(Shirt::class, 'registration_id'); // @phpstan-ignore-line later-wave class
+        return $this->hasMany(Shirt::class, 'registration_id');
     }
 
     /**
-     * @return HasMany<PaypalPayment, $this>
+     * @return HasMany<PayPalPayment, $this>
      */
-    public function payments(): HasMany // @phpstan-ignore-line later-wave class
+    public function payments(): HasMany
     {
-        // untested: the PaypalPayment model arrives in the next wave
-        return $this->hasMany(PaypalPayment::class, 'registration_id'); // @phpstan-ignore-line later-wave class
+        return $this->hasMany(PayPalPayment::class, 'registration_id');
     }
 
     /**
      * @return HasMany<Waiver, $this>
      */
-    public function waivers(): HasMany // @phpstan-ignore-line later-wave class
+    public function waivers(): HasMany
     {
-        // untested: the Waiver model arrives in the next wave
-        return $this->hasMany(Waiver::class, 'show_registration_id'); // @phpstan-ignore-line later-wave class
+        return $this->hasMany(Waiver::class, 'show_registration_id');
     }
 }

@@ -208,9 +208,9 @@ class CarShow extends Model
     /**
      * @return HasMany<CarShowJudge, $this>
      */
-    public function carShowJudges(): HasMany // @phpstan-ignore-line later-wave class
+    public function carShowJudges(): HasMany
     {
-        return $this->hasMany(CarShowJudge::class, 'show_id'); // @phpstan-ignore-line later-wave class
+        return $this->hasMany(CarShowJudge::class, 'show_id');
     }
 
     /**
