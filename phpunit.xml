@@ -24,6 +24,7 @@
         </include>
     </source>
     <php>
+        <ini name="memory_limit" value="1G"/>
         <!-- force="true": these values override anything in .env or the shell, so a developer's
              local settings (or a cached config) can never point tests at sesf_dev. -->
         <env name="APP_ENV" value="testing" force="true"/>

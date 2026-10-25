@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { APP_CONFIG_ELEMENT_ID, getForumUrl, getMapsKey, getShopUrl, getTurnstileSiteKey } from './config';
+import { APP_CONFIG_ELEMENT_ID, getAppUrl, getForumUrl, getMapsKey, getPaypalEmail, getShopUrl, getTurnstileSiteKey } from './config';
 
 function addConfigBlock(text: string) {
   const script = document.createElement('script');
@@ -127,5 +127,57 @@ describe('getMapsKey', () => {
     expect(getMapsKey()).toBe('');
     window.__SESF__ = { mapsKey: 'a'.repeat(201) };
     expect(getMapsKey()).toBe('');
+  });
+});
+
+describe('getPaypalEmail', () => {
+  it('is empty when not configured', () => {
+    expect(getPaypalEmail()).toBe('');
+  });
+
+  it('reads the address from the JSON block and trims whitespace', () => {
+    addConfigBlock('{"paypalEmail":"  pay@example.test  "}');
+    expect(getPaypalEmail()).toBe('pay@example.test');
+  });
+
+  it('prefers window.__SESF__', () => {
+    addConfigBlock('{"paypalEmail":"block@example.test"}');
+    window.__SESF__ = { paypalEmail: 'window@example.test' };
+    expect(getPaypalEmail()).toBe('window@example.test');
+  });
+
+  it('rejects markup, non-strings, missing @ and overlong values', () => {
+    window.__SESF__ = { paypalEmail: '"><script>@x' };
+    expect(getPaypalEmail()).toBe('');
+    window.__SESF__ = { paypalEmail: 42 };
+    expect(getPaypalEmail()).toBe('');
+    window.__SESF__ = { paypalEmail: 'no-at-sign' };
+    expect(getPaypalEmail()).toBe('');
+    window.__SESF__ = { paypalEmail: `${'a'.repeat(250)}@example.test` };
+    expect(getPaypalEmail()).toBe('');
+  });
+});
+
+describe('getAppUrl', () => {
+  it('is empty when not configured', () => {
+    expect(getAppUrl()).toBe('');
+  });
+
+  it('reads the URL from the JSON block without a trailing slash', () => {
+    addConfigBlock('{"appUrl":"https://sesf.example.test///"}');
+    expect(getAppUrl()).toBe('https://sesf.example.test');
+  });
+
+  it('keeps a path prefix and prefers window.__SESF__', () => {
+    addConfigBlock('{"appUrl":"https://block.example.test"}');
+    window.__SESF__ = { appUrl: 'https://window.example.test/sub/' };
+    expect(getAppUrl()).toBe('https://window.example.test/sub');
+  });
+
+  it('ignores non-http URLs and non-strings', () => {
+    window.__SESF__ = { appUrl: 'javascript:alert(1)' };
+    expect(getAppUrl()).toBe('');
+    window.__SESF__ = { appUrl: 7 };
+    expect(getAppUrl()).toBe('');
   });
 });

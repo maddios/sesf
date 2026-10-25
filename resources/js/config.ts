@@ -1,16 +1,25 @@
 declare global {
   interface Window {
     /** Optional runtime config. Takes precedence over the JSON block rendered by the Laravel shell. */
-    __SESF__?: { forumUrl?: unknown; shopUrl?: unknown; mapsKey?: unknown; turnstileSiteKey?: unknown };
+    __SESF__?: {
+      forumUrl?: unknown;
+      shopUrl?: unknown;
+      mapsKey?: unknown;
+      turnstileSiteKey?: unknown;
+      paypalEmail?: unknown;
+      appUrl?: unknown;
+    };
   }
 }
 
 export const APP_CONFIG_ELEMENT_ID = 'sesf-config';
 
-type ConfigKey = 'forumUrl' | 'shopUrl' | 'mapsKey' | 'turnstileSiteKey';
+type ConfigKey = 'forumUrl' | 'shopUrl' | 'mapsKey' | 'turnstileSiteKey' | 'paypalEmail' | 'appUrl';
 
 /** Public site keys are short ASCII tokens. Anything else is treated as not configured. */
 const PUBLIC_KEY_PATTERN = /^[A-Za-z0-9_-]{1,200}$/;
+/** A plain mailbox address (the PayPal receiver). Deliberately loose: it only has to rule out markup. */
+const EMAIL_PATTERN = /^[^\s@<>"'`]{1,64}@[^\s@<>"'`]{1,253}$/;
 
 function readJsonConfig(): unknown {
   try {
@@ -64,4 +73,20 @@ export function getTurnstileSiteKey(): string {
 /** Google Maps JavaScript API key (public). Empty when not configured. */
 export function getMapsKey(): string {
   return getPublicKey('mapsKey');
+}
+
+/** PayPal receiver address for payments (public). Empty when not configured; the pay button is then hidden. */
+export function getPaypalEmail(): string {
+  const candidate = readConfigValue('paypalEmail');
+  const trimmed = typeof candidate === 'string' ? candidate.trim() : '';
+  return trimmed.length <= 254 && EMAIL_PATTERN.test(trimmed) ? trimmed : '';
+}
+
+/**
+ * Public base URL of this app (APP_URL), used to build the PayPal notify_url. Only http(s) URLs are returned,
+ * without a trailing slash; anything else is ''.
+ */
+export function getAppUrl(): string {
+  const url = getExternalUrl('appUrl');
+  return url.replace(/\/+$/, '');
 }

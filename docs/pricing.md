@@ -78,3 +78,15 @@ children beyond their free slots. The data cannot distinguish the two orders, so
    price changes do not alter past invoices.
 2. Decide whether `amount_owed` remains a stored column or is always derived.
 3. Free-slot order (first vs most expensive) is a policy choice. No stored row depends on it.
+
+## Read endpoints (registration pages and invoices)
+
+- `GET member/invoice` no longer writes `amount_owed`. Legacy `getInvoice` called `updateInvoiceAmounts()`. The
+  read endpoints (`event/registration`, `event/cars`, `event/extra`, `member/invoice`, `member/invoice-list`) never write.
+- Open shows: totals are computed by `RegistrationPricing`. Cars are counted only when their body is in `car_body_show`
+  for the show (legacy `carsByShow`, here an `IN (subquery)` so duplicate `car_body_show` rows cannot double-count).
+- ENDED shows: the summary (`total`, `owed`, `received`, `discount`, `donation`) is the stored columns. `total` is
+  `owed + received + discount`. Line items and category totals are still computed from current prices.
+- `RegistrationPricing implements RegistrationBalance` (PayPal IPN). `owedCents()` reads the in-memory
+  `amount_received` and `discount`. On ended shows it uses the ORIGINAL stored `amount_owed` minus the change in
+  received and discount, so a payment after a show ended adjusts the stored owed. Such payments are rare.

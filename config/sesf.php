@@ -42,6 +42,15 @@ return [
     'schedule_pdf_url' => 'packet/',
     'schedule_pdf_root' => public_path('packet/'),
 
+    // PayPal IPN receiver (App\Services\PayPal, docs/paypal-ipn.md). email is the account that must
+    // receive the payment (receiver_email or business). sandbox must match the IPN's test_ipn flag.
+    'paypal' => [
+        'email' => env('SESF_PAYPAL_EMAIL', 'registration@bmwsharkfest.org'),
+        'verify_url' => env('PAYPAL_IPN_VERIFY_URL', 'https://ipnpb.paypal.com/cgi-bin/webscr'),
+        'sandbox' => filter_var(env('PAYPAL_SANDBOX', false), FILTER_VALIDATE_BOOLEAN),
+        'currency' => 'USD',
+    ],
+
     'turnstile' => [
         'site_key' => env('TURNSTILE_SITE_KEY', ''),
         'secret' => env('TURNSTILE_SECRET', ''),

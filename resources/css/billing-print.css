@@ -1,0 +1,21 @@
+/* Print styles for the billing page (BillingPage). Only the invoice prints: site chrome and controls are hidden. */
+@media print {
+  nav,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  article {
+    box-shadow: none !important;
+  }
+
+  a[href]::after {
+    content: none !important;
+  }
+}

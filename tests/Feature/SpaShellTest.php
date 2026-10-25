@@ -25,6 +25,8 @@ class SpaShellTest extends TestCase
             'sesf.shop_url' => 'https://shop.example.test',
             'sesf.google.maps_js_key' => 'maps-public-key',
             'sesf.turnstile.site_key' => 'turnstile-site-key',
+            'sesf.paypal_email' => 'paypal-receiver@example.test',
+            'app.url' => 'https://sesf.example.test',
         ]);
 
         $html = $this->get('/')->assertStatus(200)->getContent();
@@ -36,6 +38,8 @@ class SpaShellTest extends TestCase
             'shopUrl' => 'https://shop.example.test',
             'mapsKey' => 'maps-public-key',
             'turnstileSiteKey' => 'turnstile-site-key',
+            'paypalEmail' => 'paypal-receiver@example.test',
+            'appUrl' => 'https://sesf.example.test',
         ], $decoded);
     }
 

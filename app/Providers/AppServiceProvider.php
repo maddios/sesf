@@ -3,6 +3,10 @@
 namespace App\Providers;
 
 use App\Policies\Gates;
+use App\Services\PayPal\IpnMailer;
+use App\Services\PayPal\IpnMailerImpl;
+use App\Services\PayPal\RegistrationBalance;
+use App\Services\PayPal\StoredAmountOwedBalance;
 use App\Support\DestructiveCommandGuard;
 use App\Support\DestructiveCommandPolicy;
 use Illuminate\Console\Events\CommandStarting;
@@ -18,7 +22,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // PayPal IPN (docs/paypal-ipn.md). The balance is the registration-pricing adapter when it
+        // exists and implements the contract, otherwise the documented stored amount_owed fallback.
+        $this->app->bind(IpnMailer::class, IpnMailerImpl::class);
+        $pricing = 'App\\Services\\Registration\\RegistrationPricing';
+        $this->app->bind(
+            RegistrationBalance::class,
+            class_exists($pricing) && in_array(RegistrationBalance::class, class_implements($pricing) ?: [], true)
+                ? $pricing
+                : StoredAmountOwedBalance::class,
+        );
     }
 
     /**

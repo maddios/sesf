@@ -33,6 +33,10 @@ return Application::configure(basePath: dirname(__DIR__))
             AuthenticateSession::class,
         ]);
 
+        // PayPal posts IPNs server to server without a CSRF token; the message is verified by
+        // posting it back to PayPal instead (App\Services\PayPal\IpnVerifier).
+        $middleware->validateCsrfTokens(except: ['paypal-ipn']);
+
         $middleware->alias([
             'admin' => EnsureAdmin::class,
             'judge_or_admin' => EnsureJudgeOrAdmin::class,

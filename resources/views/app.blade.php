@@ -20,6 +20,8 @@
                 'shopUrl' => config('sesf.shop_url'),
                 'mapsKey' => config('sesf.google.maps_js_key'),
                 'turnstileSiteKey' => config('sesf.turnstile.site_key'),
+                'paypalEmail' => config('sesf.paypal_email'),
+                'appUrl' => config('app.url'),
             ];
         @endphp
         <script id="sesf-config" type="application/json">@json($sesfClientConfig)</script>
