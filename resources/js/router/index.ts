@@ -11,7 +11,8 @@ import { installAuthGuard, type AuthStore } from './guards';
 // Area route modules live in router/routes/*.ts (default export: RouteRecordRaw[]) and are collected here
 // so feature work on different areas never edits this file. Order matters for hash patterns like
 // /:name/u:id vs /:name/e:id, so modules are sorted by file name and each module orders its own routes.
-const areaModules = import.meta.glob<{ default: RouteRecordRaw[] }>('./routes/*.ts', { eager: true });
+// Do NOT add a TypeScript generic to import.meta.glob: Vite's glob transform skips such calls silently.
+const areaModules = import.meta.glob('./routes/*.ts', { eager: true }) as Record<string, { default: RouteRecordRaw[] }>;
 const areaRoutes: RouteRecordRaw[] = Object.keys(areaModules)
   .sort()
   .flatMap((file) => areaModules[file].default);

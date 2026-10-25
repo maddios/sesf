@@ -6,11 +6,23 @@
         <meta name="referrer" content="strict-origin-when-cross-origin">
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <title>Southeast Sharkfest</title>
+        <link rel="icon" href="/images/favicon.ico" sizes="any">
+        <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
         @vite(['resources/css/app.css', 'resources/js/app.ts'])
     </head>
-    <body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+    <body class="min-h-screen antialiased">
         <div id="app"></div>
-        <script id="sesf-config" type="application/json">@json(['forumUrl' => config('sesf.forum_url')])</script>
+        @php
+            // Public, non-secret client config read by resources/js/config.ts. Built here (not inline in @json)
+            // because Blade's directive parser cannot handle a multi-line array argument.
+            $sesfClientConfig = [
+                'forumUrl' => config('sesf.forum_url'),
+                'shopUrl' => config('sesf.shop_url'),
+                'mapsKey' => config('sesf.google.maps_js_key'),
+                'turnstileSiteKey' => config('sesf.turnstile.site_key'),
+            ];
+        @endphp
+        <script id="sesf-config" type="application/json">@json($sesfClientConfig)</script>
         <noscript>
             <p class="p-4">Southeast Sharkfest requires JavaScript. Please enable JavaScript in your browser and reload this page.</p>
         </noscript>

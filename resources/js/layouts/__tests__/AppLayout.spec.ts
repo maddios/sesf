@@ -111,6 +111,21 @@ describe('AppLayout', () => {
     expect(emitted().contact).toHaveLength(1);
   });
 
+  it('opens the contact dialog from the footer button and closes it again', async () => {
+    const user = userEvent.setup();
+    await renderShell('/login');
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Contact Us' }));
+    const dialog = screen.getByRole('dialog', { name: 'Contact us' });
+    expect(dialog).toBeTruthy();
+    expect(screen.getByLabelText('Your name')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Contact Us' }));
+  });
+
   it('shows the Welcome account menu for a signed-in user and logs out from it', async () => {
     const user = userEvent.setup();
     const { pinia, router, fetchMock } = await renderShell('/', {

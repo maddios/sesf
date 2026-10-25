@@ -2,17 +2,25 @@
 /**
  * App shell: skip link, header, the white content panel (<main id="main">) and footer.
  * After each route change (path, not query) focus moves to <main> so keyboard and screen-reader users start
- * at the new page content. Contact Us is re-emitted as `contact` for the contact form.
+ * at the new page content. Contact Us opens the contact dialog and is also re-emitted as `contact`.
  */
 import { nextTick, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import AppHeader from './AppHeader.vue';
 import AppFooter from './AppFooter.vue';
+import ContactModal from '../components/contact/ContactModal.vue';
 
 const emit = defineEmits<{ contact: [] }>();
 
 const route = useRoute();
 const main = ref<HTMLElement | null>(null);
+/** The Contact Us dialog lives in the layout, so every page can open it from the footer. */
+const contactOpen = ref(false);
+
+function openContact(): void {
+  contactOpen.value = true;
+  emit('contact');
+}
 
 function focusMain(): void {
   main.value?.focus({ preventScroll: true });
@@ -52,6 +60,8 @@ watch(
       </div>
     </main>
 
-    <AppFooter @contact="emit('contact')" />
+    <AppFooter @contact="openContact" />
+
+    <ContactModal v-model:open="contactOpen" />
   </div>
 </template>

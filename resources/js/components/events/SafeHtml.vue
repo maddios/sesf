@@ -1,0 +1,16 @@
+<script setup lang="ts">
+/**
+ * Renders admin-authored HTML (agenda, schedule, location notes). The server sanitizes this markup before it
+ * is sent, so this is the single place in the events area where v-html is allowed. Never pass user input here.
+ */
+defineProps<{ html: string }>();
+</script>
+
+<template>
+  <!-- eslint-disable vue/no-v-html -->
+  <div
+    class="event-html space-y-3 text-[0.9375rem] leading-relaxed"
+    v-html="html"
+  />
+  <!-- eslint-enable vue/no-v-html -->
+</template>

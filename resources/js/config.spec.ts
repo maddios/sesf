@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { APP_CONFIG_ELEMENT_ID, getForumUrl, getShopUrl } from './config';
+import { APP_CONFIG_ELEMENT_ID, getForumUrl, getMapsKey, getShopUrl, getTurnstileSiteKey } from './config';
 
 function addConfigBlock(text: string) {
   const script = document.createElement('script');
@@ -54,6 +54,11 @@ describe('getForumUrl', () => {
     addConfigBlock('"just a string"');
     expect(getForumUrl()).toBe('');
   });
+
+  it('is empty when the JSON block is empty text', () => {
+    addConfigBlock('');
+    expect(getForumUrl()).toBe('');
+  });
 });
 
 describe('getShopUrl', () => {
@@ -72,7 +77,7 @@ describe('getShopUrl', () => {
     expect(getForumUrl()).toBe('https://forum.example.test/');
   });
 
-  it('is empty when the Blade shell does not send shopUrl yet', () => {
+  it('is empty when the Blade shell does not send shopUrl', () => {
     addConfigBlock('{"forumUrl":"https://forum.example.test/"}');
     expect(getShopUrl()).toBe('');
   });
@@ -80,5 +85,47 @@ describe('getShopUrl', () => {
   it('ignores non-http URLs', () => {
     window.__SESF__ = { shopUrl: 'data:text/html,hi' };
     expect(getShopUrl()).toBe('');
+  });
+});
+
+describe('getTurnstileSiteKey', () => {
+  it('is empty when no key is configured (dev notice state)', () => {
+    expect(getTurnstileSiteKey()).toBe('');
+  });
+
+  it('reads the key from the JSON block and trims whitespace', () => {
+    addConfigBlock('{"turnstileSiteKey":"  0x4AAAA-test_key  "}');
+    expect(getTurnstileSiteKey()).toBe('0x4AAAA-test_key');
+  });
+
+  it('prefers window.__SESF__', () => {
+    addConfigBlock('{"turnstileSiteKey":"block-key"}');
+    window.__SESF__ = { turnstileSiteKey: 'window-key' };
+    expect(getTurnstileSiteKey()).toBe('window-key');
+  });
+
+  it('rejects values that are not plain public-key tokens', () => {
+    window.__SESF__ = { turnstileSiteKey: '"><script>' };
+    expect(getTurnstileSiteKey()).toBe('');
+    window.__SESF__ = { turnstileSiteKey: 12345 };
+    expect(getTurnstileSiteKey()).toBe('');
+  });
+});
+
+describe('getMapsKey', () => {
+  it('is empty when not configured', () => {
+    expect(getMapsKey()).toBe('');
+  });
+
+  it('reads the JSON block key', () => {
+    addConfigBlock('{"mapsKey":"AIza-test_key"}');
+    expect(getMapsKey()).toBe('AIza-test_key');
+  });
+
+  it('rejects whitespace-only and overlong values', () => {
+    window.__SESF__ = { mapsKey: '   ' };
+    expect(getMapsKey()).toBe('');
+    window.__SESF__ = { mapsKey: 'a'.repeat(201) };
+    expect(getMapsKey()).toBe('');
   });
 });
