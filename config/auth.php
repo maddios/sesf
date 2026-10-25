@@ -95,7 +95,9 @@ return [
     'passwords' => [
         'users' => [
             'provider' => 'users',
-            'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
+            // The shared DB has the legacy Laravel 4 `password_reminder` table (email, token, created_at);
+            // same columns the current database token repository expects, and we cannot create tables.
+            'table' => 'password_reminder',
             'expire' => 60,
             'throttle' => 60,
         ],
