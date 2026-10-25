@@ -14,6 +14,7 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Support\Timebox;
 
 /**
  * Password login, session probe, logout and password change for the SPA.
@@ -22,7 +23,8 @@ use Illuminate\Support\Str;
  * and JSON shapes (see routes/web/login.php). Security changes from the legacy code:
  *  - the session is regenerated on login and password change, and invalidated on logout;
  *  - a deleted account is named only when the correct password was given (no enumeration);
- *  - a missing account still spends one bcrypt check (no timing enumeration);
+ *  - a missing account still spends one bcrypt check, and the whole login attempt is padded to
+ *    500 ms (Timebox), so success, wrong password, unknown email and deleted account look alike;
  *  - update-password only changes the signed-in member's own password (no user_id parameter);
  *  - logout redirects only to a local path.
  */
@@ -53,6 +55,11 @@ class SessionController extends Controller
     }
 
     public function login(LoginRequest $request): JsonResponse
+    {
+        return (new Timebox)->call(fn (): JsonResponse => $this->attemptLogin($request), 500_000);
+    }
+
+    private function attemptLogin(LoginRequest $request): JsonResponse
     {
         $email = (string) $request->validated('email');
         $password = (string) $request->validated('password');

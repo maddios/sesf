@@ -183,4 +183,25 @@ class UpdatePasswordTest extends TestCase
 
         return $sessionId === null ? $this : $this->withCookie('sesf_session', $sessionId);
     }
+
+    #[Test]
+    public function password_changes_are_limited_to_five_a_minute_per_member(): void
+    {
+        $user = User::factory()->create(['password' => Hash::make('old-pass1')]);
+        $this->actingAs($user, 'web');
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->post('/login/update-password', [
+                'old_password' => 'not-it-pass',
+                'new_password' => 'new-pass1',
+                'verify_password' => 'new-pass1',
+            ])->assertStatus(400);
+        }
+
+        $this->post('/login/update-password', [
+            'old_password' => 'not-it-pass',
+            'new_password' => 'new-pass1',
+            'verify_password' => 'new-pass1',
+        ])->assertStatus(429);
+    }
 }

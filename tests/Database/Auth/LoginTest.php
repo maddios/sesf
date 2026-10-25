@@ -195,4 +195,31 @@ class LoginTest extends TestCase
         $this->assertStringNotContainsString('password', $body);
         $this->assertStringNotContainsString('remember_token', $body);
     }
+
+    /**
+     * Response time in milliseconds for one password login attempt.
+     */
+    private function timedLogin(string $email, string $password): float
+    {
+        $start = microtime(true);
+        $this->post('/login/login', ['email' => $email, 'password' => $password]);
+
+        return (microtime(true) - $start) * 1000;
+    }
+
+    #[Test]
+    public function a_wrong_password_an_unknown_email_and_a_success_take_about_the_same_time(): void
+    {
+        $user = User::factory()->create(['password' => Hash::make('correct-horse')]);
+
+        $wrong = $this->timedLogin($user->email, 'wrong-horse');
+        $unknown = $this->timedLogin('nobody-here@example.test', 'wrong-horse');
+        $success = $this->timedLogin($user->email, 'correct-horse');
+
+        $this->assertGreaterThanOrEqual(450, $wrong, 'wrong password answered too fast');
+        $this->assertGreaterThanOrEqual(450, $unknown, 'unknown email answered too fast');
+        $this->assertGreaterThanOrEqual(450, $success, 'success answered too fast');
+        $this->assertLessThan(150, abs($wrong - $unknown), 'wrong password and unknown email differ in time');
+        $this->assertLessThan(150, abs($success - $unknown), 'success and unknown email differ in time');
+    }
 }

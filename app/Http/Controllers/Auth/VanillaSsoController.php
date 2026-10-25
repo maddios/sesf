@@ -35,6 +35,7 @@ class VanillaSsoController extends Controller
         return response($reply['body'], 200, [
             'Content-Type' => $reply['contentType'],
             'Cache-Control' => 'no-store, private',
+            'X-Content-Type-Options' => 'nosniff',
         ]);
     }
 

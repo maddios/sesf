@@ -7,7 +7,7 @@ it('renders the reset button, the hash-route link and the logo', function (): vo
     config(['sesf.email_logo_url' => 'https://logo.example.org/logo.png']);
 
     $html = (new ResetPasswordMail('abc123', 'a+b@example.org'))->render();
-    $link = htmlspecialchars(url('/#/reset-password?token=abc123&email='.urlencode('a+b@example.org')), ENT_QUOTES);
+    $link = htmlspecialchars(rtrim((string) config('app.url'), '/').'/#/reset-password?token=abc123&email='.urlencode('a+b@example.org'), ENT_QUOTES);
 
     expect($html)->toContain('Reset password')
         ->and($html)->toContain('href="'.$link.'"')
@@ -38,4 +38,18 @@ it('escapes values passed to the shared partials', function (): void {
     }
 
     expect($button)->toContain('href="https://x.example/?a=&quot;b&quot;"');
+});
+
+it('sends from the registration address with the configured sender name', function (): void {
+    $envelope = (new ResetPasswordMail('abc123', 'a@example.org'))->envelope();
+
+    expect($envelope->from?->address)->toBe(config('sesf.reg_email'))
+        ->and($envelope->from?->name)->toBe(config('mail.from.name'));
+});
+
+it('builds the reset link from APP_URL', function (): void {
+    config(['app.url' => 'https://sesf.example.org/']);
+
+    expect(ResetPasswordMail::resetUrl('abc123', 'a@example.org'))
+        ->toStartWith('https://sesf.example.org/#/reset-password?token=abc123&email=');
 });

@@ -34,6 +34,12 @@ final class JsConnect
     /** Accepted JSONP callback names (a JavaScript identifier, optionally dotted, at most 64 characters). */
     public const CALLBACK_PATTERN = '/^[A-Za-z_][A-Za-z0-9_.]{0,63}$/D';
 
+    /** Client ids that may be echoed back in an error message. Anything else gets a generic message. */
+    public const CLIENT_ID_PATTERN = '/^[A-Za-z0-9._-]{0,128}$/D';
+
+    /** Escapes < > & ' " inside JSON strings, so a reply stays safe even if it is sniffed as HTML. */
+    private const JSON_FLAGS = JSON_THROW_ON_ERROR | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
+
     public const CONTENT_TYPE_JSON = 'application/json';
 
     public const CONTENT_TYPE_JAVASCRIPT = 'application/javascript';
@@ -58,7 +64,7 @@ final class JsConnect
         }
 
         $result = $this->result($user, $request, $clientId, $secret, $now);
-        $json = json_encode($result, JSON_THROW_ON_ERROR);
+        $json = json_encode($result, self::JSON_FLAGS);
 
         if ($callback === null) {
             return ['body' => $json, 'contentType' => self::CONTENT_TYPE_JSON];
@@ -118,7 +124,9 @@ final class JsConnect
         $requestClientId = $this->stringParam($request, 'client_id');
 
         if ($clientId === '' || ! hash_equals($clientId, $requestClientId)) {
-            return $this->error('invalid_client', 'Unknown client '.$requestClientId.'.');
+            $echoable = preg_match(self::CLIENT_ID_PATTERN, $requestClientId) === 1;
+
+            return $this->error('invalid_client', $echoable ? 'Unknown client '.$requestClientId.'.' : 'Unknown client.');
         }
 
         if ($secret === '') {
@@ -195,7 +203,7 @@ final class JsConnect
      */
     private function plain(array $result): array
     {
-        return ['body' => json_encode($result, JSON_THROW_ON_ERROR), 'contentType' => self::CONTENT_TYPE_JSON];
+        return ['body' => json_encode($result, self::JSON_FLAGS), 'contentType' => self::CONTENT_TYPE_JSON];
     }
 
     /**

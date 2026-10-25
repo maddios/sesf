@@ -8,6 +8,7 @@ use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Resources\Auth\LoginUserResource;
 use App\Mail\ResetPasswordMail;
 use App\Models\User;
+use App\Support\AfterResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -21,6 +22,10 @@ class PasswordResetController extends Controller
     /**
      * Sends a reset link when the email belongs to a user. The response is always the same, so
      * it does not show which addresses are registered.
+     *
+     * Every address gets the same single lookup. For a known user the token write and the mail send
+     * run after the response is sent (AfterResponse), so the response time does not depend on
+     * whether the address exists.
      */
     public function forgot(ForgotPasswordRequest $request): JsonResponse
     {
@@ -28,6 +33,15 @@ class PasswordResetController extends Controller
 
         $email = (string) $request->validated('email');
 
+        if (User::query()->where('email', $email)->exists()) {
+            AfterResponse::run(fn () => $this->sendResetLink($email));
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    private function sendResetLink(string $email): void
+    {
         Password::broker()->sendResetLink(
             ['email' => $email],
             function (User $user, string $token): void {
@@ -38,8 +52,6 @@ class PasswordResetController extends Controller
                 }
             },
         );
-
-        return response()->json(['ok' => true]);
     }
 
     /**

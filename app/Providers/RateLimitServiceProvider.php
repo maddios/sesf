@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Support\EmailAddress;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -43,6 +44,11 @@ class RateLimitServiceProvider extends ServiceProvider
 
         RateLimiter::for('password-reset', fn (Request $request) => Limit::perMinute(10)->by($request->ip()));
 
+        // Password change: per signed-in member, or per IP for a request with no session.
+        RateLimiter::for('password-change', fn (Request $request) => Limit::perMinute(5)->by(
+            $request->user() !== null ? 'pc-user|'.$request->user()->getAuthIdentifier() : 'pc-ip|'.$request->ip(),
+        ));
+
         RateLimiter::for('waiver-sign', fn (Request $request) => Limit::perMinute(40)->by($request->ip()));
 
         RateLimiter::for('waiver-prefill', fn (Request $request) => Limit::perMinute(120)->by($request->ip()));
@@ -50,6 +56,6 @@ class RateLimitServiceProvider extends ServiceProvider
 
     private static function emailKey(Request $request): string
     {
-        return mb_strtolower(trim((string) $request->input('email', '')));
+        return EmailAddress::normalize($request->input('email', ''));
     }
 }

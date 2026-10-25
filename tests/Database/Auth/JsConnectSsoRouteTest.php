@@ -182,3 +182,32 @@ test('the response never contains the secret', function () {
 
     expect(ssoGet(ssoQuery(), $user)->getContent())->not->toContain(SSO_SECRET);
 });
+
+test('every jsConnect reply, including errors and JSONP, says nosniff', function () {
+    $user = User::factory()->create();
+
+    $replies = [
+        ssoGet(ssoQuery()),
+        ssoGet(ssoQuery(), $user),
+        ssoGet(ssoQuery(['sig' => 'deadbeef']), $user),
+        ssoGet(ssoQuery(['client_id' => 'other'])),
+        ssoGet(ssoQuery(['callback' => 'cb']), $user),
+    ];
+
+    foreach ($replies as $response) {
+        expect($response->headers->get('X-Content-Type-Options'))->toBe('nosniff');
+    }
+});
+
+test('a client id that is not a plain identifier is not echoed into the error reply', function () {
+    $response = ssoGet(ssoQuery(['client_id' => '</script><script>alert(1)</script>']));
+
+    expect($response->getContent())
+        ->toBe('{"error":"invalid_client","message":"Unknown client."}')
+        ->and($response->headers->get('Content-Type'))->toBe('application/json');
+});
+
+test('a plain client id is still echoed in the error reply', function () {
+    expect(ssoBody(ssoGet(ssoQuery(['client_id' => 'other-client']))))
+        ->toBe(['error' => 'invalid_client', 'message' => 'Unknown client other-client.']);
+});

@@ -7,8 +7,10 @@ use App\Mail\EmailSigninMail;
 use App\Models\LoginEmailSignin;
 use App\Models\User;
 use App\Services\Auth\EmailSigninService;
+use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
@@ -416,5 +418,106 @@ class EmailSigninTest extends TestCase
         $this->withHeader('Accept', 'application/json')
             ->post('/login/email-signin/request', ['email' => 'someone@example.com'])
             ->assertStatus(419);
+    }
+
+    public function test_the_sign_in_link_is_built_from_app_url_not_the_host_header(): void
+    {
+        $user = $this->makeUser();
+
+        $this->withServerVariables(['HTTP_HOST' => 'evil.example'])
+            ->postJson('/login/email-signin/request', ['email' => $user->email])
+            ->assertOk()
+            ->assertExactJson(['ok' => true]);
+
+        /** @var EmailSigninMail $mail */
+        $mail = Mail::sent(EmailSigninMail::class)->last();
+        $this->assertStringStartsWith(rtrim((string) config('app.url'), '/').'/login/email-signin/consume/', $mail->signInUrl);
+        $this->assertStringNotContainsString('evil.example', $mail->signInUrl);
+    }
+
+    public function test_the_row_and_the_mail_are_written_after_the_response_is_sent(): void
+    {
+        $user = $this->makeUser();
+        $request = Request::create('/login/email-signin/request', 'POST', ['email' => $user->email], [], [], [
+            'HTTP_ACCEPT' => 'application/json',
+        ]);
+
+        $kernel = $this->app->make(Kernel::class);
+        $response = $kernel->handle($request);
+
+        $this->assertSame(200, $response->getStatusCode());
+        Mail::assertNotSent(EmailSigninMail::class);
+        $this->assertSame(0, LoginEmailSignin::query()->where('user_id', $user->id)->count());
+
+        $kernel->terminate($request, $response);
+
+        Mail::assertSent(EmailSigninMail::class, 1);
+        $this->assertSame(1, LoginEmailSignin::query()->where('user_id', $user->id)->count());
+    }
+
+    public function test_a_code_check_waits_for_the_row_lock_and_fails_closed_when_it_is_held(): void
+    {
+        $user = $this->makeUser();
+        ['code' => $code] = $this->requestSignin($user->email);
+        $row = $this->latestRow($user);
+
+        $held = Cache::lock('signin-verify:'.$row->id, 30);
+        $this->assertTrue($held->get());
+
+        try {
+            $this->postJson('/login/email-signin/verify-code', ['email' => $user->email, 'code' => $code])
+                ->assertStatus(401)
+                ->assertExactJson([EmailSigninService::INVALID_MESSAGE]);
+        } finally {
+            $held->release();
+        }
+
+        $this->assertNull($row->fresh()->used_at);
+        $this->postJson('/login/email-signin/verify-code', ['email' => $user->email, 'code' => $code])->assertOk();
+    }
+
+    public function test_eight_wrong_guesses_close_the_row_and_the_right_code_never_passes_afterwards(): void
+    {
+        $user = $this->makeUser();
+        ['code' => $code] = $this->requestSignin($user->email);
+
+        $this->sendWrongCodes($user, $code, 8);
+
+        $this->postJson('/login/email-signin/verify-code', ['email' => $user->email, 'code' => $code])
+            ->assertStatus(401);
+        $this->assertNotNull($this->latestRow($user)->used_at);
+    }
+
+    public function test_spellings_of_one_email_share_one_verify_limiter_bucket(): void
+    {
+        $this->makeUser(['email' => 'victim@example.test']);
+        $variants = [
+            'victim@example.test',
+            'VICTIM@example.test',
+            ' Victim@Example.test ',
+            'vïctim@example.test',
+        ];
+
+        for ($i = 0; $i < 10; $i++) {
+            $this->postJson('/login/email-signin/verify-code', ['email' => $variants[$i % 4], 'code' => '000000'])
+                ->assertStatus(401);
+        }
+
+        $this->postJson('/login/email-signin/verify-code', ['email' => $variants[1], 'code' => '000000'])
+            ->assertStatus(429);
+    }
+
+    public function test_a_user_gets_at_most_three_sign_in_mails_in_ten_minutes_and_every_answer_is_ok(): void
+    {
+        $user = $this->makeUser();
+
+        for ($i = 0; $i < 4; $i++) {
+            $this->postJson('/login/email-signin/request', ['email' => $user->email])
+                ->assertOk()
+                ->assertExactJson(['ok' => true]);
+        }
+
+        Mail::assertSent(EmailSigninMail::class, 3);
+        $this->assertSame(3, LoginEmailSignin::query()->where('user_id', $user->id)->count());
     }
 }

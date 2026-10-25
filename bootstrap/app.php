@@ -3,6 +3,8 @@
 use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsureJudgeForShow;
 use App\Http\Middleware\EnsureJudgeOrAdmin;
+use App\Support\TrustedHosts;
+use App\Support\TrustedProxies;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -18,6 +20,13 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // The SPA login is a hash route, so there is no named "login" route for guests to be sent to.
         $middleware->redirectGuestsTo(fn () => '/#/login');
+
+        // Host header: only APP_URL's host (plus localhost in local/testing) is answered. Links in
+        // emails are built from APP_URL too, so a forged Host cannot reach them.
+        $middleware->trustHosts(at: fn (): array => TrustedHosts::patterns(), subdomains: false);
+
+        // Forwarded headers come only from proxies listed in TRUSTED_PROXIES. The default trusts none.
+        $middleware->trustProxies(at: TrustedProxies::fromEnv(env('TRUSTED_PROXIES')));
 
         // Ends sessions on other devices when the password changes (the stored password hash no longer matches).
         $middleware->web(append: [

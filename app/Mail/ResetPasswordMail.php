@@ -5,6 +5,7 @@ namespace App\Mail;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -24,10 +25,11 @@ class ResetPasswordMail extends Mailable
 
     /**
      * Builds the hash-route reset URL used by the email and by the framework's own notification.
+     * Built from APP_URL, never from the request's Host header.
      */
     public static function resetUrl(string $token, string $email): string
     {
-        return url('/#/reset-password?token='.$token.'&email='.urlencode($email));
+        return rtrim((string) config('app.url'), '/').'/#/reset-password?token='.$token.'&email='.urlencode($email);
     }
 
     /**
@@ -44,6 +46,7 @@ class ResetPasswordMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
+            from: new Address((string) config('sesf.reg_email'), (string) config('mail.from.name')),
             subject: 'Reset your password — Southeast Sharkfest',
         );
     }

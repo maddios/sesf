@@ -4,6 +4,8 @@ namespace Tests\Database\Auth;
 
 use App\Mail\ResetPasswordMail;
 use App\Models\User;
+use Illuminate\Contracts\Http\Kernel;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -247,5 +249,41 @@ class PasswordResetTest extends TestCase
         $this->withHeader('Accept', 'application/json')
             ->post('/login/reset-password', $this->resetBody('x', 'someone@example.com'))
             ->assertStatus(419);
+    }
+
+    public function test_the_reset_link_in_the_mail_is_built_from_app_url_not_the_host_header(): void
+    {
+        $user = $this->makeUser();
+
+        $this->withServerVariables(['HTTP_HOST' => 'evil.example'])
+            ->postJson('/login/forgot-password', ['email' => $user->email])
+            ->assertOk();
+
+        /** @var ResetPasswordMail $mail */
+        $mail = Mail::sent(ResetPasswordMail::class)->last();
+        $html = $mail->render();
+
+        $this->assertStringNotContainsString('evil.example', $html);
+        $this->assertStringContainsString(rtrim((string) config('app.url'), '/').'/#/reset-password?token=', $html);
+    }
+
+    public function test_the_reset_row_and_the_mail_are_written_after_the_response_is_sent(): void
+    {
+        $user = $this->makeUser();
+        $request = Request::create('/login/forgot-password', 'POST', ['email' => $user->email], [], [], [
+            'HTTP_ACCEPT' => 'application/json',
+        ]);
+
+        $kernel = $this->app->make(Kernel::class);
+        $response = $kernel->handle($request);
+
+        $this->assertSame(200, $response->getStatusCode());
+        Mail::assertNotSent(ResetPasswordMail::class);
+        $this->assertFalse(DB::table('password_reminder')->where('email', $user->email)->exists());
+
+        $kernel->terminate($request, $response);
+
+        Mail::assertSent(ResetPasswordMail::class, 1);
+        $this->assertTrue(DB::table('password_reminder')->where('email', $user->email)->exists());
     }
 }

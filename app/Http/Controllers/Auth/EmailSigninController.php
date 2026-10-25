@@ -9,6 +9,8 @@ use App\Http\Resources\Auth\LoginUserResource;
 use App\Models\LoginEmailSignin;
 use App\Models\User;
 use App\Services\Auth\EmailSigninService;
+use App\Support\AfterResponse;
+use App\Support\EmailAddress;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,6 +22,10 @@ class EmailSigninController extends Controller
      * Starts an emailed sign-in. The 200 body is the same whether or not the email belongs to a
      * user and whether or not mail was sent. Only the daily quota gets a different answer, and it
      * says nothing about any one address.
+     *
+     * Every address gets the same single lookup. For a known user the row write and the mail send
+     * run after the response is sent (AfterResponse), so the response time does not depend on
+     * whether the address exists.
      */
     public function requestCode(EmailSigninRequest $request, EmailSigninService $service): JsonResponse
     {
@@ -30,10 +36,13 @@ class EmailSigninController extends Controller
             ], 503);
         }
 
-        $user = User::query()->where('email', $request->validated('email'))->first();
+        $user = User::query()->where('email', EmailAddress::normalize($request->validated('email')))->first();
 
         if ($user) {
-            $service->issue($user, $request->input('redirect_path'), $request->ip());
+            $redirectPath = $request->input('redirect_path');
+            $ip = $request->ip();
+
+            AfterResponse::run(fn () => $service->issue($user, $redirectPath, $ip));
         }
 
         return response()->json(['ok' => true]);

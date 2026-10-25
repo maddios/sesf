@@ -5,9 +5,12 @@ namespace App\Services\Auth;
 use App\Mail\EmailSigninMail;
 use App\Models\LoginEmailSignin;
 use App\Models\User;
+use App\Support\EmailAddress;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Emailed sign-in (legacy UserAuth email-signin methods), with the hardening from the auth slice:
@@ -24,6 +27,16 @@ class EmailSigninService
     public const MAX_ATTEMPTS = 5;
 
     public const INVALID_MESSAGE = 'The code is incorrect or has expired';
+
+    /** Sign-in mails one user can be sent per window. Beyond it nothing is written or sent. */
+    public const MAX_SIGN_IN_EMAILS_PER_USER = 3;
+
+    public const SIGN_IN_EMAIL_WINDOW_SECONDS = 600;
+
+    /** Seconds a code check waits for the row lock before it fails closed. */
+    private const LOCK_WAIT_SECONDS = 3;
+
+    private const LOCK_TTL_SECONDS = 5;
 
     /**
      * Zero-pads a generated code to six digits (e.g. 7 becomes "000007").
@@ -90,6 +103,16 @@ class EmailSigninService
      */
     public function issue(User $user, mixed $rawRedirectPath, ?string $ip): void
     {
+        // Checked first, so an over-limit request writes nothing and sends nothing.
+        if (! RateLimiter::attempt(
+            'esr-user:'.$user->id,
+            self::MAX_SIGN_IN_EMAILS_PER_USER,
+            fn () => true,
+            self::SIGN_IN_EMAIL_WINDOW_SECONDS,
+        )) {
+            return;
+        }
+
         LoginEmailSignin::query()
             ->where('user_id', $user->id)
             ->unused()
@@ -111,7 +134,7 @@ class EmailSigninService
 
         try {
             Mail::to($user->email)->send(new EmailSigninMail(
-                url('login/email-signin/consume/'.$urlToken),
+                self::consumeUrl($urlToken),
                 $code,
             ));
         } catch (\Throwable $e) {
@@ -120,23 +143,63 @@ class EmailSigninService
     }
 
     /**
+     * The absolute emailed sign-in link. Built from APP_URL, never from the request's Host header.
+     */
+    public static function consumeUrl(string $urlToken): string
+    {
+        return rtrim((string) config('app.url'), '/').'/login/email-signin/consume/'.$urlToken;
+    }
+
+    /**
      * Checks a six-digit code for the user with this email. On success the row is closed and
      * returned with its user loaded. Returns null for every failure, including an unknown email.
+     *
+     * The attempt is serialised per row by a cache lock, so concurrent guesses cannot all pass the
+     * attempt check before any of them is counted. If the lock cannot be taken, the check fails closed.
      */
     public function consumeCode(string $email, string $digits): ?LoginEmailSignin
     {
-        $user = User::query()->where('email', $email)->first();
+        $user = User::query()->where('email', EmailAddress::normalize($email))->first();
         if (! $user) {
             return null;
         }
 
-        $row = LoginEmailSignin::query()
+        $rowId = LoginEmailSignin::query()
             ->where('user_id', $user->id)
             ->unused()
             ->unexpired()
             ->orderByDesc('id')
+            ->value('id');
+        if (! $rowId) {
+            return null;
+        }
+
+        try {
+            return Cache::lock('signin-verify:'.$rowId, self::LOCK_TTL_SECONDS)
+                ->block(self::LOCK_WAIT_SECONDS, fn () => $this->checkCodeLocked((int) $rowId, $user, $digits));
+        } catch (LockTimeoutException) {
+            return null;
+        }
+    }
+
+    /**
+     * The part of consumeCode that runs under the row lock: reload the row, refuse it if closed or
+     * over the attempt limit (without comparing), then compare and count a failure.
+     */
+    private function checkCodeLocked(int $rowId, User $user, string $digits): ?LoginEmailSignin
+    {
+        $row = LoginEmailSignin::query()
+            ->whereKey($rowId)
+            ->unused()
+            ->unexpired()
             ->first();
         if (! $row) {
+            return null;
+        }
+
+        if ($this->failedAttempts($row) >= self::MAX_ATTEMPTS) {
+            $this->closeRow($row);
+
             return null;
         }
 
@@ -184,16 +247,31 @@ class EmailSigninService
      */
     private function recordFailedAttempt(LoginEmailSignin $row): void
     {
-        $key = 'email-signin:failures:'.$row->id;
+        $key = $this->failureKey($row);
         $ttl = max(1, $row->expires_at->getTimestamp() - now()->getTimestamp());
 
         Cache::add($key, 0, $ttl);
         $failures = (int) Cache::increment($key);
 
         if ($failures >= self::MAX_ATTEMPTS) {
-            $row->forceFill(['used_at' => now()])->save();
-            Cache::forget($key);
+            $this->closeRow($row);
         }
+    }
+
+    private function failedAttempts(LoginEmailSignin $row): int
+    {
+        return (int) Cache::get($this->failureKey($row), 0);
+    }
+
+    private function closeRow(LoginEmailSignin $row): void
+    {
+        $row->forceFill(['used_at' => now()])->save();
+        Cache::forget($this->failureKey($row));
+    }
+
+    private function failureKey(LoginEmailSignin $row): string
+    {
+        return 'email-signin:failures:'.$row->id;
     }
 
     private function hashUrlToken(string $plainToken): string

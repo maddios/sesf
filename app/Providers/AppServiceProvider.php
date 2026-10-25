@@ -8,6 +8,7 @@ use App\Support\DestructiveCommandPolicy;
 use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -38,5 +39,15 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(CommandStarting::class, [DestructiveCommandGuard::class, 'handle']);
 
         Gates::register();
+
+        // Every generated URL uses APP_URL, never the Host header of the request that built it.
+        $appUrl = (string) config('app.url');
+        if ($appUrl !== '') {
+            URL::forceRootUrl($appUrl);
+
+            if (str_starts_with($appUrl, 'https://')) {
+                URL::forceScheme('https');
+            }
+        }
     }
 }

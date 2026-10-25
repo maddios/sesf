@@ -4,7 +4,7 @@ import pluginVue from 'eslint-plugin-vue';
 
 export default tseslint.config(
     {
-        ignores: ['node_modules/**', 'public/build/**', 'vendor/**', 'storage/**', 'coverage/**', 'playwright-report/**', 'test-results/**'],
+        ignores: ['node_modules/**', 'public/build/**', 'vendor/**', 'storage/**', 'coverage/**', 'playwright-report/**', 'test-results/**', 'docs/**'],
     },
     js.configs.recommended,
     tseslint.configs.recommended,

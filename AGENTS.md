@@ -27,6 +27,10 @@ A guard refuses any database name other than `sesf_test`.
 - Lint/analysis: `composer lint`, `composer analyse` (Pint, Larastan), `npm run lint`, `npm run typecheck` (ESLint, vue-tsc)
 - Containers run as uid 1000. Stop everything with `docker compose down`.
 
+Behind a reverse proxy or HTTPS terminator, set `TRUSTED_PROXIES` (IPs or CIDRs; unset trusts none)
+so client IPs and scheme come from the proxy's headers. Emailed links are always built from `APP_URL`,
+and `SESSION_SECURE_COOKIE` defaults to on only when `APP_ENV=production`.
+
 ## Conventions
 
 - Every change ships with tests: Pest for PHP, Vitest for Vue/JS.
