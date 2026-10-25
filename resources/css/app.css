@@ -1,1 +1,197 @@
 @import "tailwindcss";
+
+/*
+ * SESF design tokens. Values come from the legacy site (docs/design-baseline/tokens.json),
+ * adjusted only where WCAG 2.2 AA contrast required it. Documented in docs/design-tokens.md.
+ */
+@theme {
+  /* Brand and surfaces */
+  --color-brand: #2a6496;
+  --color-brand-dark: #1d4a70;
+  --color-brand-tint: #e8f0f7;
+  --color-surface: #f8f8fa;
+  --color-panel: #ffffff;
+  --color-subtle: #f2f2f4;
+
+  /* Text */
+  --color-text: #333333;
+  --color-heading: #222222;
+  --color-title: #444444;
+  --color-muted: #666666;
+
+  /* Lines: decorative borders vs form-control borders (3:1 non-text contrast) */
+  --color-border: #e0e0e0;
+  --color-border-strong: #8c8c8c;
+
+  /* Buttons (legacy Bootstrap colours, flat) */
+  --color-primary: #006dcc;
+  --color-primary-hover: #0044cc;
+  --color-default: #f5f5f5;
+  --color-default-hover: #e6e6e6;
+  --color-default-border: #c4c4c4;
+  /* Legacy #da4f49 gives 4.0:1 with white text; darkened to meet 4.5:1. */
+  --color-danger: #c9302c;
+  --color-danger-hover: #a82824;
+
+  /* Status colours: bg / fg pairs, each fg >= 4.5:1 on its bg */
+  --color-success-bg: #dff0d8;
+  --color-success-fg: #2b542c;
+  --color-success-border: #b2d8a3;
+  --color-danger-bg: #f2dede;
+  --color-danger-fg: #843534;
+  --color-danger-border: #e4b9b9;
+  --color-info-bg: #d9edf7;
+  --color-info-fg: #245269;
+  --color-info-border: #aed6ea;
+  --color-warning-bg: #fcf8e3;
+  --color-warning-fg: #66512c;
+  --color-warning-border: #ecdca4;
+
+  /* Typography: one system stack everywhere */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --text-h1: 2.25rem;
+  --text-h1--line-height: 1.2;
+  --text-h2: 1rem;
+  --text-h2--line-height: 1.4;
+  --text-h2--letter-spacing: 0.03em;
+  --text-h3: 1.5rem;
+  --text-h3--line-height: 1.3;
+  --text-h4: 0.875rem;
+  --text-h4--line-height: 1.4;
+  --text-nav: 1rem;
+  --text-nav--letter-spacing: 0.04em;
+  --text-utility: 0.8125rem;
+  --text-footer: 0.75rem;
+
+  /* Layout */
+  --container-site: 1070px;
+  --spacing-gutter: 1rem;
+  --spacing-panel: 2.5rem;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+
+  /* Shadows */
+  --shadow-header: 0 1px 4px rgb(0 0 0 / 0.08);
+  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.04);
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.12);
+  --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Legacy content links were italic blue; now plain underlined links. */
+  a {
+    color: var(--color-brand);
+    text-decoration-line: underline;
+    text-underline-offset: 2px;
+  }
+
+  a:hover {
+    color: var(--color-brand-dark);
+  }
+
+  /* Visible 2px focus ring: brand blue is >= 5.8:1 on white and on the page background. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+
+  [tabindex="-1"]:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* <main> takes programmatic focus after each route change; the page itself is the focus cue. */
+  main[tabindex="-1"]:focus {
+    outline: none;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Page title (legacy h1: 38.5px bold #444) */
+  .page-title {
+    color: var(--color-title);
+    font-size: var(--text-h1);
+    line-height: var(--text-h1--line-height);
+    font-weight: 700;
+  }
+
+  /* Section heading (legacy h2: uppercase, 2px rule underneath) */
+  .section-heading {
+    color: var(--color-heading);
+    font-size: 1.0625rem;
+    line-height: var(--text-h2--line-height);
+    font-weight: 600;
+    letter-spacing: var(--text-h2--letter-spacing);
+    text-transform: uppercase;
+    border-bottom: 2px solid var(--color-border);
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  /* Item title (legacy h3: brand blue) */
+  .item-title {
+    color: var(--color-brand);
+    font-size: var(--text-h3);
+    line-height: var(--text-h3--line-height);
+    font-weight: 600;
+  }
+
+  .form-control {
+    display: block;
+    width: 100%;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-panel);
+    color: var(--color-text);
+    padding: 0.375rem 0.625rem;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+
+  .form-control::placeholder {
+    color: #767676;
+  }
+
+  .form-control:focus-visible {
+    border-color: var(--color-brand);
+  }
+
+  .form-control:disabled {
+    background-color: var(--color-subtle);
+    cursor: not-allowed;
+  }
+
+  .form-control[aria-invalid="true"] {
+    border-color: var(--color-danger);
+  }
+}

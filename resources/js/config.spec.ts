@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { APP_CONFIG_ELEMENT_ID, getForumUrl } from './config';
+import { APP_CONFIG_ELEMENT_ID, getForumUrl, getShopUrl } from './config';
 
 function addConfigBlock(text: string) {
   const script = document.createElement('script');
@@ -53,5 +53,32 @@ describe('getForumUrl', () => {
   it('is empty when the JSON block is not an object', () => {
     addConfigBlock('"just a string"');
     expect(getForumUrl()).toBe('');
+  });
+});
+
+describe('getShopUrl', () => {
+  it('is empty when nothing is configured', () => {
+    expect(getShopUrl()).toBe('');
+  });
+
+  it('reads window.__SESF__.shopUrl', () => {
+    window.__SESF__ = { shopUrl: 'https://shop.example.test/' };
+    expect(getShopUrl()).toBe('https://shop.example.test/');
+  });
+
+  it('reads the JSON block and ignores the forum key', () => {
+    addConfigBlock('{"forumUrl":"https://forum.example.test/","shopUrl":"https://shop.example.test/"}');
+    expect(getShopUrl()).toBe('https://shop.example.test/');
+    expect(getForumUrl()).toBe('https://forum.example.test/');
+  });
+
+  it('is empty when the Blade shell does not send shopUrl yet', () => {
+    addConfigBlock('{"forumUrl":"https://forum.example.test/"}');
+    expect(getShopUrl()).toBe('');
+  });
+
+  it('ignores non-http URLs', () => {
+    window.__SESF__ = { shopUrl: 'data:text/html,hi' };
+    expect(getShopUrl()).toBe('');
   });
 });

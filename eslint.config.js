@@ -24,5 +24,10 @@ export default tseslint.config(
                 extraFileExtensions: ['.vue'],
             },
         },
+        rules: {
+            // TypeScript (vue-tsc) already checks undefined names; core no-undef does not know DOM types like
+            // HTMLElement in <script lang="ts">. typescript-eslint recommends turning it off for TS code.
+            'no-undef': 'off',
+        },
     },
 );

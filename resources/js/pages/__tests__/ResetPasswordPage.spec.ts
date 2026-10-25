@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/vue';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
@@ -29,13 +29,54 @@ describe('ResetPasswordPage', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it('shows an incomplete-link message instead of the form when the token is missing', async () => {
+  it('moves the token out of the visible URL and history while keeping the form working', async () => {
     stubFetch();
-    const { container } = await renderAt(ResetPasswordPage, '/reset-password?email=fan%40example.test');
+    const { router } = await renderAt(ResetPasswordPage, QUERY);
+    await waitFor(() => expect(router.currentRoute.value.fullPath).toBe('/reset-password'));
+    expect(router.currentRoute.value.query).toEqual({});
+    expect(router.options.history.location).not.toContain('tok123');
+    expect(router.options.history.location).not.toContain('email=');
+    expect(screen.getByRole('button', { name: 'Reset password' })).toBeTruthy();
+  });
+
+  it('submits with the token remembered after the URL was cleaned', async () => {
+    const fetchMock = stubFetch({ [RESET]: () => jsonResponse(200, SESSION_PAYLOAD) });
+    const user = userEvent.setup();
+    const { router } = await renderAt(ResetPasswordPage, QUERY);
+    await waitFor(() => expect(router.currentRoute.value.query).toEqual({}));
+    await user.type(screen.getByLabelText('New password'), 'new-secret');
+    await user.type(screen.getByLabelText('Confirm new password'), 'new-secret');
+    await user.click(screen.getByRole('button', { name: 'Reset password' }));
+    await waitFor(() => expect(router.currentRoute.value.path).toBe('/'));
+    expect(callsTo(fetchMock, RESET)[0]).toMatchObject({ token: 'tok123', email: 'fan@example.test' });
+  });
+
+  it('shows the expired-link state with a request link after a reload without the token', async () => {
+    stubFetch();
+    const { container } = await renderAt(ResetPasswordPage, '/reset-password');
     expect(screen.queryByRole('button', { name: 'Reset password' })).toBeNull();
-    expect(screen.getByRole('alert').textContent).toContain('This reset link is incomplete.');
+    expect(screen.getByRole('alert').textContent).toContain('This reset link is invalid or expired.');
     expect(screen.getByRole('link', { name: 'Request a new reset email' }).getAttribute('href')).toBe('/forgot-password');
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('never writes the token to the console', async () => {
+    const levels = ['log', 'info', 'warn', 'error', 'debug'] as const;
+    const spies = levels.map((level) => vi.spyOn(console, level).mockImplementation(() => {}));
+    try {
+      stubFetch({ [RESET]: () => jsonResponse(422, { message: 'Invalid.', errors: { token: ['This link has expired.'] } }) });
+      const user = userEvent.setup();
+      await renderAt(ResetPasswordPage, QUERY);
+      await user.type(screen.getByLabelText('New password'), 'new-secret');
+      await user.type(screen.getByLabelText('Confirm new password'), 'new-secret');
+      await user.click(screen.getByRole('button', { name: 'Reset password' }));
+      await screen.findByRole('alert');
+      for (const spy of spies) {
+        expect(JSON.stringify(spy.mock.calls)).not.toContain('tok123');
+      }
+    } finally {
+      spies.forEach((spy) => spy.mockRestore());
+    }
   });
 
   it('checks length and confirmation locally without calling the server', async () => {

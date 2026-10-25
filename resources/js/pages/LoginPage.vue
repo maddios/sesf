@@ -9,6 +9,7 @@ import { SIGNIN_CODE_LENGTH, sanitizeCode } from './codeInput';
 import ResponseBanner from '../components/ResponseBanner.vue';
 import FormField from '../components/FormField.vue';
 import SubmitButton from '../components/SubmitButton.vue';
+import BaseButton from '../components/ui/BaseButton.vue';
 
 type Tab = 'password' | 'code';
 
@@ -174,243 +175,253 @@ function selectTab(next: Tab): void {
 </script>
 
 <template>
-  <section
-    class="mx-auto max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
-    aria-labelledby="login-heading"
-  >
-    <h1
-      id="login-heading"
-      class="text-2xl font-bold"
-    >
-      Sign in
-    </h1>
+  <div class="grid gap-10 md:grid-cols-2 md:gap-8">
+    <section aria-labelledby="login-heading">
+      <h1
+        id="login-heading"
+        class="section-heading"
+      >
+        Sign in
+      </h1>
 
-    <div class="mt-4">
-      <ResponseBanner
+      <div
         v-if="emailSigninExpired"
-        variant="warning"
-        :messages="'This sign-in link is no longer valid. Use “Email me a code” to request a new one.'"
-      />
-    </div>
-
-    <div
-      role="tablist"
-      aria-label="Sign-in method"
-      class="mt-4 flex gap-2 border-b border-slate-200"
-    >
-      <button
-        id="tab-password"
-        type="button"
-        role="tab"
-        class="-mb-px border-b-2 px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-blue-800"
-        :class="tab === 'password' ? 'border-blue-800 text-blue-900' : 'border-transparent text-slate-600 hover:text-slate-900'"
-        :aria-selected="tab === 'password' ? 'true' : 'false'"
-        @click="selectTab('password')"
+        class="mb-4"
       >
-        Password
-      </button>
-      <button
-        v-if="codeTabAvailable"
-        id="tab-code"
-        type="button"
-        role="tab"
-        class="-mb-px border-b-2 px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-blue-800"
-        :class="tab === 'code' ? 'border-blue-800 text-blue-900' : 'border-transparent text-slate-600 hover:text-slate-900'"
-        :aria-selected="tab === 'code' ? 'true' : 'false'"
-        @click="selectTab('code')"
-      >
-        Email me a code
-      </button>
-    </div>
-
-    <div
-      v-if="tab === 'password'"
-      id="panel-password"
-      role="tabpanel"
-      aria-labelledby="tab-password"
-      class="mt-6"
-    >
-      <form
-        class="space-y-4"
-        novalidate
-        @submit.prevent="submitPassword"
-      >
-        <ResponseBanner :messages="passwordErrors.messages" />
-
-        <FormField
-          id="login-email"
-          label="Email"
-          :errors="passwordErrors.fields.email"
-        >
-          <template #default="{ inputProps }">
-            <input
-              v-bind="inputProps"
-              v-model="email"
-              type="email"
-              class="w-full rounded-md border border-slate-300 px-3 py-2 focus-visible:outline-2 focus-visible:outline-blue-800"
-              placeholder="your@email.com"
-              autocomplete="username"
-              autocapitalize="none"
-              spellcheck="false"
-              aria-required="true"
-            >
-          </template>
-        </FormField>
-
-        <FormField
-          id="login-password"
-          label="Password"
-          :errors="passwordErrors.fields.password"
-        >
-          <template #default="{ inputProps }">
-            <input
-              v-bind="inputProps"
-              v-model="password"
-              type="password"
-              class="w-full rounded-md border border-slate-300 px-3 py-2 focus-visible:outline-2 focus-visible:outline-blue-800"
-              placeholder="Password"
-              autocomplete="current-password"
-              aria-required="true"
-            >
-          </template>
-        </FormField>
-
-        <div class="flex items-center gap-2">
-          <input
-            id="login-remember"
-            v-model="remember"
-            type="checkbox"
-            class="h-4 w-4 rounded border-slate-300"
-          >
-          <label
-            for="login-remember"
-            class="text-sm text-slate-800"
-          >Remember me on this device</label>
-        </div>
-
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <SubmitButton
-            :busy="passwordBusy"
-            busy-label="Signing in"
-          >
-            Sign in
-          </SubmitButton>
-          <RouterLink
-            to="/forgot-password"
-            class="text-sm font-medium text-blue-800 underline underline-offset-2 hover:text-blue-900 focus-visible:outline-2 focus-visible:outline-blue-800"
-          >
-            Forgot password?
-          </RouterLink>
-        </div>
-      </form>
-    </div>
-
-    <div
-      v-else
-      id="panel-code"
-      role="tabpanel"
-      aria-labelledby="tab-code"
-      class="mt-6 space-y-4"
-    >
-      <form
-        v-if="codeStep === 'request'"
-        class="space-y-4"
-        novalidate
-        @submit.prevent="submitCodeForm"
-      >
-        <p class="text-sm text-slate-700">
-          We will email you a 6-digit code. No password needed.
-        </p>
-        <ResponseBanner :messages="codeErrors.messages" />
-        <FormField
-          id="code-email"
-          label="Email"
-          :errors="codeErrors.fields.email"
-        >
-          <template #default="{ inputProps }">
-            <input
-              v-bind="inputProps"
-              v-model="codeEmail"
-              type="email"
-              class="w-full rounded-md border border-slate-300 px-3 py-2 focus-visible:outline-2 focus-visible:outline-blue-800"
-              placeholder="your@email.com"
-              autocomplete="username"
-              autocapitalize="none"
-              spellcheck="false"
-              aria-required="true"
-              :disabled="codeBusy"
-            >
-          </template>
-        </FormField>
-        <SubmitButton
-          :busy="codeBusy"
-          busy-label="Sending"
-        >
-          Email me a sign-in code
-        </SubmitButton>
-      </form>
-
-      <form
-        v-else
-        class="space-y-4"
-        novalidate
-        @submit.prevent="submitCodeForm"
-      >
-        <p class="text-sm text-slate-700">
-          Open the email we just sent and type the 6 numbers below.
-        </p>
         <ResponseBanner
-          :messages="codeNotice"
-          variant="success"
+          variant="warning"
+          :messages="'This sign-in link is no longer valid. Use “Email me a code” to request a new one.'"
         />
-        <ResponseBanner :messages="codeErrors.messages" />
-        <FormField
-          id="code-value"
-          label="Your code"
-          :errors="codeErrors.fields.code"
+      </div>
+
+      <div
+        role="tablist"
+        aria-label="Sign-in method"
+        class="mt-2 flex gap-1 border-b border-border"
+      >
+        <button
+          id="tab-password"
+          type="button"
+          role="tab"
+          class="-mb-px rounded-t-sm border px-3 py-2 text-sm"
+          :class="tab === 'password' ? 'border-border border-b-panel bg-panel font-semibold text-heading' : 'border-transparent text-muted hover:bg-subtle hover:text-text'"
+          :aria-selected="tab === 'password' ? 'true' : 'false'"
+          @click="selectTab('password')"
         >
-          <template #default="{ inputProps }">
+          Password
+        </button>
+        <button
+          v-if="codeTabAvailable"
+          id="tab-code"
+          type="button"
+          role="tab"
+          class="-mb-px rounded-t-sm border px-3 py-2 text-sm"
+          :class="tab === 'code' ? 'border-border border-b-panel bg-panel font-semibold text-heading' : 'border-transparent text-muted hover:bg-subtle hover:text-text'"
+          :aria-selected="tab === 'code' ? 'true' : 'false'"
+          @click="selectTab('code')"
+        >
+          Email me a code
+        </button>
+      </div>
+
+      <div
+        v-if="tab === 'password'"
+        id="panel-password"
+        role="tabpanel"
+        aria-labelledby="tab-password"
+        class="mt-6"
+      >
+        <form
+          class="space-y-4"
+          novalidate
+          @submit.prevent="submitPassword"
+        >
+          <ResponseBanner :messages="passwordErrors.messages" />
+
+          <FormField
+            id="login-email"
+            label="Email"
+            :errors="passwordErrors.fields.email"
+          >
+            <template #default="{ inputProps }">
+              <input
+                v-bind="inputProps"
+                v-model="email"
+                type="email"
+                class="form-control"
+                placeholder="your@email.com"
+                autocomplete="username"
+                autocapitalize="none"
+                spellcheck="false"
+                aria-required="true"
+              >
+            </template>
+          </FormField>
+
+          <FormField
+            id="login-password"
+            label="Password"
+            :errors="passwordErrors.fields.password"
+          >
+            <template #default="{ inputProps }">
+              <input
+                v-bind="inputProps"
+                v-model="password"
+                type="password"
+                class="form-control"
+                placeholder="Password"
+                autocomplete="current-password"
+                aria-required="true"
+              >
+            </template>
+          </FormField>
+
+          <div class="flex items-center gap-2">
             <input
-              v-bind="inputProps"
-              :value="code"
-              type="text"
-              inputmode="numeric"
-              pattern="[0-9]*"
-              maxlength="6"
-              class="w-40 rounded-md border border-slate-300 px-3 py-2 font-mono text-lg tracking-widest focus-visible:outline-2 focus-visible:outline-blue-800"
-              placeholder="000000"
-              autocomplete="one-time-code"
-              aria-required="true"
-              :disabled="codeBusy"
-              @input="onCodeInput"
+              id="login-remember"
+              v-model="remember"
+              type="checkbox"
+              class="h-4 w-4 rounded-sm border-border-strong accent-brand"
             >
-          </template>
-        </FormField>
-        <div class="flex flex-wrap items-center justify-between gap-3">
+            <label
+              for="login-remember"
+              class="text-sm text-text"
+            >Remember me on this device</label>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-4">
+            <SubmitButton
+              :busy="passwordBusy"
+              busy-label="Signing in"
+            >
+              Sign in
+            </SubmitButton>
+            <RouterLink
+              to="/forgot-password"
+              class="text-sm"
+            >
+              Forgot password?
+            </RouterLink>
+          </div>
+        </form>
+      </div>
+
+      <div
+        v-else
+        id="panel-code"
+        role="tabpanel"
+        aria-labelledby="tab-code"
+        class="mt-6 space-y-4"
+      >
+        <form
+          v-if="codeStep === 'request'"
+          class="space-y-4"
+          novalidate
+          @submit.prevent="submitCodeForm"
+        >
+          <p class="text-sm text-muted">
+            We will email you a 6-digit code. No password needed.
+          </p>
+          <ResponseBanner :messages="codeErrors.messages" />
+          <FormField
+            id="code-email"
+            label="Email"
+            :errors="codeErrors.fields.email"
+          >
+            <template #default="{ inputProps }">
+              <input
+                v-bind="inputProps"
+                v-model="codeEmail"
+                type="email"
+                class="form-control"
+                placeholder="your@email.com"
+                autocomplete="username"
+                autocapitalize="none"
+                spellcheck="false"
+                aria-required="true"
+                :disabled="codeBusy"
+              >
+            </template>
+          </FormField>
           <SubmitButton
             :busy="codeBusy"
-            busy-label="Checking"
+            busy-label="Sending"
           >
-            Continue
+            Email me a sign-in code
           </SubmitButton>
-          <button
-            type="button"
-            class="text-sm font-medium text-blue-800 underline underline-offset-2 hover:text-blue-900 focus-visible:outline-2 focus-visible:outline-blue-800"
-            @click="restartCodeSignin"
-          >
-            Use a different email
-          </button>
-        </div>
-      </form>
-    </div>
+        </form>
 
-    <div class="mt-8 border-t border-slate-200 pt-4 text-sm text-slate-700">
-      New to SESF?
-      <a
+        <form
+          v-else
+          class="space-y-4"
+          novalidate
+          @submit.prevent="submitCodeForm"
+        >
+          <p class="text-sm text-muted">
+            Open the email we just sent and type the 6 numbers below.
+          </p>
+          <ResponseBanner
+            :messages="codeNotice"
+            variant="success"
+          />
+          <ResponseBanner :messages="codeErrors.messages" />
+          <FormField
+            id="code-value"
+            label="Your code"
+            :errors="codeErrors.fields.code"
+          >
+            <template #default="{ inputProps }">
+              <input
+                v-bind="inputProps"
+                :value="code"
+                type="text"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                maxlength="6"
+                class="form-control w-40! font-mono text-lg tracking-widest"
+                placeholder="000000"
+                autocomplete="one-time-code"
+                aria-required="true"
+                :disabled="codeBusy"
+                @input="onCodeInput"
+              >
+            </template>
+          </FormField>
+          <div class="flex flex-wrap items-center gap-4">
+            <SubmitButton
+              :busy="codeBusy"
+              busy-label="Checking"
+            >
+              Continue
+            </SubmitButton>
+            <button
+              type="button"
+              class="text-sm"
+              @click="restartCodeSignin"
+            >
+              Use a different email
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section aria-labelledby="register-cta-heading">
+      <h2
+        id="register-cta-heading"
+        class="section-heading"
+      >
+        New to SESF?
+      </h2>
+      <p class="text-[0.9375rem]">
+        Create an account to register for events, manage your cars, and sign waivers.
+      </p>
+      <BaseButton
         href="#/register"
-        class="font-medium text-blue-800 underline underline-offset-2 hover:text-blue-900 focus-visible:outline-2 focus-visible:outline-blue-800"
-      >Create an account</a>
-      to register for events and manage your cars.
-    </div>
-  </section>
+        class="mt-3"
+      >
+        Create an account
+      </BaseButton>
+    </section>
+  </div>
 </template>

@@ -24,7 +24,7 @@ const describedBy = computed(() => {
   <div class="space-y-1">
     <label
       :for="id"
-      class="block text-sm font-medium text-slate-800"
+      class="block text-sm font-medium text-text"
     >{{ label }}</label>
     <!-- The slot receives attributes to bind on the control: id, aria-describedby and aria-invalid. -->
     <slot
@@ -37,7 +37,7 @@ const describedBy = computed(() => {
     <p
       v-if="hint"
       :id="hintId"
-      class="text-sm text-slate-600"
+      class="text-sm text-muted"
     >
       {{ hint }}
     </p>
@@ -46,7 +46,7 @@ const describedBy = computed(() => {
       v-show="hasErrors"
       :id="index === 0 ? errorId : undefined"
       :key="index"
-      class="text-sm text-red-800"
+      class="text-sm text-danger-fg"
     >
       {{ message }}
     </p>

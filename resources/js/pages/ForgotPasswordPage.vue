@@ -42,19 +42,19 @@ async function submit(): Promise<void> {
 
 <template>
   <section
-    class="mx-auto max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
+    class="max-w-lg"
     aria-labelledby="forgot-heading"
   >
     <h1
       id="forgot-heading"
-      class="text-2xl font-bold"
+      class="section-heading"
     >
       Password request
     </h1>
 
     <div
       v-if="sent"
-      class="mt-4 space-y-4"
+      class="mt-2 space-y-4"
     >
       <ResponseBanner
         :messages="GENERIC_SUCCESS"
@@ -62,7 +62,7 @@ async function submit(): Promise<void> {
       />
       <RouterLink
         to="/login"
-        class="inline-block text-sm font-medium text-blue-800 underline underline-offset-2 hover:text-blue-900 focus-visible:outline-2 focus-visible:outline-blue-800"
+        class="inline-block text-sm"
       >
         Back to sign in
       </RouterLink>
@@ -70,11 +70,11 @@ async function submit(): Promise<void> {
 
     <form
       v-else
-      class="mt-4 space-y-4"
+      class="mt-2 space-y-4"
       novalidate
       @submit.prevent="submit"
     >
-      <p class="text-sm text-slate-700">
+      <p class="text-[0.9375rem]">
         Enter the email address on your account and we will send you a link to choose a new password.
       </p>
       <ResponseBanner :messages="errors.messages" />
@@ -89,7 +89,7 @@ async function submit(): Promise<void> {
             v-bind="inputProps"
             v-model="email"
             type="email"
-            class="w-full rounded-md border border-slate-300 px-3 py-2 focus-visible:outline-2 focus-visible:outline-blue-800"
+            class="form-control"
             placeholder="your@email.com"
             autocomplete="email"
             autocapitalize="none"

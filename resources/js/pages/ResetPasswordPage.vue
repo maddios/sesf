@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { resetPassword, toFormErrors, type FormErrors } from '../api/auth';
 import { useAuthStore } from '../stores/auth';
@@ -15,9 +15,32 @@ const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 
-/** Both come from the emailed link: /#/reset-password?token=...&email=... */
-const token = computed(() => firstQueryString(route.query.token) ?? '');
-const email = ref(firstQueryString(route.query.email) ?? '');
+/**
+ * Both come from the emailed link: /#/reset-password?token=...&email=...
+ * They are copied into component state, then the route is replaced without the query, so the token
+ * leaves the visible URL and the history entry. A reload has no token and shows the expired state.
+ */
+const token = ref('');
+const email = ref('');
+
+watch(
+  () => route.query,
+  async (query) => {
+    const incomingToken = firstQueryString(query.token);
+    const incomingEmail = firstQueryString(query.email);
+    if (incomingToken === undefined && incomingEmail === undefined) {
+      return;
+    }
+    if (incomingToken !== undefined) {
+      token.value = incomingToken;
+    }
+    if (incomingEmail !== undefined) {
+      email.value = incomingEmail;
+    }
+    await router.replace({ path: '/reset-password' });
+  },
+  { immediate: true },
+);
 const password = ref('');
 const passwordConfirm = ref('');
 const errors = ref<FormErrors>({ messages: [], fields: {} });
@@ -63,24 +86,24 @@ async function submit(): Promise<void> {
 
 <template>
   <section
-    class="mx-auto max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
+    class="max-w-lg"
     aria-labelledby="reset-heading"
   >
     <h1
       id="reset-heading"
-      class="text-2xl font-bold"
+      class="section-heading"
     >
       Password reset
     </h1>
 
     <div
       v-if="token === ''"
-      class="mt-4 space-y-4"
+      class="mt-2 space-y-4"
     >
-      <ResponseBanner :messages="'This reset link is incomplete. Request a new password reset email.'" />
+      <ResponseBanner :messages="'This reset link is invalid or expired. Request a new password reset email.'" />
       <RouterLink
         to="/forgot-password"
-        class="inline-block text-sm font-medium text-blue-800 underline underline-offset-2 hover:text-blue-900 focus-visible:outline-2 focus-visible:outline-blue-800"
+        class="inline-block text-sm"
       >
         Request a new reset email
       </RouterLink>
@@ -88,7 +111,7 @@ async function submit(): Promise<void> {
 
     <form
       v-else
-      class="mt-4 space-y-4"
+      class="mt-2 space-y-4"
       novalidate
       @submit.prevent="submit"
     >
@@ -104,7 +127,7 @@ async function submit(): Promise<void> {
             v-bind="inputProps"
             v-model="email"
             type="email"
-            class="w-full rounded-md border border-slate-300 px-3 py-2 focus-visible:outline-2 focus-visible:outline-blue-800"
+            class="form-control"
             placeholder="your@email.com"
             autocomplete="username"
             autocapitalize="none"
@@ -126,7 +149,7 @@ async function submit(): Promise<void> {
             v-bind="inputProps"
             v-model="password"
             type="password"
-            class="w-full rounded-md border border-slate-300 px-3 py-2 focus-visible:outline-2 focus-visible:outline-blue-800"
+            class="form-control"
             placeholder="New password"
             autocomplete="new-password"
             aria-required="true"
@@ -145,7 +168,7 @@ async function submit(): Promise<void> {
             v-bind="inputProps"
             v-model="passwordConfirm"
             type="password"
-            class="w-full rounded-md border border-slate-300 px-3 py-2 focus-visible:outline-2 focus-visible:outline-blue-800"
+            class="form-control"
             placeholder="Confirm new password"
             autocomplete="new-password"
             aria-required="true"

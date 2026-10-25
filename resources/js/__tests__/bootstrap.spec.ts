@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { createSesfApp } from '../bootstrap';
 import { api, setOnUnauthorized } from '../api/client';
 import { useAuthStore, type AuthUser } from '../stores/auth';
@@ -17,6 +17,11 @@ const sampleUser: AuthUser = {
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
+
+beforeEach(() => {
+  // Anonymous session and no home data: the mounted shell must not hit the network.
+  vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(401, [])));
+});
 
 afterEach(() => {
   setOnUnauthorized(undefined);
@@ -63,7 +68,8 @@ describe('createSesfApp', () => {
     expect(router.options.history.location).toBe('/');
     expect(window.location.hash).toBe('#/');
     expect(container.querySelector('h1')?.textContent).toMatch(/welcome to southeast sharkfest/i);
-    expect(container.querySelector('header')?.textContent).toMatch(/southeast sharkfest/i);
+    expect(container.querySelector('header img')?.getAttribute('alt')).toMatch(/southeast sharkfest/i);
+    expect(container.querySelector('main#main')).not.toBeNull();
 
     app.unmount();
   });

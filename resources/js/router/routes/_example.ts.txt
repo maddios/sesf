@@ -1,0 +1,4 @@
+// Route modules in this folder are auto-loaded (router/index.ts). Name files by area: events.ts, members.ts, cars.ts, account.ts, ...
+// import type { RouteRecordRaw } from 'vue-router';
+// const routes: RouteRecordRaw[] = [{ path: '/events', name: 'events', component: () => import('../../pages/EventsPage.vue'), meta: { title: 'Events' } }];
+// export default routes;
