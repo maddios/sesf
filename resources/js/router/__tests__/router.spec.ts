@@ -1,11 +1,13 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/vue';
 import { createApp } from 'vue';
+import { createPinia, setActivePinia } from 'pinia';
 import { createMemoryHistory, createWebHashHistory } from 'vue-router';
 import { axe } from 'vitest-axe';
 import { createAppRouter } from '../index';
 import HomePage from '../../pages/HomePage.vue';
 import NotFoundPage from '../../pages/NotFoundPage.vue';
+import { stubFetch } from '../../test/helpers';
 
 /** Creates a hash-mode router and installs it on a throwaway app so the initial navigation runs. */
 async function startHashRouter() {
@@ -16,6 +18,12 @@ async function startHashRouter() {
 }
 
 describe('app router (hash mode)', () => {
+  beforeEach(() => {
+    // The auth guard reads the store and checks the session on every navigation.
+    setActivePinia(createPinia());
+    stubFetch();
+  });
+
   afterEach(() => {
     window.location.hash = '';
   });

@@ -1,7 +1,7 @@
 import { createApp } from 'vue';
 import { createPinia, type Pinia } from 'pinia';
 import type { App as VueApp } from 'vue';
-import type { Router } from 'vue-router';
+import { createWebHashHistory, type Router } from 'vue-router';
 import App from './App.vue';
 import { createAppRouter } from './router';
 import { setOnUnauthorized } from './api/client';
@@ -20,7 +20,7 @@ export interface SesfApp {
 export function createSesfApp(): SesfApp {
   const app = createApp(App);
   const pinia = createPinia();
-  const router = createAppRouter();
+  const router = createAppRouter(createWebHashHistory(), () => useAuthStore(pinia));
   app.use(pinia);
   app.use(router);
 

@@ -1,6 +1,21 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
-import { ApiError, api } from '../api/client';
+import { ApiError } from '../api/client';
+import {
+  authenticate,
+  login as loginRequest,
+  logout as logoutRequest,
+  verifyEmailSigninCode,
+  type LoginInput,
+  type SessionPayload,
+} from '../api/auth';
+
+export type { SessionPayload } from '../api/auth';
+
+/** User levels, matching the legacy User::TYPE_* constants. Levels are ordered: regular < judge < admin. */
+export const USER_TYPE_REGULAR = 1;
+export const USER_TYPE_JUDGE = 2;
+export const USER_TYPE_ADMIN = 3;
 
 export interface AuthUser {
   userId: number;
@@ -9,18 +24,6 @@ export interface AuthUser {
   email: string;
   firstName: string;
   profileUrl: string;
-  slideOutName: string;
-  fullAddress: string;
-}
-
-/** Body returned by POST /login/authenticate on success. */
-export interface SessionPayload {
-  user_id: number;
-  user_level: number;
-  type_id: number;
-  email: string;
-  first_name: string;
-  profileURL: string;
   slideOutName: string;
   fullAddress: string;
 }
@@ -35,7 +38,7 @@ export class InvalidSessionPayloadError extends Error {
   }
 }
 
-const defaultFetcher: SessionFetcher = () => api.post<SessionPayload>('/login/authenticate');
+const defaultFetcher: SessionFetcher = () => authenticate();
 
 /** Legacy PHP/MySQL often sends integers as strings, so ids and levels are coerced with Number(). */
 function toNumber(value: unknown): number | undefined {
@@ -90,6 +93,12 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isLoggedIn = computed(() => user.value !== null);
   const userLevel = computed(() => user.value?.userLevel ?? 0);
+  const userId = computed(() => user.value?.userId ?? null);
+  /** Judges and admins (legacy nav shows judging for type >= judge). */
+  const isJudge = computed(() => userLevel.value >= USER_TYPE_JUDGE);
+  const isAdmin = computed(() => userLevel.value === USER_TYPE_ADMIN);
+  /** Where to go after sign-in when no ?redirect is given. Set by the route guard, consumed by the login page. */
+  const nextUrl = ref<string | null>(null);
 
   /** Logs in. Bumps the generation like clear(), so a session check started earlier cannot overwrite or null this user. */
   function setUser(next: AuthUser) {
@@ -145,6 +154,45 @@ export const useAuthStore = defineStore('auth', () => {
     return inFlight;
   }
 
+  /** Stores a logged-in payload (from any login endpoint) and marks the session resolved. */
+  function applyPayload(payload: unknown): AuthUser {
+    const next = toAuthUser(payload);
+    setUser(next);
+    return next;
+  }
+
+  /** Password sign-in. Rejects with ApiError on bad credentials; the store is left logged out. */
+  async function login(input: LoginInput): Promise<AuthUser> {
+    return applyPayload(await loginRequest(input));
+  }
+
+  /** Signs in with an emailed code. Returns the server's redirect_path when it sends one. */
+  async function loginWithEmailCode(email: string, code: string): Promise<string | null> {
+    const { redirect_path: redirectPath, ...session } = await verifyEmailSigninCode({ email, code });
+    applyPayload(session);
+    return typeof redirectPath === 'string' ? redirectPath : null;
+  }
+
+  /** Logs out on the server, then clears the local session even if the request failed. */
+  async function logout(): Promise<void> {
+    try {
+      await logoutRequest();
+    } finally {
+      clear();
+    }
+  }
+
+  function rememberNextUrl(path: string): void {
+    nextUrl.value = path;
+  }
+
+  /** Returns the remembered URL and forgets it, so it is used once. */
+  function consumeNextUrl(): string | null {
+    const value = nextUrl.value;
+    nextUrl.value = null;
+    return value;
+  }
+
   /** Resolves the session once; returns immediately when it is already resolved. */
   function ensureResolved(fetcher?: SessionFetcher): Promise<void> {
     if (resolved.value) {
@@ -153,5 +201,24 @@ export const useAuthStore = defineStore('auth', () => {
     return fetchUser(fetcher);
   }
 
-  return { user, resolved, isLoggedIn, userLevel, setUser, clear, fetchUser, ensureResolved };
+  return {
+    user,
+    resolved,
+    isLoggedIn,
+    userId,
+    userLevel,
+    isJudge,
+    isAdmin,
+    nextUrl,
+    setUser,
+    clear,
+    fetchUser,
+    ensureResolved,
+    applyPayload,
+    login,
+    loginWithEmailCode,
+    logout,
+    rememberNextUrl,
+    consumeNextUrl,
+  };
 });

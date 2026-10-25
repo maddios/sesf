@@ -1,0 +1,381 @@
+{
+  "shots": [
+    "desktop/01-home.png",
+    "desktop/02-events.png",
+    "desktop/03-login.png",
+    "desktop/04-forgot-password.png",
+    "desktop/05-register.png",
+    "desktop/06-privacy-policy.png",
+    "desktop/07-members.png",
+    "desktop/08-cars.png",
+    "desktop/09-gallery.png",
+    "desktop/10-event-2026-info.png",
+    "desktop/11-event-2026-judging.png",
+    "desktop/12-event-2026-schedule.png",
+    "desktop/13-event-2026-directions.png",
+    "desktop/14-event-2026-whos-coming.png",
+    "desktop/15-event-2026-sponsors.png",
+    "desktop/16-event-2026-cars.png",
+    "desktop/17-event-2025-past.png",
+    "desktop/18-member-profile.png",
+    "desktop/19-car-profile.png",
+    "desktop/20-hover-nav-item.png",
+    "desktop/21-focus-login-input.png",
+    "desktop/22-focus-login-button.png",
+    "mobile/01-home.png",
+    "mobile/02-events.png",
+    "mobile/03-login.png",
+    "mobile/04-forgot-password.png",
+    "mobile/05-register.png",
+    "mobile/06-privacy-policy.png",
+    "mobile/07-members.png",
+    "mobile/08-cars.png",
+    "mobile/09-gallery.png",
+    "mobile/10-event-2026-info.png",
+    "mobile/11-event-2026-judging.png",
+    "mobile/12-event-2026-schedule.png",
+    "mobile/13-event-2026-directions.png",
+    "mobile/14-event-2026-whos-coming.png",
+    "mobile/15-event-2026-sponsors.png",
+    "mobile/16-event-2026-cars.png",
+    "mobile/17-event-2025-past.png",
+    "mobile/18-member-profile.png",
+    "mobile/19-car-profile.png"
+  ],
+  "failures": [
+    "mobile nav: locator.click: Timeout 5000ms exceeded."
+  ],
+  "pageChecks": [
+    {
+      "name": "01-home",
+      "url": "/#/",
+      "title": "Southeast Sharkfest",
+      "visibleHeadings": [
+        "EVENTS",
+        "ADDITIONAL SPONSORS",
+        "SESF PAST VIDEOS",
+        "DONATE"
+      ],
+      "errorTextNodes": [
+        {
+          "visible": false,
+          "tag": "h3",
+          "cls": ""
+        }
+      ],
+      "bodyChars": 996
+    },
+    {
+      "name": "02-events",
+      "url": "/#/events",
+      "title": "Southeast Sharkfest",
+      "visibleHeadings": [
+        "CURRENT SHOWS",
+        "PAST SHOWS"
+      ],
+      "errorTextNodes": [
+        {
+          "visible": false,
+          "tag": "h3",
+          "cls": ""
+        }
+      ],
+      "bodyChars": 142
+    },
+    {
+      "name": "03-login",
+      "url": "/#/login",
+      "title": "Southeast Sharkfest",
+      "visibleHeadings": [
+        "SIGN IN",
+        "NEW TO SESF?"
+      ],
+      "errorTextNodes": [
+        {
+          "visible": false,
+          "tag": "h3",
+          "cls": ""
+        }
+      ],
+      "bodyChars": 338
+    },
+    {
+      "name": "04-forgot-password",
+      "url": "/#/forgot-password",
+      "title": "Southeast Sharkfest",
+      "visibleHeadings": [
+        "PASSWORD REQUEST"
+      ],
+      "errorTextNodes": [
+        {
+          "visible": false,
+          "tag": "h3",
+          "cls": ""
+        }
+      ],
+      "bodyChars": 159
+    },
+    {
+      "name": "05-register",
+      "url": "/#/register",
+      "title": "Southeast Sharkfest",
+      "visibleHeadings": [
+        "USER INFORMATION",
+        "ADDRESS",
+        "PASSWORD"
+      ],
+      "errorTextNodes": [
+        {
+          "visible": false,
+          "tag": "h3",
+          "cls": ""
+        }
+      ],
+      "bodyChars": 505
+    },
+    {
+      "name": "06-privacy-policy",
+      "url": "/#/privacy-policy",
+      "title": "Southeast Sharkfest",
+      "visibleHeadings": [],
+      "errorTextNodes": [
+        {
+          "visible": false,
+          "tag": "h3",
+          "cls": ""
+        }
+      ],
+      "bodyChars": 6659
+    },
+    {
+      "name": "07-members",
+      "url": "/#/members",
+      "title": "Southeast Sharkfest",
+      "visibleHeadings": [
+        "FILTERS"
+      ],
+      "errorTextNodes": [
+        {
+          "visible": false,
+          "tag": "h3",
+          "cls": ""
+        }
+      ],
+      "bodyChars": 873
+    },
+    {
+      "name": "08-cars",
+      "url": "/#/cars",
+      "title": "Southeast Sharkfest",
+      "visibleHeadings": [
+        "FILTERS"
+      ],
+      "errorTextNodes": [
+        {
+          "visible": false,
+          "tag": "h3",
+          "cls": ""
+        }
+      ],
+      "bodyChars": 1162
+    },
+    {
+      "name": "09-gallery",
+      "url": "/#/gallery",
+      "title": "Southeast Sharkfest",
+      "visibleHeadings": [],
+      "errorTextNodes": [
+        {
+          "visible": false,
+          "tag": "h3",
+          "cls": ""
+        }
+      ],
+      "bodyChars": 592
+    },
+    {
+      "name": "10-event-2026-info",
+      "url": "/#/SoutheastSharkfest2026/e36",
+      "title": "Southeast Sharkfest",
+      "visibleHeadings": [
+        "Southeast Sharkfest 2026",
+        "SOUTHEAST SHARKFEST 2026",
+        "ABOUT SOUTHEAST SHARKFEST 2026",
+        "REGISTRATION FEES"
+      ],
+      "errorTextNodes": [
+        {
+          "visible": false,
+          "tag": "h3",
+          "cls": ""
+        }
+      ],
+      "bodyChars": 5907
+    },
+    {
+      "name": "11-event-2026-judging",
+      "url": "/#/SoutheastSharkfest2026/e36/judging",
+      "title": "Southeast Sharkfest",
+      "visibleHeadings": [
+        "Southeast Sharkfest 2026",
+        "CONCOURS DETAILS AND CRITERIA"
+      ],
+      "errorTextNodes": [
+        {
+          "visible": false,
+          "tag": "h3",
+          "cls": ""
+        }
+      ],
+      "bodyChars": 5013
+    },
+    {
+      "name": "12-event-2026-schedule",
+      "url": "/#/SoutheastSharkfest2026/e36/schedule",
+      "title": "Southeast Sharkfest",
+      "visibleHeadings": [
+        "Southeast Sharkfest 2026"
+      ],
+      "errorTextNodes": [
+        {
+          "visible": false,
+          "tag": "h3",
+          "cls": ""
+        }
+      ],
+      "bodyChars": 205
+    },
+    {
+      "name": "13-event-2026-directions",
+      "url": "/#/SoutheastSharkfest2026/e36/directions",
+      "title": "Southeast Sharkfest",
+      "visibleHeadings": [
+        "Southeast Sharkfest 2026",
+        "HOME BASE - RICHMOND MARRIOTT DOWNTOWN",
+        "FRIDAY DRIVE DESTINATION"
+      ],
+      "errorTextNodes": [
+        {
+          "visible": true,
+          "tag": "div",
+          "cls": "gm-err-title"
+        },
+        {
+          "visible": true,
+          "tag": "div",
+          "cls": "gm-err-title"
+        },
+        {
+          "visible": false,
+          "tag": "h3",
+          "cls": ""
+        }
+      ],
+      "bodyChars": 602
+    },
+    {
+      "name": "14-event-2026-whos-coming",
+      "url": "/#/SoutheastSharkfest2026/e36/members",
+      "title": "Southeast Sharkfest",
+      "visibleHeadings": [
+        "Southeast Sharkfest 2026"
+      ],
+      "errorTextNodes": [
+        {
+          "visible": false,
+          "tag": "h3",
+          "cls": ""
+        }
+      ],
+      "bodyChars": 520
+    },
+    {
+      "name": "15-event-2026-sponsors",
+      "url": "/#/SoutheastSharkfest2026/e36/sponsors",
+      "title": "Southeast Sharkfest",
+      "visibleHeadings": [
+        "Southeast Sharkfest 2026",
+        "///M CLASS",
+        "GOLD CLASS",
+        "SILBER CLASS"
+      ],
+      "errorTextNodes": [
+        {
+          "visible": false,
+          "tag": "h3",
+          "cls": ""
+        }
+      ],
+      "bodyChars": 4292
+    },
+    {
+      "name": "16-event-2026-cars",
+      "url": "/#/SoutheastSharkfest2026/e36/cars",
+      "title": "Southeast Sharkfest",
+      "visibleHeadings": [
+        "Southeast Sharkfest 2026"
+      ],
+      "errorTextNodes": [
+        {
+          "visible": false,
+          "tag": "h3",
+          "cls": ""
+        }
+      ],
+      "bodyChars": 899
+    },
+    {
+      "name": "17-event-2025-past",
+      "url": "/#/SoutheastSharkfest2025/e35",
+      "title": "Southeast Sharkfest",
+      "visibleHeadings": [
+        "Southeast Sharkfest 2025",
+        "SOUTHEAST SHARKFEST 2025 - SAVE THE DATE",
+        "ABOUT SOUTHEAST SHARKFEST 2025",
+        "REGISTRATION FEES"
+      ],
+      "errorTextNodes": [
+        {
+          "visible": false,
+          "tag": "h3",
+          "cls": ""
+        }
+      ],
+      "bodyChars": 5697
+    },
+    {
+      "name": "18-member-profile",
+      "url": "/#/ShawnB/u44",
+      "title": "Southeast Sharkfest",
+      "visibleHeadings": [
+        "SHAWN B",
+        "GARAGE",
+        "ATTENDED EVENTS"
+      ],
+      "errorTextNodes": [
+        {
+          "visible": false,
+          "tag": "h3",
+          "cls": ""
+        }
+      ],
+      "bodyChars": 1051
+    },
+    {
+      "name": "19-car-profile",
+      "url": "/#/car/78",
+      "title": "Southeast Sharkfest",
+      "visibleHeadings": [
+        "1984 635CSi Euro"
+      ],
+      "errorTextNodes": [
+        {
+          "visible": false,
+          "tag": "h3",
+          "cls": ""
+        }
+      ],
+      "bodyChars": 970
+    }
+  ]
+}

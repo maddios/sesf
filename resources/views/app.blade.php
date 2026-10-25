@@ -10,6 +10,7 @@
     </head>
     <body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
         <div id="app"></div>
+        <script id="sesf-config" type="application/json">@json(['forumUrl' => config('sesf.forum_url')])</script>
         <noscript>
             <p class="p-4">Southeast Sharkfest requires JavaScript. Please enable JavaScript in your browser and reload this page.</p>
         </noscript>

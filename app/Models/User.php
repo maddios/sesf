@@ -135,6 +135,30 @@ class User extends Authenticatable
     }
 
     /**
+     * Administrator account (type_id Administrator). Legacy TYPE_ADMIN.
+     */
+    public function isAdmin(): bool
+    {
+        return $this->type_id === UserType::Administrator;
+    }
+
+    /**
+     * Judge account (type_id Judge). Does not include administrators.
+     */
+    public function isJudge(): bool
+    {
+        return $this->type_id === UserType::Judge;
+    }
+
+    /**
+     * Judge or administrator. Judging is a role, not a per-show grant (see the judge gates).
+     */
+    public function isJudgeOrAdmin(): bool
+    {
+        return $this->isJudge() || $this->isAdmin();
+    }
+
+    /**
      * Legacy "City, ST" (unmasked).
      */
     public function getCityStateAttribute(): string

@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Policies\Gates;
 use App\Support\DestructiveCommandGuard;
 use App\Support\DestructiveCommandPolicy;
 use Illuminate\Console\Events\CommandStarting;
@@ -35,5 +36,7 @@ class AppServiceProvider extends ServiceProvider
         // The global flag only sees the default connection. This listener also checks the target of
         // each destructive command (e.g. --database=mysql while the default is testing_mariadb).
         Event::listen(CommandStarting::class, [DestructiveCommandGuard::class, 'handle']);
+
+        Gates::register();
     }
 }
