@@ -81,7 +81,7 @@ class IpnVerificationTest extends IpnTestCase
         $this->paypalReplies($reply);
         $registration = $this->registration();
 
-        $this->assertEmptyOk($this->postIpn($registration));
+        $this->assertEmptyStatus($this->postIpn($registration), 503);
 
         $this->assertMoney($registration, ['owed' => '100.00', 'received' => '0.00', 'actual' => null, 'paid' => false]);
         $this->assertSame(0, $this->paymentCount());
@@ -105,7 +105,7 @@ class IpnVerificationTest extends IpnTestCase
         $this->paypalReplies('Service Unavailable', 503);
         $registration = $this->registration();
 
-        $this->assertEmptyOk($this->postIpn($registration));
+        $this->assertEmptyStatus($this->postIpn($registration), 503);
 
         $this->assertMoney($registration, ['owed' => '100.00', 'received' => '0.00', 'actual' => null, 'paid' => false]);
         $this->assertSame(0, $this->paymentCount());
@@ -119,7 +119,7 @@ class IpnVerificationTest extends IpnTestCase
         Http::fake(fn () => throw new ConnectionException('cURL error 28: Operation timed out after 15000 milliseconds'));
         $registration = $this->registration();
 
-        $this->assertEmptyOk($this->postIpn($registration));
+        $this->assertEmptyStatus($this->postIpn($registration), 503);
 
         $this->assertMoney($registration, ['owed' => '100.00', 'received' => '0.00', 'actual' => null, 'paid' => false]);
         $this->assertSame(['adminPostbackFailed'], $this->mailer->methods());
@@ -133,7 +133,7 @@ class IpnVerificationTest extends IpnTestCase
         $this->paypalReplies('VERIFIED');
         $registration = $this->registration();
 
-        $this->postIpn($registration);
+        $this->assertEmptyStatus($this->postIpn($registration), 503);
 
         Http::assertNothingSent();
         $this->assertSame(['adminPostbackFailed'], $this->mailer->methods());
@@ -151,6 +151,7 @@ class IpnVerificationTest extends IpnTestCase
             'missing txn_id' => [['txn_id' => null], 'txn_id'],
             'malformed txn_id' => [['txn_id' => "61E6'; DROP TABLE x"], 'txn_id'],
             'missing payment_status' => [['payment_status' => null], 'payment_status'],
+            'unknown payment_status' => [['payment_status' => 'Bogus_Status'], 'payment_status'],
             'non-numeric gross' => [['mc_gross' => 'abc'], 'mc_gross'],
             'exponent gross' => [['mc_gross' => '1e2'], 'mc_gross'],
             'comma gross' => [['mc_gross' => '1,000.00'], 'mc_gross'],
@@ -166,33 +167,47 @@ class IpnVerificationTest extends IpnTestCase
      */
     #[Test]
     #[DataProvider('rejectedMessages')]
-    public function a_verified_but_invalid_message_is_stored_for_audit_and_moves_no_money(array $overrides, string $reason): void
+    public function an_invalid_message_is_rejected_before_the_postback_and_stores_nothing(array $overrides, string $reason): void
     {
         $this->paypalReplies('VERIFIED');
         $registration = $this->registration();
 
         $this->assertEmptyOk($this->postIpn($registration, $overrides));
 
+        Http::assertNothingSent();
         $this->assertMoney($registration, ['owed' => '100.00', 'received' => '0.00', 'actual' => null, 'paid' => false]);
-        $this->assertSame(1, $this->paymentCount());
-        $this->assertNull(PayPalPayment::query()->firstOrFail()->registration_id);
-        $this->assertSame('rejected', $this->lastAudit()['sesf']['outcome']);
+        $this->assertSame(0, $this->paymentCount());
         $this->assertSame(['adminInvalid'], $this->mailer->methods());
         $this->assertStringContainsString($reason, (string) $this->mailer->calls[0]['text']);
     }
 
     #[Test]
-    public function a_wrong_receiver_is_stored_for_audit_and_sends_the_email_mismatch_notice(): void
+    public function a_wrong_receiver_is_rejected_before_the_postback_with_one_mismatch_notice_per_window(): void
     {
         $this->paypalReplies('VERIFIED');
         $registration = $this->registration();
+        $wrong = ['receiver_email' => 'attacker@example.test', 'business' => 'attacker@example.test'];
 
-        $this->assertEmptyOk($this->postIpn($registration, ['receiver_email' => 'attacker@example.test', 'business' => 'attacker@example.test']));
+        $this->assertEmptyOk($this->postIpn($registration, $wrong));
+        $this->assertEmptyOk($this->postIpn($registration, $wrong + ['txn_id' => 'TXNWRONGRCV000002']));
 
+        Http::assertNothingSent();
         $this->assertMoney($registration, ['owed' => '100.00', 'received' => '0.00', 'actual' => null, 'paid' => false]);
-        $this->assertSame(1, $this->paymentCount());
-        $this->assertStringContainsString('receiver_email', (string) $this->lastAudit()['sesf']['reason']);
+        $this->assertSame(0, $this->paymentCount());
         $this->assertSame(['adminEmailMismatch'], $this->mailer->methods());
+    }
+
+    #[Test]
+    public function forged_posts_are_throttled_per_ip_with_429(): void
+    {
+        $this->paypalReplies('VERIFIED');
+
+        for ($i = 0; $i < 120; $i++) {
+            $this->postRaw('')->assertStatus(200);
+        }
+
+        $this->postRaw('')->assertStatus(429);
+        Http::assertNothingSent();
     }
 
     #[Test]
@@ -223,19 +238,21 @@ class IpnVerificationTest extends IpnTestCase
         $this->assertTrue($sandbox->fresh()?->is_paid);
         $this->assertFalse($live->fresh()?->is_paid);
         $this->assertSame(['customerPaid', 'adminPaid', 'adminInvalid'], $this->mailer->methods());
+        Http::assertSentCount(1);
     }
 
     #[Test]
-    public function an_unknown_item_number_is_stored_without_a_registration_and_reported(): void
+    public function an_unknown_item_number_is_rejected_before_the_postback_and_reported_once_per_window(): void
     {
         $this->paypalReplies('VERIFIED');
 
         foreach (['999999999', 'abc', '0', '-5'] as $i => $item) {
-            $this->postIpn(0, ['item_number' => $item, 'txn_id' => 'TXNUNKNOWN00000'.$i]);
+            $this->assertEmptyOk($this->postIpn(0, ['item_number' => $item, 'txn_id' => 'TXNUNKNOWN00000'.$i]));
         }
 
-        $this->assertSame(4, PayPalPayment::query()->whereNull('registration_id')->count());
-        $this->assertSame(array_fill(0, 4, 'adminInvalidInvoice'), $this->mailer->methods());
+        Http::assertNothingSent();
+        $this->assertSame(0, $this->paymentCount());
+        $this->assertSame(['adminInvalidInvoice'], $this->mailer->methods());
     }
 
     #[Test]
@@ -282,12 +299,12 @@ class IpnVerificationTest extends IpnTestCase
     }
 
     #[Test]
-    public function a_crash_before_processing_still_answers_an_empty_200(): void
+    public function a_crash_before_processing_answers_503_so_paypal_retries(): void
     {
         $this->paypalReplies('VERIFIED');
         $this->app->bind(IpnProcessor::class, fn () => throw new \TypeError('bad wiring'));
 
-        $this->assertEmptyOk($this->postIpn($this->registration()));
+        $this->assertEmptyStatus($this->postIpn($this->registration()), 503);
         $this->assertSame(['adminFatal'], $this->mailer->methods());
     }
 }

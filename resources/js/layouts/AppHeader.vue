@@ -161,6 +161,7 @@ const navLinkClass = 'text-nav uppercase tracking-[0.04em] no-underline';
         aria-controls="mobile-menu"
         :aria-expanded="menuOpen ? 'true' : 'false'"
         @click="menuOpen = !menuOpen"
+        @keydown.esc="menuOpen && closeMenu(true)"
       >
         <svg
           class="h-5 w-5"

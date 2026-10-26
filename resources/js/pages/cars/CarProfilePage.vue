@@ -106,13 +106,17 @@ function safeHref(value: string): string | undefined {
 
     <template v-else-if="car !== null">
       <header class="flex flex-col gap-5 sm:flex-row sm:items-start">
-        <SafeImage
-          :src="car.imageUrl"
-          :alt="`Photo of ${heading}`"
-          :placeholder="heading"
-          img-class="aspect-[4/3] w-full max-w-md rounded-md border border-border object-cover"
-          loading="eager"
-        />
+        <!-- Sized wrapper: the placeholder tile is w-full, so without it a car with no photo pushed the title to zero
+             width (found by E2E, docs/e2e.md). -->
+        <div class="w-full max-w-md shrink-0 sm:w-1/2">
+          <SafeImage
+            :src="car.imageUrl"
+            :alt="`Photo of ${heading}`"
+            :placeholder="heading"
+            img-class="aspect-[4/3] w-full rounded-md border border-border object-cover"
+            loading="eager"
+          />
+        </div>
         <div class="min-w-0 flex-1 space-y-2">
           <h1 class="page-title">
             {{ heading }}

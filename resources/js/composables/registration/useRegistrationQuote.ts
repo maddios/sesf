@@ -33,8 +33,13 @@ export function useRegistrationQuote(body: ComputedRef<RegistrationRequest | nul
   }
 
   function schedule(request: RegistrationRequest | null): void {
+    // Any answer still on its way is for an older body: drop it, even during the debounce wait.
+    sequence += 1;
     clearTimeout(timer);
     if (request === null) {
+      // Incomplete form: no quote is possible, so drop the old one (the summary falls back to the saved totals).
+      quote.value = null;
+      status.value = 'idle';
       return;
     }
     status.value = 'loading';
@@ -46,7 +51,10 @@ export function useRegistrationQuote(body: ComputedRef<RegistrationRequest | nul
     (key) => schedule(key === null ? null : body.value),
   );
 
-  onScopeDispose(() => clearTimeout(timer));
+  onScopeDispose(() => {
+    sequence += 1;
+    clearTimeout(timer);
+  });
 
   return { quote, status, refresh: () => schedule(body.value) };
 }

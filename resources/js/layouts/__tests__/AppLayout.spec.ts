@@ -99,6 +99,14 @@ describe('AppLayout', () => {
     expect(button.getAttribute('aria-expanded')).toBe('false');
     expect(document.activeElement).toBe(button);
 
+    // Escape also closes it while focus is still on the menu button (found by E2E, docs/e2e.md).
+    await user.click(button);
+    expect(button.getAttribute('aria-expanded')).toBe('true');
+    expect(document.activeElement).toBe(button);
+    await user.keyboard('{Escape}');
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+    expect(menu.style.display).toBe('none');
+
     await user.click(button);
     await router.push('/forgot-password');
     await waitFor(() => expect(button.getAttribute('aria-expanded')).toBe('false'));
@@ -169,6 +177,26 @@ describe('AppLayout', () => {
     const logout = Array.from(menu.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Logout') as HTMLElement;
     await user.click(logout);
     await waitFor(() => expect(useAuthStore(pinia).isLoggedIn).toBe(false));
+  });
+
+  it('shows the impersonation banner only for a signed-in user who is logged in as a member', async () => {
+    const impersonation = { 'GET /admin-api/impersonation': () => jsonResponse(200, { data: { impersonating: true, impersonator_name: 'Ada Admin' } }) };
+    const { pinia, fetchMock } = await renderShell('/login', impersonation);
+    expect(screen.queryByText(/You are logged in as this member/)).toBeNull();
+    expect(callsTo(fetchMock, 'GET /admin-api/impersonation')).toHaveLength(0);
+
+    useAuthStore(pinia).setUser({
+      userId: 5,
+      userLevel: 1,
+      typeId: 1,
+      email: 'mona@example.test',
+      firstName: 'Mona',
+      profileUrl: '#/MonaL/u5',
+      slideOutName: 'Mona',
+      fullAddress: '1 Main St',
+    });
+    expect(await screen.findByText(/You are logged in as this member/)).toBeTruthy();
+    expect(screen.getByText(/Ada Admin/)).toBeTruthy();
   });
 
   it('has no detectable accessibility violations', async () => {

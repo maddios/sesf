@@ -160,7 +160,9 @@ async function submit(): Promise<void> {
     auth.applyPayload(payload);
     succeeded = true;
     // Legacy sent the new member to their profile to add a photo and vehicles.
-    await applyPostLoginRedirect(router, resolvePostLoginRedirect(payload.profileURL));
+    // The server sends profileURL as a hash link ("#/NoraS/u12"); the redirect rules only accept "/..." paths, so
+    // without dropping the "#" every new member landed on the home page (found by E2E, docs/e2e.md).
+    await applyPostLoginRedirect(router, resolvePostLoginRedirect(payload.profileURL.replace(/^#/, '')));
   } catch (error) {
     // Turnstile tokens are single-use: every failed attempt gets a fresh widget.
     resetVerification();

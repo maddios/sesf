@@ -12,4 +12,4 @@ Route::post('login/login', [SessionController::class, 'login'])->middleware('thr
 
 Route::any('login/logout', [SessionController::class, 'logout']);
 
-Route::post('login/update-password', [SessionController::class, 'updatePassword'])->middleware('throttle:password-change');
+Route::post('login/update-password', [SessionController::class, 'updatePassword'])->middleware(['throttle:password-change', 'block.impersonated']);

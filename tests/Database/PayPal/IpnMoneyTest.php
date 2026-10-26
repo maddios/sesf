@@ -168,6 +168,7 @@ class IpnMoneyTest extends IpnTestCase
         $registration = $this->registration();
         DB::table('paypal_payment')->insert([
             'txn_id' => '61E67681CH3238416',
+            'item_number' => (string) $registration->id,
             'payment_status' => 'Completed',
             'entirepost' => '[mc_gross]=100.00|[payment_status]=Completed|[txn_id]=61E67681CH3238416|',
             'created_at' => '2025-01-01 00:00:00',
@@ -178,6 +179,74 @@ class IpnMoneyTest extends IpnTestCase
 
         $this->assertMoney($registration, ['owed' => '100.00', 'received' => '0.00', 'actual' => null, 'paid' => false]);
         $this->assertSame([], $this->mailer->methods());
+    }
+
+    #[Test]
+    public function a_legacy_row_for_another_registration_does_not_suppress_a_real_ipn(): void
+    {
+        $registration = $this->registration();
+        // Forged or unrelated legacy row with a guessed txn_id: different item_number, no registration_id.
+        DB::table('paypal_payment')->insert([
+            'txn_id' => '61E67681CH3238416',
+            'item_number' => '999999',
+            'payment_status' => 'Completed',
+            'entirepost' => '[payment_status]=Completed|[txn_id]=61E67681CH3238416|',
+            'created_at' => '2025-01-01 00:00:00',
+            'updated_at' => '2025-01-01 00:00:00',
+        ]);
+
+        $this->postIpn($registration);
+
+        $this->assertMoney($registration, ['owed' => '0.00', 'received' => '100.00', 'actual' => '96.80', 'paid' => true]);
+        $this->assertSame(['customerPaid', 'adminPaid'], $this->mailer->methods());
+    }
+
+    #[Test]
+    public function a_refund_that_makes_received_negative_is_recorded_with_the_real_pricing(): void
+    {
+        // Scenario A: nothing received here (the payment went elsewhere), a full refund arrives.
+        // Before the fix RegistrationPricing threw on the negative received: FATAL, refund lost.
+        $this->assertInstanceOf(RegistrationPricing::class, app(RegistrationBalance::class));
+        $registration = $this->registration();
+
+        $this->assertEmptyOk($this->postIpn($registration, ['payment_status' => 'Refunded', 'mc_gross' => '-100.00', 'mc_fee' => '0.00', 'txn_id' => '9RF55555RF5555558']));
+
+        $this->assertMoney($registration, ['owed' => '200.00', 'received' => '-100.00', 'actual' => '0.00', 'paid' => false]);
+        $this->assertSame('applied', $this->lastAudit()['sesf']['outcome']);
+        $this->assertSame(['customerUnderfund', 'adminUnderfund'], $this->mailer->methods());
+    }
+
+    #[Test]
+    public function a_full_payment_with_a_negative_legacy_discount_is_applied_with_the_real_pricing(): void
+    {
+        // Scenario B: priced 100.00 with a legacy discount of -30.00 (docs/pricing.md row N): owes 130.00.
+        $registration = $this->registration(['amount_owed' => '130.00', 'discount' => '-30.00']);
+
+        $this->assertEmptyOk($this->postIpn($registration, ['mc_gross' => '130.00', 'mc_fee' => '4.07']));
+
+        $this->assertMoney($registration, ['owed' => '0.00', 'received' => '130.00', 'actual' => '125.93', 'paid' => true]);
+        $this->assertSame(['customerPaid', 'adminPaid'], $this->mailer->methods());
+    }
+
+    #[Test]
+    public function a_partial_payment_with_a_negative_discount_still_owes_the_difference(): void
+    {
+        $registration = $this->registration(['amount_owed' => '130.00', 'discount' => '-30.00']);
+
+        $this->postIpn($registration);
+
+        $this->assertMoney($registration, ['owed' => '30.00', 'received' => '100.00', 'actual' => '96.80', 'paid' => false]);
+        $this->assertSame(['customerInsufficient', 'adminInsufficient'], $this->mailer->methods());
+    }
+
+    #[Test]
+    public function a_positive_discount_lowers_what_is_owed(): void
+    {
+        $registration = $this->registration(['amount_owed' => '80.00', 'discount' => '20.00']);
+
+        $this->postIpn($registration, ['mc_gross' => '80.00', 'mc_fee' => '2.62']);
+
+        $this->assertMoney($registration, ['owed' => '0.00', 'received' => '80.00', 'actual' => '77.38', 'paid' => true]);
     }
 
     #[Test]
@@ -272,7 +341,8 @@ class IpnMoneyTest extends IpnTestCase
     {
         $registration = $this->registration();
 
-        $this->postIpn($registration, ['payment_status' => 'Bogus_Status']);
+        // Documented by PayPal but without a money rule here (a truly unknown status is rejected before the postback).
+        $this->postIpn($registration, ['payment_status' => 'Partially_Refunded']);
 
         $this->assertMoney($registration, ['owed' => '100.00', 'received' => '0.00', 'actual' => null, 'paid' => false]);
         $this->assertSame(['adminWeird'], $this->mailer->methods());
@@ -339,7 +409,7 @@ class IpnMoneyTest extends IpnTestCase
             }
         });
 
-        $this->assertEmptyOk($this->postIpn($registration));
+        $this->assertEmptyStatus($this->postIpn($registration), 503);
 
         $this->assertMoney($registration, ['owed' => '100.00', 'received' => '0.00', 'actual' => null, 'paid' => false]);
         $this->assertSame(0, $this->paymentCount());

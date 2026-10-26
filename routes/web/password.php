@@ -8,5 +8,5 @@ Route::post('login/forgot-password', [PasswordResetController::class, 'forgot'])
     ->name('password.forgot');
 
 Route::post('login/reset-password', [PasswordResetController::class, 'reset'])
-    ->middleware('throttle:password-reset')
+    ->middleware(['block.impersonated', 'throttle:password-reset'])
     ->name('password.reset');

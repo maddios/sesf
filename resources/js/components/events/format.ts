@@ -26,3 +26,16 @@ export function formatEventRange(start: string, end: string): string {
   }
   return `${from} - ${to}`;
 }
+
+/**
+ * Plain text of a short description. The server falls back to the first 350 characters of the HTML description
+ * when a show has no short description, so the text can contain (possibly cut) tags; showing it as text printed
+ * "<p>...</p>" on the events list (found by E2E, docs/e2e.md). DOMParser never runs scripts or loads resources.
+ */
+export function plainText(value: string): string {
+  if (!/[<&]/.test(value)) {
+    return value;
+  }
+  const doc = new DOMParser().parseFromString(value, 'text/html');
+  return (doc.body.textContent ?? '').replace(/\s+/g, ' ').trim();
+}

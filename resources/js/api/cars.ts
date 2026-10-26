@@ -133,7 +133,9 @@ export function toImageUrl(value: unknown): string {
     return text;
   }
   const path = text.replace(/^\/+/, '');
-  return /^images\/[A-Za-z0-9_\-./ ]+$/.test(path) && !path.includes('..') ? `/${path}` : '';
+  // Uploaded photos carry a cache-busting query (images/cars/7/profile.jpg?1792976406); without allowing it
+  // every uploaded car photo fell back to the placeholder (found by E2E, docs/e2e.md).
+  return /^images\/[A-Za-z0-9_\-./ ]+(\?[A-Za-z0-9=&_-]*)?$/.test(path) && !path.includes('..') ? `/${path}` : '';
 }
 
 export function asRecordOf(value: unknown): Record<string, unknown> {

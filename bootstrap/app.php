@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Middleware\AuditAdminWrites;
+use App\Http\Middleware\AuditImpersonatedWrites;
+use App\Http\Middleware\BlockImpersonated;
 use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsureJudgeForShow;
 use App\Http\Middleware\EnsureJudgeOrAdmin;
@@ -31,6 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Ends sessions on other devices when the password changes (the stored password hash no longer matches).
         $middleware->web(append: [
             AuthenticateSession::class,
+            AuditImpersonatedWrites::class,
         ]);
 
         // PayPal posts IPNs server to server without a CSRF token; the message is verified by
@@ -41,6 +45,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin' => EnsureAdmin::class,
             'judge_or_admin' => EnsureJudgeOrAdmin::class,
             'judge_for_show' => EnsureJudgeForShow::class,
+            'audit.admin' => AuditAdminWrites::class,
+            'block.impersonated' => BlockImpersonated::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

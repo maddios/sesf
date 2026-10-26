@@ -56,7 +56,8 @@ abstract class IpnTestCase extends TestCase
 
     /**
      * A priced registration: an open show whose price_car is the registration's total, and one car
-     * with an allowed body entered in it. The total is amount_owed + amount_received, so the bound
+     * with an allowed body entered in it. The total is amount_owed + amount_received + discount
+     * (owed = total - received - discount), so the bound
      * RegistrationBalance (the pricing adapter) computes the same owed as the stored column.
      *
      * @param  array<string, mixed>  $attributes
@@ -69,7 +70,9 @@ abstract class IpnTestCase extends TestCase
             'amount_received_actual' => null,
             'is_paid' => false,
         ];
-        $totalCents = StoredAmountOwedBalance::cents($attributes['amount_owed']) + StoredAmountOwedBalance::cents($attributes['amount_received']);
+        $totalCents = StoredAmountOwedBalance::cents($attributes['amount_owed'])
+            + StoredAmountOwedBalance::cents($attributes['amount_received'])
+            + StoredAmountOwedBalance::cents($attributes['discount'] ?? '0.00');
         $this->assertGreaterThanOrEqual(0, $totalCents, 'fixture total must not be negative');
 
         $show = CarShow::factory()->create([
@@ -168,7 +171,13 @@ abstract class IpnTestCase extends TestCase
     /** @param  TestResponse<Response>  $response */
     protected function assertEmptyOk(TestResponse $response): void
     {
-        $response->assertStatus(200);
+        $this->assertEmptyStatus($response, 200);
+    }
+
+    /** @param  TestResponse<Response>  $response */
+    protected function assertEmptyStatus(TestResponse $response, int $status): void
+    {
+        $response->assertStatus($status);
         $this->assertSame('', $response->getContent());
     }
 

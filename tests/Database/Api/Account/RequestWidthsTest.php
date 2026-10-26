@@ -171,6 +171,12 @@ class RequestWidthsTest extends AccountTestCase
     }
 
     #[Test]
+    public function apostrophes_are_accepted_in_registration_names(): void
+    {
+        $this->submitRegistration('last_name', "O'Shea")->assertSuccessful();
+    }
+
+    #[Test]
     public function emoji_is_refused_with_a_friendly_message_and_not_saved(): void
     {
         $user = $this->makeUser(['city' => 'Stable']);

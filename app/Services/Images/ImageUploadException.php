@@ -30,6 +30,11 @@ final class ImageUploadException extends RuntimeException
         return new self('The image is larger than 8000 x 8000 pixels.');
     }
 
+    public static function animationTooLarge(): self
+    {
+        return new self('The animation has too many frames or is too large.');
+    }
+
     public static function unreadable(): self
     {
         return new self('The image could not be read. Please try a different file.');

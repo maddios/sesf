@@ -26,6 +26,39 @@ final class ImageFixtures
         return self::blob($width, $height, 'WEBP', 'green');
     }
 
+    /**
+     * A GIF with $frames frames, built byte by byte: a graphic control extension and a 2 x 2 image
+     * descriptor per frame. The LZW data is not valid, which is fine for the frame counter, which
+     * never decodes pixels. Use only for inputs that must be rejected before decoding.
+     */
+    public static function gifWithManyFrames(int $frames): string
+    {
+        $gif = 'GIF89a'.pack('vvC', 2, 2, 0x00)."\x00\x00";
+        $frame = "\x21\xF9\x04\x00\x0A\x00\x00\x00"
+            ."\x2C".pack('vvvv', 0, 0, 2, 2)."\x00"
+            ."\x02\x02\x44\x01\x00";
+
+        return $gif.str_repeat($frame, $frames)."\x3B";
+    }
+
+    /** A GIF with $frames frames of $width x $height, each one colour (alternating). */
+    public static function animatedGifWithFrames(int $frames, int $width = 2, int $height = 2): string
+    {
+        $gif = new Imagick;
+        for ($i = 0; $i < $frames; $i++) {
+            $frame = new Imagick;
+            $frame->newImage($width, $height, new ImagickPixel($i % 2 === 0 ? 'red' : 'blue'));
+            $frame->setImageFormat('GIF');
+            $gif->addImage($frame);
+            $frame->destroy();
+        }
+
+        $bytes = $gif->getImagesBlob();
+        $gif->destroy();
+
+        return $bytes;
+    }
+
     /** A two-frame GIF: the first frame red, the second blue. */
     public static function animatedGif(int $width = 4, int $height = 4): string
     {

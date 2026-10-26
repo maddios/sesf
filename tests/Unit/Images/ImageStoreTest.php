@@ -100,6 +100,58 @@ class ImageStoreTest extends TestCase
     }
 
     #[Test]
+    public function a_gif_with_too_many_frames_is_rejected_without_decoding_it(): void
+    {
+        // 300 one-colour frames of 2 x 2 pixels: the pixels are tiny, the frame count is not.
+        $source = F::gifWithManyFrames(300);
+
+        // Warm up once: the first finfo open loads libmagic's database, which is a one-off cost.
+        $this->store(F::png(2, 2), 23);
+
+        $peakBefore = memory_get_peak_usage();
+        $this->assertRejected($source, 18, ImageUploadException::class, 'too many frames');
+        $growth = memory_get_peak_usage() - $peakBefore;
+
+        // Counting walks the file structure and skips the image data, so the peak barely moves.
+        $this->assertLessThan(4 * 1024 * 1024, $growth, 'peak memory grew by '.$growth.' bytes');
+        $this->assertDirectoryDoesNotExist($this->root.'/18');
+    }
+
+    #[Test]
+    public function a_two_frame_gif_is_accepted_and_its_first_frame_is_the_one_stored(): void
+    {
+        $this->store(F::animatedGifWithFrames(2), 19);
+
+        $stored = new Imagick($this->root.'/19/profile.jpg');
+        $this->assertSame(1, $stored->getNumberImages());
+        $pixel = $stored->getImagePixelColor(0, 0)->getColor();
+        $stored->destroy();
+
+        $this->assertGreaterThan(200, $pixel['r'], 'first frame (red) expected');
+        $this->assertLessThan(60, $pixel['b'], 'second frame (blue) must not be used');
+    }
+
+    #[Test]
+    public function resource_limits_are_restored_after_a_decode(): void
+    {
+        $types = [Imagick::RESOURCETYPE_MEMORY, Imagick::RESOURCETYPE_MAP, Imagick::RESOURCETYPE_DISK,
+            Imagick::RESOURCETYPE_WIDTH, Imagick::RESOURCETYPE_HEIGHT, Imagick::RESOURCETYPE_AREA, Imagick::RESOURCETYPE_TIME];
+        $before = array_map(fn (int $t): int => Imagick::getResourceLimit($t), $types);
+
+        $this->store(F::png(2, 2), 20);
+        $this->assertRejected(F::truncatedPng(), 21, ImageUploadException::class);
+
+        $this->assertSame($before, array_map(fn (int $t): int => Imagick::getResourceLimit($t), $types));
+    }
+
+    #[Test]
+    public function a_frame_area_over_64_megapixels_is_rejected(): void
+    {
+        // 8000 x 8001 is 64.008 megapixels: over the area limit and over the side limit.
+        $this->assertRejected(F::png(8000, 8001), 22, ImageUploadException::class, 'larger than 8000');
+    }
+
+    #[Test]
     public function a_dimension_over_the_limit_is_rejected_before_decoding(): void
     {
         $this->assertRejected(F::png(ImageStore::MAX_DIMENSION + 1, 1), 4, ImageUploadException::class, 'larger than 8000');

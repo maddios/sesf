@@ -124,7 +124,7 @@ describe('member writes', () => {
   it('sells a car by id', async () => {
     const fetchMock = stubFetch({ 'POST /member/sell-car': () => empty() });
     await sellCar(12);
-    expect(callsTo(fetchMock, 'POST /member/sell-car')[0]).toEqual({ car_id: 12 });
+    expect(callsTo(fetchMock, 'POST /member/sell-car')[0]).toEqual({ id: 12 });
   });
 });
 
@@ -148,10 +148,14 @@ describe('reads', () => {
   it('maps body and type lists (type names come from the type key)', async () => {
     stubFetch({
       'GET /car/body': () => jsonResponse(200, [{ id: 1, name: 'Coupe' }, { id: 0, name: 'Bad' }]),
-      'GET /car/type': () => jsonResponse(200, [{ id: 3, type: 'Street' }]),
+      'GET /car/type': () => jsonResponse(200, [{ id: 1, name: 'Car' }, { id: 3, type: 'Street' }]),
     });
     expect(await fetchCarBodies()).toEqual([{ id: 1, name: 'Coupe' }]);
-    expect(await fetchCarTypes()).toEqual([{ id: 3, name: 'Street' }]);
+    // The server sends {id, name}; the legacy {id, type} shape is still accepted.
+    expect(await fetchCarTypes()).toEqual([
+      { id: 1, name: 'Car' },
+      { id: 3, name: 'Street' },
+    ]);
   });
 
   it('marks a car locked when it is registered for a show', async () => {
@@ -220,7 +224,9 @@ describe('car writes', () => {
     const fetchMock = stubFetch({ 'PUT /car/profile': () => empty() });
     const id = await saveCar({ id: 9, nickname: 'Red', model: '', year: '', vin: 'ABCDE', bodyId: 1, typeId: 1 });
     expect(id).toBe(9);
-    expect(callsTo(fetchMock, 'PUT /car/profile')[0]).toMatchObject({ id: 9, VIN: 'ABCDE' });
+    expect(callsTo(fetchMock, 'PUT /car/profile')[0]).toMatchObject({ car_id: 9, VIN: 'ABCDE' });
+    // The server ignores `id`; sending only `id` created a duplicate car instead of updating.
+    expect(callsTo(fetchMock, 'PUT /car/profile')[0]).not.toHaveProperty('id');
   });
 
   it('falls back to 0 for a create whose response has no id', async () => {

@@ -64,6 +64,7 @@ const {
 } = useRegistrationEditor({
   showId: props.eventId,
   userId: props.userId,
+  sessionUserId: () => auth.userId ?? 0,
   memberEmail: () => auth.user?.email ?? '',
   isAdmin: () => auth.isAdmin,
   registrationOpen: () => eventInfo.value?.registrationOpen ?? false,

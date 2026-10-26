@@ -10,7 +10,7 @@ Web middleware (session + CSRF 419), `auth` (401 JSON). Throttle per user: 30/mi
   200 = exactly the `GET event/registration` payload (the read controller is called). Legacy `{id:x}` objects are accepted for ids.
 - `POST event/registration/quote`: same body, same checks (closed shows too), writes nothing.
   200 `{payment:{cars,guests,shirts,extras,donation,total,received,discount,owed,freeGuests,lineItems:[{kind,label,quantity,unit,amount,free}]}}`.
-- `POST event/extra?extra_id=<auth_key>[&show_id]` body `{num_extras}`: sets that one extra on the session user's registration.
+- `POST event/extra?extra_id=<auth_key>[&show_id][&user_id]` body `{num_extras}`: sets that one extra on the target's registration.
   200 = the `GET event/extra` payload. Unknown key or other show: 404. No registration: 400 `general.registration`.
 - Missing `show_id`: 422; unknown show: 404; admin `user_id` unknown or soft-deleted: 404.
 
@@ -23,7 +23,7 @@ Closed: `{general:{response:{closed:['Registration is closed']},status:'error'}}
 | Field | Rule |
 |---|---|
 | actor | session user; admin + `user_id` acts on behalf (and may write when closed). A non-admin's `user_id` is ignored (as in the reads). |
-| open | `CarShow::regOpen`, unless admin on behalf. Applies to quote. Not to `event/extra` (legacy had no check). |
+| open | `CarShow::regOpen`, unless admin on behalf (`user_id`). Applies to quote and `event/extra` too. |
 | cars | ≥1 unless an admin sends `cancel:true` on an existing registration; ≤20, distinct; owned by the TARGET user (sold cars have no owner); body in `car_body_show`; `judging_type` null or in `judging_show_body` for show+body. |
 | guests | ≤50; `type` 1/2; `first`/`last` required, ≤60 (column), Latin-1 letters, digits, space `.'-`; `email` optional, RFC, ASCII, ≤128, not the target user's email (case-insensitive); `id` must be a guest of THIS registration; `deleted:true` removes. |
 | shirts | ≤50; `type` exists in `shirt_type`; `id` of THIS registration; new or re-typed shirts snapshot `shirt.price` from `shirt_type.price`. |
@@ -43,6 +43,7 @@ Guests, shirts and extras that are not in the body are kept (legacy). Money keys
 3. Sync cars (`judging_type_id` on the pivot), guests, shirts, extras; ids re-checked against this registration.
 4. Price the stored rows (`RegistrationProjector::stored`, PricingCalculator, always computed), then persist
    `amount_owed` = owed and `is_paid`: false if owed > 0; true if owed ≤ 0 and received > 0; else unchanged.
+   ENDED show (admin only): rows change, `amount_owed`/`is_paid` are never recomputed (amounts: admin app).
 
 The quote uses the same projector on the posted state (existing guests in id order, then new ones), so live totals equal
 the saved amount (tested).
@@ -56,4 +57,4 @@ the saved amount (tested).
 
 ## Decisions
 - Members cannot cancel (legacy had no cancel handling; `is_cancelled` was admin-only). Arrival before `date_start`
-  is rejected. `event/extra` needs neither regOpen nor is_enabled (legacy parity). No multi-process race test.
+  is rejected. `event/extra` does not need is_enabled (legacy parity) but does need regOpen for members. No multi-process race test.

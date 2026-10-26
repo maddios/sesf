@@ -384,4 +384,28 @@ class RegistrationWriteTest extends WriteTestCase
             ->assertJsonPath('registration.guests.0.type', 2)
             ->assertJsonPath('registration.shirts.0.type', ShirtTypeFactory::MENS_M_TSHIRT);
     }
+
+    #[Test]
+    public function an_ended_show_keeps_the_stored_amounts_on_admin_edits(): void
+    {
+        $show = $this->show([
+            'date_start' => now()->subMonth()->toDateString(),
+            'date_end' => now()->subMonth()->addDay()->toDateString(),
+            'date_registration_deactivation' => now()->subMonths(2),
+        ]);
+        $user = $this->member();
+        $car = $this->car($user);
+        $registration = $this->registration($show, $user, ['amount_owed' => 12.5, 'amount_received' => 25, 'is_paid' => true]);
+        $this->enterCar($registration, $car);
+
+        // Adding a guest would make owed > 0 at today's prices; the stored amounts must stay.
+        $this->save($this->admin(), $show, $this->body($show, [$car->id], [
+            'guests' => [['first' => 'Late', 'last' => 'Guest', 'type' => 1]],
+        ]), $user->id)->assertOk()->assertJsonCount(1, 'registration.guests');
+
+        $registration->refresh();
+        $this->assertSame(1, $registration->guests()->count());
+        $this->assertSame('12.50', $registration->amount_owed);
+        $this->assertTrue($registration->is_paid);
+    }
 }

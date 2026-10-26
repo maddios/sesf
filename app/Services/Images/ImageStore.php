@@ -36,6 +36,29 @@ final class ImageStore
 
     public const JPEG_QUALITY = 85;
 
+    /** Most frames an animation may have. Frames past this are not counted, so the scan stops here. */
+    public const MAX_FRAMES = 100;
+
+    /** Pixels allowed across all frames of an animation (frame count x width x height). */
+    public const MAX_ANIMATION_PIXELS = 256 * 1024 * 1024;
+
+    /** Pixels allowed in one decoded frame (64 megapixels, the same as 8000 x 8000). */
+    public const MAX_AREA = 64 * 1024 * 1024;
+
+    /** ImageMagick resource limits applied for one decode, then restored. */
+    private const RESOURCE_LIMITS = [
+        Imagick::RESOURCETYPE_MEMORY => 256 * 1024 * 1024,
+        Imagick::RESOURCETYPE_MAP => 256 * 1024 * 1024,
+        Imagick::RESOURCETYPE_DISK => 512 * 1024 * 1024,
+        Imagick::RESOURCETYPE_WIDTH => self::MAX_DIMENSION,
+        Imagick::RESOURCETYPE_HEIGHT => self::MAX_DIMENSION,
+        Imagick::RESOURCETYPE_AREA => self::MAX_AREA,
+        Imagick::RESOURCETYPE_TIME => 20,
+    ];
+
+    /** Chunk and block walk cap, so a crafted file cannot make the frame scan run long. */
+    private const MAX_SCAN_STEPS = 200000;
+
     /** @var array<string, true> */
     private const ALLOWED_MIME = [
         'image/jpeg' => true,
@@ -47,6 +70,8 @@ final class ImageStore
     private const BASENAME_PATTERN = '/^[a-z][a-z0-9_]{0,31}$/';
 
     private ?ImageManager $manager = null;
+
+    private static ?\finfo $finfo = null;
 
     /**
      * Stores the upload as {root}/{id}/{basename}.jpg.
@@ -108,7 +133,7 @@ final class ImageStore
      */
     private function assertImageContent(string $source): void
     {
-        $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($source);
+        $mime = self::finfo()->file($source);
         if ($mime === false || ! isset(self::ALLOWED_MIME[$mime])) {
             throw ImageUploadException::unsupportedType();
         }
@@ -126,29 +151,172 @@ final class ImageStore
         if ($width > self::MAX_DIMENSION || $height > self::MAX_DIMENSION) {
             throw ImageUploadException::dimensionsTooLarge();
         }
+
+        $frames = $this->countFrames($source, $info['mime']);
+        if ($frames > self::MAX_FRAMES || $frames * $width * $height > self::MAX_ANIMATION_PIXELS) {
+            throw ImageUploadException::animationTooLarge();
+        }
     }
 
     /**
-     * Decodes the first frame, applies EXIF orientation, and encodes a metadata-free JPEG.
+     * Counts the frames from the file structure without decoding any pixels. Only GIF and WebP
+     * can be animated. Reads are streamed and skip image data, so memory does not grow with the
+     * file. Stops once the count passes MAX_FRAMES.
+     */
+    private function countFrames(string $source, string $mime): int
+    {
+        $handle = @fopen($source, 'rb');
+        if ($handle === false) {
+            throw ImageUploadException::invalidUpload();
+        }
+
+        try {
+            $frames = match ($mime) {
+                'image/gif' => $this->countGifFrames($handle),
+                'image/webp' => $this->countWebpFrames($handle),
+                default => 1,
+            };
+        } finally {
+            fclose($handle);
+        }
+
+        return max(1, $frames);
+    }
+
+    /**
+     * GIF: skip the header and global colour table, then walk the blocks. Each image descriptor
+     * (0x2C) is one frame; extensions (0x21) are skipped by their sub-block chain.
+     *
+     * @param  resource  $handle
+     */
+    private function countGifFrames($handle): int
+    {
+        $header = fread($handle, 13);
+        if (! is_string($header) || strlen($header) < 13) {
+            return 1;
+        }
+
+        $flags = ord($header[10]);
+        if (($flags & 0x80) !== 0) {
+            fseek($handle, 3 * (2 ** (($flags & 0x07) + 1)), SEEK_CUR);
+        }
+
+        $frames = 0;
+        for ($steps = 0; $steps < self::MAX_SCAN_STEPS; $steps++) {
+            $byte = fgetc($handle);
+            if ($byte === false) {
+                break;
+            }
+
+            $code = ord($byte);
+            if ($code === 0x3B) {
+                break;
+            }
+
+            if ($code === 0x2C) {
+                $frames++;
+                if ($frames > self::MAX_FRAMES) {
+                    return $frames;
+                }
+
+                $descriptor = fread($handle, 9);
+                if (! is_string($descriptor) || strlen($descriptor) < 9) {
+                    break;
+                }
+
+                $local = ord($descriptor[8]);
+                if (($local & 0x80) !== 0) {
+                    fseek($handle, 3 * (2 ** (($local & 0x07) + 1)), SEEK_CUR);
+                }
+
+                if (fgetc($handle) === false || ! $this->skipGifSubBlocks($handle)) {
+                    break;
+                }
+            } elseif ($code === 0x21) {
+                if (fgetc($handle) === false || ! $this->skipGifSubBlocks($handle)) {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+
+        return $frames;
+    }
+
+    /**
+     * @param  resource  $handle
+     */
+    private function skipGifSubBlocks($handle): bool
+    {
+        for ($steps = 0; $steps < self::MAX_SCAN_STEPS; $steps++) {
+            $size = fgetc($handle);
+            if ($size === false) {
+                return false;
+            }
+
+            $length = ord($size);
+            if ($length === 0) {
+                return true;
+            }
+
+            fseek($handle, $length, SEEK_CUR);
+        }
+
+        return false;
+    }
+
+    /**
+     * WebP: walk the RIFF chunks. Each ANMF chunk is one frame of an animation. A still image
+     * has none.
+     *
+     * @param  resource  $handle
+     */
+    private function countWebpFrames($handle): int
+    {
+        $header = fread($handle, 12);
+        if (! is_string($header) || strlen($header) < 12 || substr($header, 8, 4) !== 'WEBP') {
+            return 1;
+        }
+
+        $frames = 0;
+        for ($steps = 0; $steps < self::MAX_SCAN_STEPS; $steps++) {
+            $chunk = fread($handle, 8);
+            if (! is_string($chunk) || strlen($chunk) < 8) {
+                break;
+            }
+
+            $size = unpack('V', substr($chunk, 4, 4))[1];
+            if (substr($chunk, 0, 4) === 'ANMF') {
+                $frames++;
+                if ($frames > self::MAX_FRAMES) {
+                    return $frames;
+                }
+            }
+
+            fseek($handle, $size + ($size % 2), SEEK_CUR);
+        }
+
+        return $frames;
+    }
+
+    /**
+     * Decodes the first frame only, under ImageMagick resource limits that are restored afterwards.
+     * Applies EXIF orientation and encodes a metadata-free JPEG.
      */
     private function reencode(string $source): string
     {
+        $previous = $this->applyResourceLimits();
+
         try {
             $imagick = new Imagick;
-            $handle = fopen($source, 'rb');
-            if ($handle === false) {
-                throw ImageUploadException::invalidUpload();
-            }
-            try {
-                $imagick->readImageFile($handle);
-            } finally {
-                fclose($handle);
-            }
-
-            // Animated GIF and similar: keep the first frame only. Encoding several frames as
-            // JPEG would write several concatenated JPEG streams.
-            $imagick->setIteratorIndex(0);
+            // "[0]" selects the first frame at read time, so the other frames are never decoded.
+            $imagick->readImage($source.'[0]');
             $frame = $imagick->getImage();
+
+            if ($frame->getImageWidth() * $frame->getImageHeight() > self::MAX_AREA) {
+                throw ImageUploadException::dimensionsTooLarge();
+            }
 
             $image = $this->manager()->read($frame)->orient();
             $bytes = $image->toJpeg(quality: self::JPEG_QUALITY, strip: true)->toString();
@@ -156,6 +324,8 @@ final class ImageStore
             throw $e;
         } catch (Throwable) {
             throw ImageUploadException::unreadable();
+        } finally {
+            $this->restoreResourceLimits($previous);
         }
 
         if ($bytes === '') {
@@ -163,6 +333,32 @@ final class ImageStore
         }
 
         return $bytes;
+    }
+
+    /**
+     * Sets the decode limits and returns the values they replaced.
+     *
+     * @return array<int, int>
+     */
+    private function applyResourceLimits(): array
+    {
+        $previous = [];
+        foreach (self::RESOURCE_LIMITS as $type => $limit) {
+            $previous[$type] = Imagick::getResourceLimit($type);
+            Imagick::setResourceLimit($type, $limit);
+        }
+
+        return $previous;
+    }
+
+    /**
+     * @param  array<int, int>  $previous
+     */
+    private function restoreResourceLimits(array $previous): void
+    {
+        foreach ($previous as $type => $limit) {
+            Imagick::setResourceLimit($type, $limit);
+        }
     }
 
     /**
@@ -241,6 +437,15 @@ final class ImageStore
         if (preg_match(self::BASENAME_PATTERN, $basename) !== 1) {
             throw new \InvalidArgumentException('Invalid image base name.');
         }
+    }
+
+    /**
+     * One finfo handle per process. Opening one loads libmagic's database (several MB), so a new
+     * handle per upload would cost that load every time.
+     */
+    private static function finfo(): \finfo
+    {
+        return self::$finfo ??= new \finfo(FILEINFO_MIME_TYPE);
     }
 
     private function manager(): ImageManager

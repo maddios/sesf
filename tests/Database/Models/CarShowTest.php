@@ -351,3 +351,9 @@ test('mass assignment ignores guarded prices and state flags', function () {
     expect($show->getAttributes())->not->toHaveKeys(['price_car', 'price_adult', 'price_child', 'is_active', 'is_judging_released'])
         ->and($show->short_name)->toBe('FORGE');
 });
+
+test('shortDescription fallback strips tags before cutting', function () {
+    $show = CarShow::factory()->create(['short_description' => null, 'description' => '<p>Hello <b>world</b></p>']);
+
+    expect($show->shortDescription)->toBe('Hello world...');
+});

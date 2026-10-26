@@ -97,4 +97,62 @@ class ExtraWriteTest extends WriteTestCase
             ->assertJsonPath('general.status', 'error');
         $this->assertSame(0, DB::table('show_extra_registration')->count());
     }
+
+    #[Test]
+    public function a_member_cannot_change_extras_when_registration_is_closed(): void
+    {
+        $show = $this->show(['date_registration_deactivation' => now()->subDay()]);
+        $user = $this->member();
+        $registration = $this->registration($show, $user, ['amount_owed' => 30]);
+        $extra = $this->rangedExtra($show, 'closed-key');
+        $this->addExtraToRegistration($registration, $extra, 2);
+
+        $this->signIn($user)->postJson(self::EXTRA.'?extra_id=closed-key', ['num_extras' => 0])
+            ->assertStatus(400)
+            ->assertExactJson(['general' => ['response' => ['closed' => ['Registration is closed']], 'status' => 'error']]);
+
+        $this->assertSame(2, (int) $registration->extras()->value('num_extras'));
+        $this->assertSame('30.00', $registration->refresh()->amount_owed);
+    }
+
+    #[Test]
+    public function an_admin_on_behalf_can_change_extras_when_closed(): void
+    {
+        $show = $this->show(['date_registration_deactivation' => now()->subDay()]);
+        $user = $this->member();
+        $registration = $this->registration($show, $user);
+        $this->enterCar($registration, $this->car($user));
+        $extra = $this->rangedExtra($show, 'admin-key');
+
+        $this->signIn($this->admin())->postJson(self::EXTRA.'?extra_id=admin-key&user_id='.$user->id, ['num_extras' => 2])
+            ->assertOk()
+            ->assertJsonPath('registration.user_id', $user->id)
+            ->assertJsonPath('registration.extras.'.$extra->id.'.num_extras', 2);
+        // Not ended: amounts are recomputed (car 25 + 2 x 7.50).
+        $this->assertSame('40.00', $registration->refresh()->amount_owed);
+
+        $this->signIn($this->admin())->postJson(self::EXTRA.'?extra_id=admin-key&user_id=999999', ['num_extras' => 1])->assertStatus(404);
+    }
+
+    #[Test]
+    public function an_ended_show_keeps_the_stored_amounts_on_admin_extra_edits(): void
+    {
+        $show = $this->show([
+            'date_start' => now()->subMonth()->toDateString(),
+            'date_end' => now()->subMonth()->addDay()->toDateString(),
+            'date_registration_deactivation' => now()->subMonths(2),
+        ]);
+        $user = $this->member();
+        $registration = $this->registration($show, $user, ['amount_owed' => 0, 'amount_received' => 40, 'is_paid' => true]);
+        $this->enterCar($registration, $this->car($user));
+        $extra = $this->rangedExtra($show, 'ended-key');
+        $this->addExtraToRegistration($registration, $extra, 2);
+
+        $this->signIn($this->admin())->postJson(self::EXTRA.'?extra_id=ended-key&user_id='.$user->id, ['num_extras' => 0])->assertOk();
+
+        $registration->refresh();
+        $this->assertSame(0, $registration->extras()->count());
+        $this->assertSame('0.00', $registration->amount_owed);
+        $this->assertTrue($registration->is_paid);
+    }
 }

@@ -218,6 +218,16 @@ describe('RegisterPage client validation', () => {
 });
 
 describe('RegisterPage submit', () => {
+  it('goes to the profile when the server sends it as a hash link (#/fan/u7), as the real API does', async () => {
+    const user = userEvent.setup();
+    stubFetch({ [REGISTER]: () => jsonResponse(200, { ...SESSION_PAYLOAD, profileURL: '#/fan/u7' }) });
+    const { router } = await renderAt(RegisterPage, '/register');
+    await fillValid(user);
+    await solveChallenge('token-hash');
+    await user.click(screen.getByRole('button', { name: 'Create Account' }));
+    await waitFor(() => expect(router.currentRoute.value.path).toBe('/fan/u7'));
+  });
+
   it('sends the trimmed payload with the token, applies the session and goes to the profile', async () => {
     const user = userEvent.setup();
     const fetchMock = stubFetch({ [REGISTER]: () => jsonResponse(200, SESSION_PAYLOAD) });

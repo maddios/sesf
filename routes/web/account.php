@@ -28,13 +28,13 @@ Route::post('member/register', [RegistrationController::class, 'store'])
     ->middleware('throttle:10,1');
 
 Route::get('member/location', [AccountController::class, 'showLocation'])->middleware('auth');
-Route::post('member/location', [AccountController::class, 'updateLocation'])->middleware('auth');
+Route::post('member/location', [AccountController::class, 'updateLocation'])->middleware(['auth', 'throttle:account-write']);
 
 Route::get('member/private-preferences', [AccountController::class, 'showPreferences'])->middleware('auth');
-Route::post('member/private-preferences', [AccountController::class, 'updatePreferences'])->middleware('auth');
+Route::post('member/private-preferences', [AccountController::class, 'updatePreferences'])->middleware(['auth', 'throttle:account-write']);
 
-Route::post('member/account-info', [AccountController::class, 'updateAccountInfo'])->middleware('auth');
-Route::post('member/delete-account', [AccountController::class, 'deleteAccount'])->middleware('auth');
+Route::post('member/account-info', [AccountController::class, 'updateAccountInfo'])->middleware(['auth', 'block.impersonated', 'throttle:account-password-check']);
+Route::post('member/delete-account', [AccountController::class, 'deleteAccount'])->middleware(['auth', 'block.impersonated', 'throttle:account-password-check']);
 
 Route::post('member/message', [MessageController::class, 'send'])
     ->middleware(['auth', 'throttle:account-message']);
@@ -43,4 +43,4 @@ Route::post('home/report', [ContactController::class, 'report'])
     ->middleware('throttle:account-contact');
 
 Route::get('tutorial/tutorial', [TutorialController::class, 'show'])->middleware('auth');
-Route::post('tutorial/tutorial', [TutorialController::class, 'update'])->middleware('auth');
+Route::post('tutorial/tutorial', [TutorialController::class, 'update'])->middleware(['auth', 'throttle:account-write']);

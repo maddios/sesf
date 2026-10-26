@@ -82,7 +82,7 @@ describe('CarFormPage edit', () => {
     await user.type(screen.getByLabelText('Model'), 'Super Beetle');
     await user.click(screen.getByRole('button', { name: 'Save car' }));
     expect(await screen.findByText('Car saved.')).toBeTruthy();
-    expect(callsTo(fetchMock, 'PUT /car/profile')[0]).toMatchObject({ id: 5, model: 'Super Beetle' });
+    expect(callsTo(fetchMock, 'PUT /car/profile')[0]).toMatchObject({ car_id: 5, model: 'Super Beetle' });
   });
 
   it('locks body, type, year, model and VIN for a car registered for a show', async () => {
@@ -101,7 +101,7 @@ describe('CarFormPage edit', () => {
     expect((screen.getByLabelText('Nickname') as HTMLInputElement).disabled).toBe(false);
     await user.click(screen.getByRole('button', { name: 'Save car' }));
     await screen.findByText('Car saved.');
-    expect(callsTo(fetchMock, 'PUT /car/profile')[0]).toMatchObject({ id: 5 });
+    expect(callsTo(fetchMock, 'PUT /car/profile')[0]).toMatchObject({ car_id: 5 });
   });
 
   it('reports a missing car', async () => {

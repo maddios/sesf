@@ -202,7 +202,11 @@ export async function fetchCarBodies(): Promise<CarOption[]> {
 export async function fetchCarTypes(): Promise<CarOption[]> {
   const body = await api.get<unknown>('/car/type');
   return Array.isArray(body)
-    ? body.map((item) => ({ id: toNumber(asRecordOf(item).id) ?? 0, name: toText(asRecordOf(item).type) })).filter((o) => o.id > 0)
+    ? body
+        // GET car/type sends {id, name} (car_type.name). `type` is still read for older payloads (found by E2E: the
+        // Type options were blank because only `type` was read).
+        .map((item) => ({ id: toNumber(asRecordOf(item).id) ?? 0, name: toText(asRecordOf(item).name) || toText(asRecordOf(item).type) }))
+        .filter((o) => o.id > 0)
     : [];
 }
 
@@ -225,7 +229,9 @@ export async function fetchCarDetail(carId: number): Promise<CarDetail> {
 /** Creates (no id) or updates a car. Resolves to the saved car's id. */
 export async function saveCar(input: CarInput): Promise<number> {
   const body = await send('PUT', '/car/profile', {
-    ...(input.id === undefined ? {} : { id: input.id }),
+    // The server identifies the car to update by `car_id` (CarProfileRequest). Sending `id` made every edit
+    // create a second car (found by E2E, docs/e2e.md).
+    ...(input.id === undefined ? {} : { car_id: input.id }),
     nickname: input.nickname,
     model: input.model,
     year: input.year,
@@ -244,5 +250,6 @@ export async function fetchGarage(userId: number): Promise<CarSummary[]> {
 }
 
 export async function sellCar(carId: number): Promise<void> {
-  await send('POST', '/member/sell-car', { car_id: carId });
+  // The server reads `id` (SellCarRequest); `car_id` was answered with 404 (found by E2E, docs/e2e.md).
+  await send('POST', '/member/sell-car', { id: carId });
 }

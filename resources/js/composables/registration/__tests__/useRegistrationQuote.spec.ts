@@ -81,6 +81,62 @@ describe('useRegistrationQuote', () => {
     scope.stop();
   });
 
+  it('discards an answer for an earlier body that arrives during the next debounce wait', async () => {
+    vi.useFakeTimers();
+    const body = shallowRef<RegistrationRequest | null>(request(0));
+    let resolveFirst: (value: Quote) => void = () => undefined;
+    const fetchQuote = vi
+      .fn<(body: RegistrationRequest) => Promise<Quote>>()
+      .mockImplementationOnce(() => new Promise<Quote>((resolve) => (resolveFirst = resolve)))
+      .mockImplementationOnce(async () => quoteOf('new'));
+    const scope = effectScope();
+    const state = scope.run(() => useRegistrationQuote(computed(() => body.value), fetchQuote))!;
+    body.value = request(1);
+    await vi.advanceTimersByTimeAsync(QUOTE_DELAY_MS); // first request is now in flight
+    body.value = request(2); // edited again: the debounce is waiting
+    await vi.advanceTimersByTimeAsync(1);
+    resolveFirst(quoteOf('old'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state.quote.value).toBeNull();
+    expect(state.status.value).toBe('loading');
+    await vi.advanceTimersByTimeAsync(QUOTE_DELAY_MS);
+    expect(state.quote.value?.total).toBe('new');
+    expect(state.status.value).toBe('ready');
+    scope.stop();
+  });
+
+  it('discards an answer that arrives after the scope is disposed', async () => {
+    vi.useFakeTimers();
+    const body = shallowRef<RegistrationRequest | null>(request(0));
+    let resolveFirst: (value: Quote) => void = () => undefined;
+    const fetchQuote = vi.fn<(body: RegistrationRequest) => Promise<Quote>>(() => new Promise<Quote>((resolve) => (resolveFirst = resolve)));
+    const scope = effectScope();
+    const state = scope.run(() => useRegistrationQuote(computed(() => body.value), fetchQuote))!;
+    body.value = request(1);
+    await vi.advanceTimersByTimeAsync(QUOTE_DELAY_MS);
+    scope.stop();
+    resolveFirst(quoteOf('late'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state.quote.value).toBeNull();
+  });
+
+  it('drops the last quote and goes idle when the body becomes null (incomplete form)', async () => {
+    vi.useFakeTimers();
+    const body = shallowRef<RegistrationRequest | null>(request(0));
+    const fetchQuote = vi.fn(async () => quoteOf('7.00'));
+    const scope = effectScope();
+    const state = scope.run(() => useRegistrationQuote(computed(() => body.value), fetchQuote))!;
+    body.value = request(1);
+    await vi.advanceTimersByTimeAsync(QUOTE_DELAY_MS);
+    expect(state.quote.value?.total).toBe('7.00');
+    body.value = null;
+    await vi.advanceTimersByTimeAsync(QUOTE_DELAY_MS);
+    expect(state.quote.value).toBeNull();
+    expect(state.status.value).toBe('idle');
+    expect(fetchQuote).toHaveBeenCalledTimes(1);
+    scope.stop();
+  });
+
   it('does nothing while the body is null and can be refreshed manually', async () => {
     vi.useFakeTimers();
     const body = shallowRef<RegistrationRequest | null>(null);

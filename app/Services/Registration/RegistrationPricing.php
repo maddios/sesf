@@ -102,7 +102,18 @@ final class RegistrationPricing implements RegistrationBalance
             return 0;
         }
 
-        return $this->calculator->calculate($this->input($registration, $show))->owedCents;
+        // The calculator only takes non-negative inputs, but received can be negative after a
+        // refund and legacy rows hold negative discounts (docs/pricing.md, row N). So the total is
+        // priced on a copy with received and discount zeroed, and both are subtracted here as
+        // signed cents: owed = total - received - discount.
+        $priced = clone $registration;
+        $priced->amount_received = '0.00';
+        $priced->discount = '0.00';
+        $totalCents = $this->calculator->calculate($this->input($priced, $show))->totalCents;
+
+        return $totalCents
+            - self::signedCents((string) $registration->amount_received)
+            - self::signedCents((string) $registration->discount);
     }
 
     /**

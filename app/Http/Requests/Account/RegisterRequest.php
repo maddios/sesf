@@ -25,8 +25,8 @@ class RegisterRequest extends AccountFormRequest
     {
         return [
             // Widths are the user table columns (docs/legacy/schema-sesf_dev.sql); see RequestWidthsTest.
-            'first_name' => ['required', 'string', 'regex:/^[a-zA-Z0-9.\- ]+$/', 'max:20', new Latin1Text],
-            'last_name' => ['required', 'string', 'regex:/^[a-zA-Z0-9.\- ]+$/', 'max:20', new Latin1Text],
+            'first_name' => ['required', 'string', 'regex:/^[a-zA-Z0-9.\'\- ]+$/', 'max:20', new Latin1Text],
+            'last_name' => ['required', 'string', 'regex:/^[a-zA-Z0-9.\'\- ]+$/', 'max:20', new Latin1Text],
             'email' => ['required', 'string', 'email', 'max:60', new Latin1Text, 'confirmed', Rule::unique(User::class, 'email')],
             'street' => ['required', 'string', 'max:60', new Latin1Text],
             'street2' => ['nullable', 'string', 'max:60', new Latin1Text],

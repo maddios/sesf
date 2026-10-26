@@ -8,7 +8,7 @@ use Throwable;
 
 /**
  * Asks PayPal whether an IPN is genuine: posts "cmd=_notify-validate&" followed by the original
- * body, byte for byte, to config('sesf.paypal.verify_url') over verified TLS.
+ * body, byte for byte, to config('sesf.paypal.verify_url') over verified TLS (10 s timeout).
  *
  * Returns true only for a reply body that is exactly "VERIFIED" (after trimming whitespace) and
  * false for exactly "INVALID". Anything else (HTTP error status, timeout, connection failure, an
@@ -16,7 +16,7 @@ use Throwable;
  */
 class IpnVerifier
 {
-    public const TIMEOUT_SECONDS = 15;
+    public const TIMEOUT_SECONDS = 10;
 
     public const USER_AGENT = 'SESF-IPN-Verifier/1.0';
 

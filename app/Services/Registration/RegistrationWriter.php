@@ -27,7 +27,8 @@ use Illuminate\Support\Carbon;
  *  2. load the (show, user) registration with a locking read, or create it through
  *     ShowRegistration::save() (which allocates the invoice number under the show lock);
  *  3. sync cars, guests, shirts, extras (ids scoped to THIS registration again, as defense in depth);
- *  4. price the stored state with PricingCalculator and persist amount_owed and is_paid.
+ *  4. price the stored state with PricingCalculator and persist amount_owed and is_paid
+ *     (skipped when the show has ENDED: stored amounts stay).
  *
  * A (show_id, user_id) unique violation (a writer that does not take the user lock inserted the
  * row first) rolls the transaction back and runs it once more, which then updates that row.
@@ -75,13 +76,13 @@ class RegistrationWriter
 
     /**
      * Sets num_extras of one extra on the user's existing registration (legacy postExtra).
-     * 0 removes the row. Recomputes amount_owed and is_paid.
+     * 0 removes the row. Recomputes amount_owed and is_paid unless the show has ended.
      *
      * @throws RegistrationRejected when the user has no registration for the extra's show
      */
-    public function saveExtra(User $user, ShowExtra $extra, int $quantity): ShowRegistration
+    public function saveExtra(User $user, ShowExtra $extra, int $quantity, bool $byAdmin = false): ShowRegistration
     {
-        return $this->connection()->transaction(function () use ($user, $extra, $quantity): ShowRegistration {
+        return $this->connection()->transaction(function () use ($user, $extra, $quantity, $byAdmin): ShowRegistration {
             $this->lockUser($user);
             $show = CarShow::query()->findOrFail($extra->show_id);
             $registration = $this->findExisting($show, $user);
@@ -89,7 +90,7 @@ class RegistrationWriter
             if ($registration === null) {
                 throw RegistrationRejected::at('general.registration', 'You must be a registered attendee of the event to use this form');
             }
-            if ($registration->is_cancelled) {
+            if ($registration->is_cancelled && ! $byAdmin) {
                 throw RegistrationRejected::at('general.cancelled', self::CANCELLED_MESSAGE);
             }
 
@@ -263,6 +264,12 @@ class RegistrationWriter
      */
     private function persistAmounts(CarShow $show, ShowRegistration $registration): void
     {
+        // ENDED show: the stored amounts are what was billed (docs/pricing.md). Recomputing at today's
+        // prices would rewrite old invoices; amount changes after the event go through the admin app.
+        if ($show->ended) {
+            return;
+        }
+
         $result = $this->projector->stored($show, $registration);
 
         if (abs($result->owedCents) > 999_999 || $result->totalCents > 999_999) {

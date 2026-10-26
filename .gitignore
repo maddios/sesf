@@ -43,3 +43,8 @@ Thumbs.db
 /public/waivers
 /storage/waivers
 /docs/design-baseline/shots/
+
+# E2E sandbox (scripts/e2e.sh): seed state, Playwright artifacts, curated screenshots
+/e2e/.state/
+/e2e/artifacts/
+/docs/e2e-shots/

@@ -70,6 +70,8 @@ describe('shared normalisers', () => {
     expect(toImageUrl('images/cars/3.jpg')).toBe('/images/cars/3.jpg');
     expect(toImageUrl('/images/cars/3.jpg')).toBe('/images/cars/3.jpg');
     expect(toImageUrl('https://cdn.example/x.png')).toBe('https://cdn.example/x.png');
+    expect(toImageUrl('images/cars/7/profile.jpg?1792976406')).toBe('/images/cars/7/profile.jpg?1792976406');
+    expect(toImageUrl('images/cars/7/profile.jpg?v=1"onerror=x')).toBe('');
     expect(toImageUrl('images/../secret.txt')).toBe('');
     expect(toImageUrl('http://insecure.example/x.png')).toBe('');
     expect(toImageUrl('')).toBe('');

@@ -104,6 +104,8 @@ export const QUOTE_RAW = {
 export const MEMBER = { id: 7, name: 'Shark F.', email: 'fan@example.test' };
 
 export interface Scenario {
+  /** Signed-in member id (defaults to MEMBER.id). */
+  userId?: number;
   /** Reuse a Pinia instance to simulate navigating away and back (the draft lives in the store). */
   pinia?: Pinia;
   auth?: 'member' | 'admin' | 'anonymous';
@@ -119,7 +121,7 @@ export async function setupRegistration(scenario: Scenario = {}) {
   const auth = useAuthStore();
   if (scenario.auth !== 'anonymous') {
     auth.setUser({
-      userId: MEMBER.id,
+      userId: scenario.userId ?? MEMBER.id,
       userLevel: scenario.auth === 'admin' ? USER_TYPE_ADMIN : USER_TYPE_REGULAR,
       typeId: 1,
       email: MEMBER.email,

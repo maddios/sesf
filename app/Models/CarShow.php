@@ -124,7 +124,7 @@ class CarShow extends Model
     public function getShortDescriptionAttribute(): string
     {
         return $this->attributes['short_description']
-            ?: substr((string) $this->description, 0, 350).'...';
+            ?: mb_substr(trim(strip_tags((string) $this->description)), 0, 350).'...';
     }
 
     public function getProfileURLAttribute(): string

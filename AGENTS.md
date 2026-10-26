@@ -31,6 +31,14 @@ Behind a reverse proxy or HTTPS terminator, set `TRUSTED_PROXIES` (IPs or CIDRs;
 so client IPs and scheme come from the proxy's headers. Emailed links are always built from `APP_URL`,
 and `SESSION_SECURE_COOKIE` defaults to on only when `APP_ENV=production`.
 
+## E2E sandbox
+
+- `scripts/e2e.sh up` starts a seeded throwaway copy (compose project `sesf-e2e`, profile `e2e`): app http://localhost:8001,
+  Mailpit http://localhost:8025, PayPal stub http://localhost:9001. Logins: `admin@sesf.test` / `member@sesf.test`, password `Password-123`.
+- `scripts/e2e.sh test` runs the Playwright suite (`e2e/*.spec.ts`) and removes the sandbox; `down`, `reseed`, `logs` as named.
+- Own database `sesf_e2e` on tmpfs; the app gets only `docker/e2e/app.env` (fake/test values, mounted over `.env`). Never point
+  it at `sesf_dev`. Specs use dedicated seeded accounts or unique emails. Details and known issues: `docs/e2e.md`.
+
 ## Conventions
 
 - Every change ships with tests: Pest for PHP, Vitest for Vue/JS.

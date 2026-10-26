@@ -91,6 +91,28 @@ describe('RegistrationPage: live summary', () => {
     expect(within(summary).getByText('Concours registration')).toBeTruthy();
   });
 
+  it('does not ask for a quote while the form is incomplete, and shows the saved totals without an error', async () => {
+    let quotes = 0;
+    await setupRegistration({
+      handlers: {
+        [QUOTE_URL]: () => {
+          quotes += 1;
+          return jsonResponse(400, { cars: { status: 'error', response: { need_a_car: ['You need to select at least one car'] } } });
+        },
+      },
+    });
+    const cars = await screen.findByRole('group', { name: '1. Cars' });
+    await wait(600);
+    const before = quotes;
+    const user = userEvent.setup();
+    await user.click(within(cars).getByRole('checkbox', { name: /Blu/ }));
+    await wait(700);
+    expect(quotes - before).toBe(0);
+    expect(screen.queryByText(/Totals could not be updated/)).toBeNull();
+    const summary = screen.getByRole('region', { name: 'Summary' });
+    expect(within(summary).getByText('Total')).toBeTruthy();
+  });
+
   it('says so when totals cannot be updated', async () => {
     await setupRegistration({ handlers: { [QUOTE_URL]: () => jsonResponse(500, {}) } });
     await screen.findByRole('group', { name: '1. Cars' });
@@ -294,6 +316,21 @@ describe('RegistrationPage: cancellation', () => {
 });
 
 describe('RegistrationPage: administrator and drafts', () => {
+  it('does not show one member their predecessor\'s unsaved guest on the same show', async () => {
+    const first = await setupRegistration({ handlers: { [SAVE_URL]: saveHandler() } });
+    const user = userEvent.setup();
+    await user.clear(await screen.findByLabelText('First name'));
+    await user.type(screen.getByLabelText('First name'), 'Zed');
+    await wait(50);
+    first.view.unmount();
+    first.auth.clear();
+
+    await setupRegistration({ pinia: first.pinia, userId: 8 });
+    expect(await screen.findByLabelText('First name')).toBeTruthy();
+    expect((screen.getByLabelText('First name') as HTMLInputElement).value).toBe('Pat');
+    expect(screen.queryByText('We restored your unsaved changes from earlier.')).toBeNull();
+  });
+
   it('names the member when an administrator edits for them', async () => {
     const targetUser = { id: 9, first_name: 'Pat', last_name: 'Member', email: 'pat@example.test' };
     await setupRegistration({

@@ -51,7 +51,41 @@ class RateLimitServiceProvider extends ServiceProvider
 
         RateLimiter::for('waiver-sign', fn (Request $request) => Limit::perMinute(40)->by($request->ip()));
 
+        // PayPal IPN (new; legacy had none). PayPal posts from a handful of IPs and retries a 429,
+        // so the limit is generous: it only caps floods of forged posts (each may cost a postback).
+        RateLimiter::for('paypal-ipn', fn (Request $request) => Limit::perMinute(120)->by('ipn-ip|'.$request->ip()));
+
         RateLimiter::for('waiver-prefill', fn (Request $request) => Limit::perMinute(120)->by($request->ip()));
+
+        // Member account writes. Keyed by the signed-in member, so one member's limit never affects another.
+        // Password checks (account-info email change, delete-account): guessing protection for a hijacked session.
+        RateLimiter::for('account-password-check', fn (Request $request) => [
+            Limit::perMinute(6)->by('apc-min|'.self::memberKey($request)),
+            Limit::perHour(20)->by('apc-hr|'.self::memberKey($request)),
+        ]);
+
+        // Other member writes that queue work or change stored data (location, private preferences, tutorial, sell-car).
+        RateLimiter::for('account-write', fn (Request $request) => Limit::perMinute(30)->by('aw-user|'.self::memberKey($request)));
+
+        // Car profile edits: a car write creates rows, so a daily cap applies as well.
+        RateLimiter::for('car-write', fn (Request $request) => [
+            Limit::perMinute(20)->by('cw-min|'.self::memberKey($request)),
+            Limit::perDay(100)->by('cw-day|'.self::memberKey($request)),
+        ]);
+
+        // Admin writes (new): 120 a minute per admin. Applied to the whole admin-api group, so reads
+        // (safe methods) are not limited here.
+        RateLimiter::for('admin-write', fn (Request $request) => $request->isMethodSafe()
+            ? Limit::none()
+            : Limit::perMinute(120)->by('admin-write|'.self::memberKey($request)));
+    }
+
+    /** The signed-in member's id, or the client IP for a request with no session. */
+    private static function memberKey(Request $request): string
+    {
+        $user = $request->user();
+
+        return $user !== null ? (string) $user->getAuthIdentifier() : 'ip|'.$request->ip();
     }
 
     private static function emailKey(Request $request): string

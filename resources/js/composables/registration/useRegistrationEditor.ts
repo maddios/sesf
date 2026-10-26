@@ -56,6 +56,8 @@ export interface EditorOptions {
   showId: number;
   /** Set by an admin acting for a member (?user_id=). */
   userId?: number;
+  /** The signed-in member (the draft owner), not the member being edited. */
+  sessionUserId: () => number;
   memberEmail: () => string;
   isAdmin: () => boolean;
   registrationOpen: () => boolean;
@@ -71,7 +73,7 @@ export interface EditorOptions {
  */
 export function useRegistrationEditor(options: EditorOptions) {
   const drafts = useRegistrationDraftStore();
-  const key = draftKey(options.showId, options.userId);
+  const key = draftKey(options.showId, options.sessionUserId(), options.userId);
   const loader = useAsyncData(() => fetchRegistration(options.showId, options.userId));
 
   const form = reactive<FormValues>(emptyForm()) as FormValues;
@@ -100,21 +102,22 @@ export function useRegistrationEditor(options: EditorOptions) {
   /** Only an admin acting for a member (?user_id=) can cancel or reinstate; members contact the organizers. */
   const canSetCancelled = computed(() => options.isAdmin() && options.userId !== undefined && hasRegistration.value);
 
-  const clientErrors = computed<FieldErrors>(() => {
+  /** Client checks of the form itself (everything the server checks on save and quote). */
+  const formErrors = computed<FieldErrors>(() => {
     const data = payload.value;
     if (data === null) {
       return {};
     }
-    return {
-      ...validateRegistration(form, {
-        memberEmail: options.memberEmail(),
-        cars: data.cars,
-        extras: enabledExtras(data.extras),
-        eventDates: options.eventDates(),
-      }),
-      ...validateCancelAck(form),
-    };
+    return validateRegistration(form, {
+      memberEmail: options.memberEmail(),
+      cars: data.cars,
+      extras: enabledExtras(data.extras),
+      eventDates: options.eventDates(),
+    });
   });
+  const clientErrors = computed<FieldErrors>(() =>
+    payload.value === null ? {} : { ...formErrors.value, ...validateCancelAck(form) },
+  );
 
   /** Client message for a field, shown once the field was left or a submit was attempted. */
   function fieldError(path: string): string | undefined {
@@ -161,7 +164,17 @@ export function useRegistrationEditor(options: EditorOptions) {
     { deep: true, flush: 'sync' },
   );
 
-  const requestBody = computed(() => (ready.value && payload.value !== null ? buildRequest(form) : null));
+  // The quote endpoint applies the same checks as a save (at least one car, arrival day and time, ...), so a
+  // quote is only requested once the client-side checks pass. Otherwise every incomplete form got a 400 and the
+  // summary showed "Totals could not be updated" (found by E2E, docs/e2e.md). The cancellation acknowledgement
+  // is not part of the quote.
+  const requestBody = computed(() => {
+    if (!ready.value || payload.value === null) {
+      return null;
+    }
+    // The server also needs at least one car; the form leaves that message to the server on submit.
+    return form.cars.length > 0 && Object.keys(formErrors.value).length === 0 ? buildRequest(form) : null;
+  });
   const quoteState = useRegistrationQuote(requestBody, (body) => fetchQuote(options.showId, body, options.userId));
 
   /** Totals to show: the live quote once it has arrived, else the saved payment. */

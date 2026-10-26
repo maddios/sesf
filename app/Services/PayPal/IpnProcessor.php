@@ -14,12 +14,13 @@ use Throwable;
  * Processes one PayPal IPN (docs/paypal-ipn.md).
  *
  *  1. Ignore an empty or oversized body.
- *  2. Verify with PayPal (IpnVerifier) before anything else. INVALID or a failed postback stores
- *     nothing; it is logged (summary only) and the admin gets a notice, at most one per kind per
- *     10 minutes.
- *  3. Validate the verified message: txn_id, payment_status, receiver_email/business,
- *     mc_currency, test_ipn against the sandbox setting, and the amounts. A receiver mismatch
- *     sends adminEmailMismatch, every other failure adminInvalid.
+ *  2. Cheap checks that need no PayPal reply, BEFORE the postback (so forged posts cost no
+ *     outbound request): txn_id, a known payment_status, receiver_email/business, mc_currency,
+ *     test_ipn against the sandbox setting, the amounts, and item_number naming an existing
+ *     registration. A failure stores nothing; the admin notice (adminEmailMismatch,
+ *     adminInvalidInvoice or adminInvalid) is sent at most once per kind per 10 minutes.
+ *  3. Verify with PayPal (IpnVerifier). INVALID or a failed postback stores nothing; it is
+ *     logged (summary only, with txn_id) and the admin notice is rate limited the same way.
  *  4. In one transaction: lock the registration row (item_number) FOR UPDATE, skip a
  *     (txn_id, payment_status) pair that was already applied or recorded, apply the money rules
  *     in integer cents, and store exactly one paypal_payment row.
@@ -40,6 +41,13 @@ class IpnProcessor
 
     private const DENIED_STATUSES = ['Denied', 'Failed', 'Expired', 'Canceled'];
 
+    /** Documented statuses without a money rule here: recorded and reported as weird. */
+    private const OTHER_KNOWN_STATUSES = ['In-Progress', 'Partially_Refunded'];
+
+    public const RECEIVER_MISMATCH = 'receiver_email/business does not match the configured PayPal account';
+
+    public const UNKNOWN_INVOICE = 'unknown item_number';
+
     public function __construct(
         private readonly IpnVerifier $verifier,
         private readonly IpnMailer $mailer,
@@ -58,6 +66,18 @@ class IpnProcessor
             Log::info('PayPal IPN ignored: empty body');
 
             return new IpnOutcome(IpnOutcome::IGNORED, 'empty body');
+        }
+
+        $reason = $this->precheck($payload);
+        if ($reason !== null) {
+            Log::warning('PayPal IPN rejected before postback: '.$reason, $payload->logContext());
+            [$kind, $mail] = match ($reason) {
+                self::RECEIVER_MISMATCH => ['email-mismatch', ['adminEmailMismatch', [$payload]]],
+                self::UNKNOWN_INVOICE => ['invalid-invoice', ['adminInvalidInvoice', [$payload]]],
+                default => ['precheck', ['adminInvalid', [$payload, $reason]]],
+            };
+
+            return new IpnOutcome(IpnOutcome::REJECTED, $reason, mails: $this->rateLimited($kind, $mail));
         }
 
         try {
@@ -81,13 +101,8 @@ class IpnProcessor
             ));
         }
 
-        $reason = $this->validate($payload);
-
         try {
-            return DB::transaction(
-                fn (): IpnOutcome => $reason === null ? $this->apply($payload) : $this->reject($payload, $reason),
-                3,
-            );
+            return DB::transaction(fn (): IpnOutcome => $this->apply($payload), 3);
         } catch (Throwable $e) {
             Log::critical('PayPal IPN processing failed; nothing applied', $payload->logContext() + [
                 'exception' => $e,
@@ -118,17 +133,16 @@ class IpnProcessor
         }
     }
 
-    /** Null when the verified message is acceptable, else the reason it is rejected. */
-    public const RECEIVER_MISMATCH = 'receiver_email/business does not match the configured PayPal account';
-
-    private function validate(IpnPayload $payload): ?string
+    /** Null when the message passes the checks that need no PayPal reply, else the reason. */
+    private function precheck(IpnPayload $payload): ?string
     {
         if ($payload->txnId() === null) {
             return 'txn_id is missing or malformed';
         }
 
-        if ($payload->paymentStatus() === null) {
-            return 'payment_status is missing or malformed';
+        $known = [...self::MONEY_STATUSES, ...self::PENDING_STATUSES, ...self::DENIED_STATUSES, ...self::OTHER_KNOWN_STATUSES];
+        if (! in_array($payload->paymentStatus(), $known, true)) {
+            return 'payment_status is missing or unknown';
         }
 
         $expected = strtolower(trim((string) config('sesf.paypal.email', config('sesf.paypal_email'))));
@@ -162,18 +176,12 @@ class IpnProcessor
             return 'amount is out of range';
         }
 
+        $itemNumber = $payload->itemNumber();
+        if ($itemNumber === null || ! ShowRegistration::query()->whereKey($itemNumber)->exists()) {
+            return self::UNKNOWN_INVOICE;
+        }
+
         return null;
-    }
-
-    private function reject(IpnPayload $payload, string $reason): IpnOutcome
-    {
-        Log::warning('PayPal IPN rejected: '.$reason, $payload->logContext());
-
-        $payment = $this->store($payload, null, IpnOutcome::REJECTED, $reason);
-
-        $mail = $reason === self::RECEIVER_MISMATCH ? ['adminEmailMismatch', [$payload]] : ['adminInvalid', [$payload, $reason]];
-
-        return new IpnOutcome(IpnOutcome::REJECTED, $reason, paymentId: $payment->id, mails: [$mail]);
     }
 
     private function apply(IpnPayload $payload): IpnOutcome
@@ -188,17 +196,18 @@ class IpnProcessor
             ->first();
 
         if ($registration === null) {
+            // Deleted between the pre-check and the lock.
             Log::error('PayPal IPN for an unknown item_number', $payload->logContext());
-            $payment = $this->store($payload, null, IpnOutcome::REJECTED, 'unknown item_number');
+            $payment = $this->store($payload, null, IpnOutcome::REJECTED, self::UNKNOWN_INVOICE);
 
-            return new IpnOutcome(IpnOutcome::REJECTED, 'unknown item_number', paymentId: $payment->id, mails: [
+            return new IpnOutcome(IpnOutcome::REJECTED, self::UNKNOWN_INVOICE, paymentId: $payment->id, mails: [
                 ['adminInvalidInvoice', [$payload]],
             ]);
         }
 
         // Checked while holding the registration lock, so a concurrent copy of this IPN waits
         // here until the first one has committed its row.
-        if ($this->alreadyProcessed($txnId, $status)) {
+        if ($this->alreadyProcessed($txnId, $status, $registration->id)) {
             Log::info('PayPal IPN duplicate ignored', $payload->logContext());
 
             return new IpnOutcome(IpnOutcome::DUPLICATE, 'already processed', registrationId: $registration->id);
@@ -287,16 +296,22 @@ class IpnProcessor
     }
 
     /**
-     * Whether this (txn_id, payment_status) was already applied or recorded. New rows carry the
-     * exact status and outcome in entirepost JSON (the payment_status column is a legacy SET that
-     * cannot hold Refunded and friends). Legacy rows ("[key]=value|" text) count when their
-     * payment_status matches, so a message the old system already processed is not applied twice.
+     * Whether this (txn_id, payment_status) was already applied or recorded FOR THIS
+     * REGISTRATION (registration_id or item_number must match, so a row with a guessed txn_id
+     * for another registration cannot suppress a real IPN). New rows carry the exact status and
+     * outcome in entirepost JSON (the payment_status column is a legacy SET that cannot hold
+     * Refunded and friends). Legacy rows ("[key]=value|" text) count when their payment_status
+     * matches, so a message the old system already processed is not applied twice.
      */
-    private function alreadyProcessed(string $txnId, string $status): bool
+    private function alreadyProcessed(string $txnId, string $status, int $registrationId): bool
     {
-        $rows = PayPalPayment::query()->forTxn($txnId)->get(['id', 'entirepost', 'payment_status']);
+        $rows = PayPalPayment::query()->forTxn($txnId)->get(['id', 'entirepost', 'item_number', 'registration_id']);
 
         foreach ($rows as $row) {
+            if ($row->registration_id !== $registrationId && trim((string) $row->item_number) !== (string) $registrationId) {
+                continue;
+            }
+
             $post = (string) $row->entirepost;
             $decoded = json_decode($post, true);
 

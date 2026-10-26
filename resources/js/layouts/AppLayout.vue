@@ -9,8 +9,12 @@ import { useRoute } from 'vue-router';
 import AppHeader from './AppHeader.vue';
 import AppFooter from './AppFooter.vue';
 import ContactModal from '../components/contact/ContactModal.vue';
+import ImpersonationBanner from '../components/admin/ImpersonationBanner.vue';
+import { useAuthStore } from '../stores/auth';
 
 const emit = defineEmits<{ contact: [] }>();
+
+const auth = useAuthStore();
 
 const route = useRoute();
 const main = ref<HTMLElement | null>(null);
@@ -46,6 +50,8 @@ watch(
       class="sr-only z-50 rounded-sm bg-panel px-4 py-2 font-semibold text-brand shadow-overlay focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
       @click.prevent="focusMain"
     >Skip to main content</a>
+
+    <ImpersonationBanner v-if="auth.isLoggedIn" />
 
     <AppHeader />
 

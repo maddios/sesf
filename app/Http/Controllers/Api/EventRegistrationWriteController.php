@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Registration\RegistrationErrors;
 use App\Http\Requests\Registration\SaveRegistrationRequest;
 use App\Http\Requests\Registration\UpdateExtraRequest;
-use App\Models\User;
 use App\Services\Registration\RegistrationWriter;
 use App\Services\Registration\Writer\RegistrationProjector;
 use App\Services\Registration\Writer\RegistrationRejected;
@@ -51,14 +50,11 @@ class EventRegistrationWriteController extends Controller
         return response()->json(['payment' => RegistrationProjector::payment($result)]);
     }
 
-    /** POST event/extra?extra_id=<auth_key>[&show_id] {num_extras}: 200 = the GET event/extra payload. */
+    /** POST event/extra?extra_id=<auth_key>[&show_id][&user_id] {num_extras}: 200 = the GET event/extra payload. */
     public function extra(UpdateExtraRequest $request): JsonResponse
     {
-        /** @var User $user */
-        $user = $request->user();
-
         try {
-            $this->writer->saveExtra($user, $request->extra(), $request->quantity());
+            $this->writer->saveExtra($request->targetUser(), $request->extra(), $request->quantity(), $request->isOnBehalf());
         } catch (RegistrationRejected $e) {
             return RegistrationErrors::response($e->errors());
         }

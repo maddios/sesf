@@ -61,7 +61,7 @@ describe('GaragePage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Mark as sold' }));
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Red Bug' })).toBeNull());
-    expect(callsTo(fetchMock, 'POST /member/sell-car')[0]).toEqual({ car_id: 1 });
+    expect(callsTo(fetchMock, 'POST /member/sell-car')[0]).toEqual({ id: 1 });
     expect(screen.getByRole('heading', { name: '1957 Bel Air' })).toBeTruthy();
   });
 
