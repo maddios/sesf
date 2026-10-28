@@ -2,7 +2,8 @@
 import SectionShell from './SectionShell.vue';
 import { useFormValues } from './formContext';
 
-defineProps<{
+const { step = 7, error = undefined } = defineProps<{
+  step?: number;
   readOnly: boolean;
   registrationCloseDate: string;
   error?: string;
@@ -18,7 +19,7 @@ const form = useFormValues();
   <SectionShell
     :dom-id="domId"
     title="Registration and cancellation policy"
-    :step="7"
+    :step="step"
     :messages="messages"
   >
     <div class="space-y-3 text-sm">

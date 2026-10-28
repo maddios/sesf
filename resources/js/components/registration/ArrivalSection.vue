@@ -6,7 +6,8 @@ import { useFormValues } from './formContext';
 import { ARRIVAL_TIMES } from '../../api/registration';
 import type { EventShowDate } from '../../api/events';
 
-defineProps<{
+const { step = 5 } = defineProps<{
+  step?: number;
   eventDates: EventShowDate[];
   readOnly: boolean;
   fieldError: (path: string) => string | undefined;
@@ -22,7 +23,7 @@ const form = useFormValues();
   <SectionShell
     :dom-id="domId"
     title="Approximate arrival"
-    :step="5"
+    :step="step"
     hint="A rough estimate helps with planning. You can choose a day and a time of day."
     :messages="messages"
   >

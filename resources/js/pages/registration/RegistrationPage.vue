@@ -97,6 +97,9 @@ const targetName = computed(() => {
   return target === null || target === undefined ? '' : `${target.firstName} ${target.lastName}`.trim() || target.email;
 });
 const carCount = computed(() => form.cars.length);
+const enabledExtras = computed(() => (payload.value?.extras ?? []).filter((extra) => extra.isEnabled));
+/** Steps after Extras shift up by one when the event has no extras and that step is hidden. */
+const stepAfterExtras = (step: number): number => (enabledExtras.value.length > 0 ? step : step - 1);
 const showProblems = computed(() => Object.keys(clientErrors.value).length > 0);
 const generalMessages = computed(() => [...(serverErrors.value?.general ?? []), ...(saveError.value ? [saveError.value] : [])]);
 const returnTo = computed(() => route.fullPath);
@@ -212,8 +215,9 @@ const registrationDates = computed(() => eventInfo.value?.registrationCloseDate 
                 :messages="[]"
               />
               <ExtrasSection
+                v-if="enabledExtras.length > 0"
                 :dom-id="sectionDomId('extras')"
-                :extras="payload.extras.filter((extra) => extra.isEnabled)"
+                :extras="enabledExtras"
                 :read-only="readOnly"
                 :field-error="fieldError"
                 :touch="touch"
@@ -222,6 +226,7 @@ const registrationDates = computed(() => eventInfo.value?.registrationCloseDate 
               />
               <ArrivalSection
                 :dom-id="sectionDomId('arrival')"
+                :step="stepAfterExtras(5)"
                 :event-dates="eventInfo.showDates"
                 :read-only="readOnly"
                 :field-error="fieldError"
@@ -230,12 +235,14 @@ const registrationDates = computed(() => eventInfo.value?.registrationCloseDate 
               />
               <DonationSection
                 :dom-id="sectionDomId('donation')"
+                :step="stepAfterExtras(6)"
                 :read-only="readOnly"
                 :field-error="fieldError"
                 :messages="serverErrors?.donation ?? []"
               />
               <CancellationSection
                 :dom-id="sectionDomId('cancel')"
+                :step="stepAfterExtras(7)"
                 :read-only="readOnly"
                 :registration-close-date="registrationDates"
                 :error="fieldError('cancel')"

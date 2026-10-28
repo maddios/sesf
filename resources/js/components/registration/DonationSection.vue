@@ -5,7 +5,8 @@ import { messageList } from './fieldErrors';
 import { useFormValues } from './formContext';
 import { DONATION_OPTIONS } from '../../api/registration';
 
-defineProps<{
+const { step = 6 } = defineProps<{
+  step?: number;
   readOnly: boolean;
   fieldError: (path: string) => string | undefined;
   messages: string[];
@@ -23,7 +24,7 @@ const form = useFormValues();
   <SectionShell
     :dom-id="domId"
     title="Donation"
-    :step="6"
+    :step="step"
     :messages="messages"
   >
     <p class="text-sm">

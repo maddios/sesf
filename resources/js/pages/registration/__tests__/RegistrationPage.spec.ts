@@ -38,6 +38,16 @@ describe('RegistrationPage: loading and prefilled values', () => {
     expect(screen.getByRole('link', { name: 'Back to Southeast Sharkfest 2026' }).getAttribute('href')).toContain('/SoutheastSharkfest2026/e36');
   });
 
+  it('hides the Extras step when the event has none and renumbers the steps after it', async () => {
+    await setupRegistration({ handlers: { [REGISTRATION_URL]: () => jsonResponse(200, registrationRaw({ extras: [] }, { extras: {} })) } });
+    expect(await openSection('3. T-shirts')).toBeTruthy();
+    expect(screen.queryByRole('group', { name: /Extras/ })).toBeNull();
+    expect(screen.queryByText('There are no extras for this event.')).toBeNull();
+    for (const step of ['4. Approximate arrival', '5. Donation', '6. Registration and cancellation policy']) {
+      expect(await openSection(step)).toBeTruthy();
+    }
+  });
+
   it('links to add a new car and returns to this page', async () => {
     await setupRegistration();
     const link = await screen.findByRole('link', { name: 'Add a new car' });
