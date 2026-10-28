@@ -14,6 +14,7 @@ export const CAR_SHOW_RAW = {
   description: 'Long description',
   short_description: 'We are pleased to announce the date...',
   shortDescription: 'We are pleased to announce the date...',
+  shortDescriptionHtml: '<p>We are pleased to announce <em>the date</em>...</p>',
   imageURL: 'images/shows/36.jpg',
   profileURL: '#/SoutheastSharkfest2026/e36',
   date_start: '2026-04-30',

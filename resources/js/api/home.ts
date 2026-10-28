@@ -26,6 +26,7 @@ export interface HomeEventRaw {
   description?: string | null;
   short_description?: string | null;
   shortDescription?: string | null;
+  shortDescriptionHtml?: string | null;
   imageURL?: string | null;
   profileURL?: string | null;
   date_start?: string | null;
@@ -55,6 +56,8 @@ export interface HomeEvent {
   id: number;
   name: string;
   shortDescription: string;
+  /** shortDescription as sanitized HTML (legacy plain text arrives escaped). Render only through SafeHtml. */
+  shortDescriptionHtml: string;
   imageUrl: string;
   /** Hash-route path of the event page, e.g. /SoutheastSharkfest2026/e36. */
   path: string;
@@ -145,6 +148,7 @@ export function toHomeEvent(raw: HomeEventRaw): HomeEvent | null {
     id,
     name: cleanText(raw.name),
     shortDescription: cleanText(raw.shortDescription ?? raw.short_description ?? raw.description),
+    shortDescriptionHtml: toText(raw.shortDescriptionHtml),
     imageUrl: legacyImageUrl(raw.imageURL),
     path: eventPath(raw.profileURL, id),
     dateStart: toText(raw.date_start),

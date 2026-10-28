@@ -28,6 +28,7 @@ class HomeEventResource extends JsonResource
             'description' => $show->description,
             'short_description' => $show->getRawOriginal('short_description'),
             'shortDescription' => $show->shortDescription,
+            'shortDescriptionHtml' => $show->shortDescriptionHtml(),
             'imageURL' => $show->imageURL,
             'profileURL' => $show->profileURL,
             'date_start' => $show->date_start?->format('Y-m-d'),

@@ -59,9 +59,9 @@ class HtmlSanitizerTest extends TestCase
                 '<p>Before</p><p>After</p>',
                 'iframe',
             ],
-            'style element and style attribute are removed' => [
+            'style element is removed, a plain colour is kept' => [
                 '<style>body{display:none}</style><p style="color:red">Styled</p>',
-                '<p>Styled</p>',
+                '<p style="color: red">Styled</p>',
                 'display',
             ],
             'unknown element is unwrapped and its text kept' => [
@@ -112,7 +112,7 @@ class HtmlSanitizerTest extends TestCase
                 'evil',
             ],
             'style keeps sizes and alignment only' => [
-                '<img src="/a.jpg" style="height:188px; width:250px; position:fixed; background:url(x)"><p style="text-align: Center;color:red">T</p>',
+                '<img src="/a.jpg" style="height:188px; width:250px; position:fixed; background:url(x)"><p style="text-align: Center;line-height:3">T</p>',
                 '<img src="/a.jpg" style="height: 188px; width: 250px"><p style="text-align: center">T</p>',
                 'url(',
             ],
@@ -145,6 +145,134 @@ class HtmlSanitizerTest extends TestCase
         if ($mustNotContain !== '') {
             $this->assertStringNotContainsStringIgnoringCase($mustNotContain, $output);
         }
+    }
+
+    /**
+     * HTML as the admin rich text editor (Tiptap) emits it must pass unchanged.
+     *
+     * @return array<string, array{0: string}>
+     */
+    public static function editorOutput(): array
+    {
+        return [
+            'bold, italic, underline, strike' => ['<p><strong>B</strong> <em>I</em> <u>U</u> <s>S</s></p>'],
+            'alignment' => ['<p style="text-align: center">C</p><p style="text-align: justify">J</p><h2 style="text-align: right">R</h2>'],
+            'lists' => ['<ul><li><p>One</p></li></ul><ol><li><p>Two</p></li></ol>'],
+            'link' => ['<p><a href="https://example.org/x">Site</a> <a href="mailto:a@example.org">Mail</a></p>'],
+            'hex colour, size and every editor font' => ['<p><span style="color: #b91c1c; font-size: 20px; font-family: Georgia, serif">x</span></p>'],
+            'rgb colour' => ['<p><span style="color: rgb(185, 28, 28)">x</span></p>'],
+            'quoted font stack' => ["<p><span style=\"font-family: 'Times New Roman', Times, serif\">x</span></p>"],
+            'courier and trebuchet' => ["<p><span style=\"font-family: 'Courier New', Courier, monospace\">a</span><span style=\"font-family: 'Trebuchet MS', Helvetica, sans-serif\">b</span></p>"],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('editorOutput')]
+    public function editor_output_passes_unchanged(string $html): void
+    {
+        $this->assertSame($html, (new HtmlSanitizer)->sanitize($html));
+    }
+
+    #[Test]
+    public function every_editor_font_stack_is_kept_and_normalised(): void
+    {
+        foreach (HtmlSanitizer::EDITOR_FONT_STACKS as $stack) {
+            $loose = strtolower(str_replace(["'", ', '], ['"', ','], $stack));
+            $output = (new HtmlSanitizer)->sanitize('<span style="font-family: '.htmlspecialchars($loose).'">x</span>');
+
+            $this->assertSame('<span style="font-family: '.$stack.'">x</span>', $output);
+        }
+    }
+
+    #[Test]
+    public function the_font_list_matches_the_editor(): void
+    {
+        $source = (string) file_get_contents(base_path('resources/js/components/admin/richText.ts'));
+        preg_match_all('/stack: (\'[^\']+\'|"[^"]+")/', $source, $matches);
+
+        $this->assertSame(HtmlSanitizer::EDITOR_FONT_STACKS, array_map(fn (string $quoted): string => substr($quoted, 1, -1), $matches[1]));
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function styleValues(): array
+    {
+        return [
+            'short hex' => ['color: #F00', 'color: #f00'],
+            'hex with alpha' => ['color: #ff000080', 'color: #ff000080'],
+            'rgba' => ['color: rgba(0, 0, 0, 0.5)', 'color: rgba(0, 0, 0, 0.5)'],
+            'hsl' => ['color: hsl(120deg, 50%, 40%)', 'color: hsl(120deg, 50%, 40%)'],
+            'named colour' => ['color: DarkRed', 'color: darkred'],
+            'size in pt' => ['font-size: 12pt', 'font-size: 12pt'],
+            'size in em' => ['font-size: 1.25em', 'font-size: 1.25em'],
+            'size in rem' => ['font-size: 2rem', 'font-size: 2rem'],
+            'size in percent' => ['font-size: 150%', 'font-size: 150%'],
+            'size keyword' => ['font-size: x-large', 'font-size: x-large'],
+            'size too small' => ['font-size: 2px', ''],
+            'size too big' => ['font-size: 500px', ''],
+            'em too big' => ['font-size: 40em', ''],
+            'percent too small' => ['font-size: 10%', ''],
+            'negative size' => ['font-size: -10px', ''],
+            'unknown size unit' => ['font-size: 12vw', ''],
+            'font not offered by the editor' => ['font-family: Comic Sans MS, cursive', ''],
+            'web font' => ['font-family: Arial, url(https://evil.example/f.woff)', ''],
+            'colour expression' => ['color: expression(alert(1))', ''],
+            'colour url' => ['color: url(javascript:alert(1))', ''],
+            'colour javascript' => ['color: javascript:alert(1)', ''],
+            'colour with comment' => ['color: red/**/', ''],
+            'comment inside the property' => ['col/**/or: red', ''],
+            'comment hiding expression' => ['color: /**/expression(alert(1))', ''],
+            'css escape' => ['color: \72 ed', ''],
+            'escaped expression' => ['font-size: \65 xpression(alert(1))', ''],
+            'behavior' => ['behavior: url(x.htc); color: red', 'color: red'],
+            '-moz-binding' => ['-moz-binding: url(x.xml#xss)', ''],
+            'position' => ['position: fixed; top: 0; color: red', 'color: red'],
+            'background image' => ['background: url(https://evil.example/x.png)', ''],
+            'background colour is not offered' => ['background-color: yellow', ''],
+            'import' => ['@import url(https://evil.example/x.css); color: red', 'color: red'],
+            'important' => ['color: red !important', ''],
+            'rgb with letters' => ['color: rgb(e,x,p)', ''],
+            'hsl with url' => ['color: hsl(url(x))', ''],
+            'very long name' => ['color: '.str_repeat('a', 40), ''],
+            'semicolon split' => ['color: red;font-size: 20px;;', 'color: red; font-size: 20px'],
+            'quoted font smuggling a second declaration' => ['font-family: "Arial;position:fixed"', ''],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('styleValues')]
+    public function it_filters_editor_style_values(string $style, string $expected): void
+    {
+        $output = (new HtmlSanitizer)->sanitize('<span style="'.htmlspecialchars($style).'">x</span>');
+        $expectedHtml = $expected === '' ? '<span>x</span>' : '<span style="'.htmlspecialchars($expected).'">x</span>';
+
+        $this->assertSame($expectedHtml, $output);
+    }
+
+    #[Test]
+    public function entity_encoded_and_broken_markup_cannot_smuggle_active_content(): void
+    {
+        $sanitizer = new HtmlSanitizer;
+
+        $encoded = $sanitizer->sanitize('<span style="color&#58; red; background&#58;url(&#106;avascript:alert(1))">x</span>');
+        $this->assertSame('<span style="color: red">x</span>', $encoded);
+
+        $entityExpression = $sanitizer->sanitize('<span style="color: &#101;xpression(alert(1))">x</span>');
+        $this->assertSame('<span>x</span>', $entityExpression);
+
+        $unclosed = $sanitizer->sanitize('<span style="color:red>x</span><img src=x onerror=alert(1)>');
+        $this->assertStringNotContainsStringIgnoringCase('onerror', $unclosed);
+        $this->assertStringNotContainsString('style="color:red>', $unclosed);
+
+        $unquoted = $sanitizer->sanitize('<p style=color:red;position:fixed onclick=alert(1)>t</p>');
+        $this->assertSame('<p style="color: red">t</p>', $unquoted);
+
+        $javascriptLink = $sanitizer->sanitize('<a href="jav&#x61;script&#58;alert(1)" style="color: red">x</a>');
+        $this->assertSame('<a style="color: red">x</a>', $javascriptLink);
+
+        $html5Entity = $sanitizer->sanitize('<a href="javascript&colon;alert(1)">x</a>');
+        $this->assertSame('<a href="javascript&amp;colon;alert(1)">x</a>', $html5Entity, 'libxml leaves the HTML5 entity as text, so the browser sees a harmless relative URL');
     }
 
     #[Test]

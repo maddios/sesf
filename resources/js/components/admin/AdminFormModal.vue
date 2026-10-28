@@ -6,7 +6,7 @@
  * result and closes. Server errors are mapped with mapAdminError: field messages appear under their fields (and
  * focus moves to the first invalid one), anything else in a banner.
  *
- * Layout: two columns from 768px (textareas and `wide` fields span both), `section` starts a titled group, required
+ * Layout: two columns from 768px (textareas, rich text and `wide` fields span both), `section` starts a titled group, required
  * fields get an asterisk. On phones the dialog is a full-height sheet with the Cancel/Save bar always visible.
  *
  * Dirty guard: closing (Escape, backdrop, x, Cancel) with unsaved changes first asks "Discard changes?" inside the
@@ -23,6 +23,7 @@ import MoneyInput from './MoneyInput.vue';
 import DateInput from './DateInput.vue';
 import DateTimeInput from './DateTimeInput.vue';
 import BooleanToggle from './BooleanToggle.vue';
+import RichTextEditor from './RichTextEditor.vue';
 import { mapAdminError } from '../../composables/admin/useAdminResource';
 import type { AdminField, FormValues } from './types';
 
@@ -228,10 +229,19 @@ defineExpose({ values, dirty, requestClose });
                 :required="field.required"
                 :hint="field.hint"
                 :errors="errors[field.name] ?? []"
-                :wide="field.wide || field.type === 'textarea'"
+                :wide="field.wide || field.type === 'textarea' || field.type === 'richtext'"
               >
+                <RichTextEditor
+                  v-if="field.type === 'richtext'"
+                  v-bind="inputProps"
+                  :label="field.label"
+                  :rows="field.rows"
+                  :maxlength="field.maxlength"
+                  :model-value="textValue(field.name)"
+                  @update:model-value="(value) => setValue(field.name, value)"
+                />
                 <textarea
-                  v-if="field.type === 'textarea'"
+                  v-else-if="field.type === 'textarea'"
                   v-bind="inputProps"
                   class="form-control w-full"
                   :rows="field.rows ?? 4"

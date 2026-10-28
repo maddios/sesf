@@ -19,6 +19,7 @@ describe('home api normalisers', () => {
       id: 36,
       name: 'Southeast Sharkfest 2026',
       shortDescription: 'We are pleased to announce the date...',
+      shortDescriptionHtml: 'We are pleased to announce <strong>the date</strong>...',
       imageUrl: '/images/shows/36.jpg',
       path: '/SoutheastSharkfest2026/e36',
       dateStart: '2026-04-30',

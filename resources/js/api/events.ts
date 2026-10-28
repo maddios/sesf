@@ -11,6 +11,8 @@ export interface CarShow {
   name: string;
   shortName: string;
   shortDescription: string;
+  /** shortDescription as sanitized HTML (legacy plain text arrives escaped). Render only through SafeHtml. */
+  shortDescriptionHtml: string;
   /** Hash-route path of the event page, e.g. /SoutheastSharkfest2026/e36. */
   path: string;
   imageUrl: string;
@@ -170,6 +172,7 @@ export function toCarShow(raw: Raw): CarShow | null {
     name: cleanText(raw.name),
     shortName: cleanText(raw.short_name),
     shortDescription: firstString(raw, ['shortDescription', 'short_description', 'description']),
+    shortDescriptionHtml: toText(raw.shortDescriptionHtml),
     path: eventPath(raw.profileURL, id),
     imageUrl: legacyImageUrl(raw.imageURL),
     dateStart: toText(raw.date_start),

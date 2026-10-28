@@ -6,6 +6,7 @@ use App\Enums\SponsorType;
 use App\Enums\UserType;
 use App\Models\Casts\Money2;
 use App\Models\Concerns\HasLegacyDates;
+use App\Support\RichText;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Database\Factories\CarShowFactory;
@@ -144,7 +145,20 @@ class CarShow extends Model
     public function getShortDescriptionAttribute(): string
     {
         return $this->attributes['short_description']
-            ?: mb_substr(trim(strip_tags((string) $this->description)), 0, 350).'...';
+            ?: mb_substr(RichText::plain($this->description), 0, 350).'...';
+    }
+
+    /**
+     * shortDescription as safe HTML for the public pages: the stored short description through RichText (legacy
+     * plain text stays escaped text), or the plain-text fallback escaped.
+     */
+    public function shortDescriptionHtml(): string
+    {
+        $stored = $this->attributes['short_description'] ?? null;
+
+        return $stored
+            ? app(RichText::class)->html($stored)
+            : htmlspecialchars($this->shortDescription, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
     public function getProfileURLAttribute(): string

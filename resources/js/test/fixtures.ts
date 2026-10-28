@@ -14,6 +14,7 @@ export const LEGACY_EVENT = {
   imageURL: 'images/shows/36.jpg',
   profileURL: '#/SoutheastSharkfest2026/e36',
   shortDescription: 'We are pleased to announce the date...',
+  shortDescriptionHtml: 'We are pleased to announce <strong>the date</strong>...',
   regOpen: false,
   ended: true,
   primary_sponsors: [

@@ -88,7 +88,9 @@ URLs 302 to `/#/admin/...` (`routes/web/admin_redirects.php`).
    dashboard redirects them to `/admin/judging`, the menu and breadcrumb hide everything else.
 4. Other kit parts (`components/admin/`): `RelationSelect` (lookup endpoints answer `{data:[{id,label}]}` for
    `?search=` and `?ids=`, see `LookupController`), `ReorderableList` (emits `reorder` with ids; Move up / Move down icon buttons, drag on desktop), `MoneyInput`
-   (decimal string), `DateInput`/`DateTimeInput` (server formats, Eastern time note), `BooleanToggle`, `StatusBadge`.
+   (decimal string), `DateInput`/`DateTimeInput` (server formats, Eastern time note), `BooleanToggle`, `StatusBadge`,
+   `RichTextEditor` (AdminField `type: 'richtext'`: Tiptap with a Raw/Visual switch; markup it cannot edit is kept as is;
+   `maxlength` counts the HTML; render the stored HTML publicly only through `App\Support\RichText` / `HtmlSanitizer`).
    AdminLayout already mounts the toast region and the confirm host.
 
 ## Tests (required for every resource)

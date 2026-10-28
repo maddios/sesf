@@ -246,6 +246,21 @@
     padding-left: 1.5rem;
   }
 
+  /* Short descriptions on the home page and events list keep the body text size of the legacy plain text. */
+  .event-html.event-summary {
+    font-size: inherit;
+    line-height: inherit;
+  }
+
+  .event-html.event-summary > :last-child {
+    margin-bottom: 0;
+  }
+
+  /* The rich text editor wraps list item text in a paragraph. */
+  .event-html li > p {
+    margin-bottom: 0;
+  }
+
   .event-html img {
     display: inline-block;
     max-width: 100%;

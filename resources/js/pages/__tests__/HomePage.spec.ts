@@ -42,7 +42,9 @@ describe('HomePage', () => {
 
     const title = await screen.findByRole('heading', { level: 3, name: /Southeast Sharkfest 2026/ });
     expect(title.textContent).toContain('(Ended)');
-    expect(screen.getByText(/We are pleased to announce the date/)).toBeTruthy();
+    const summary = document.querySelector('.event-summary');
+    expect(summary?.textContent).toMatch(/We are pleased to announce.the date\.\.\./);
+    expect(summary?.querySelector('strong')?.textContent).toBe('the date');
     expect(screen.getByRole('link', { name: 'More info about Southeast Sharkfest 2026' }).getAttribute('href')).toBe('/SoutheastSharkfest2026/e36');
     expect(screen.getByRole('link', { name: 'Show all events' }).getAttribute('href')).toBe('/events');
 

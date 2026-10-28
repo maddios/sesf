@@ -26,13 +26,12 @@ const LOCATIONS = 'GET /event/locations?show_id=36';
 const SPONSORS = 'GET /event/sponsors?show_id=36';
 
 describe('EventInfoPage', () => {
-  it('renders agenda sections, show dates and the register button', async () => {
+  it('renders agenda sections and the register button', async () => {
     await renderEventRoute(BASE);
     expect(await screen.findByRole('heading', { level: 2, name: 'Welcome' })).toBeTruthy();
     expect(screen.getByText('fans')).toBeTruthy();
     expect(screen.getByRole('heading', { level: 2, name: 'Saturday' })).toBeTruthy();
-    expect(screen.getByText('Check-in')).toBeTruthy();
-    expect(screen.getByText('Apr 30, 2026')).toBeTruthy();
+    expect(screen.queryByText('Apr 30, 2026')).toBeNull();
     expect(screen.getByRole('link', { name: 'Register now' }).getAttribute('href')).toBe('/SoutheastSharkfest2026/e36/register');
   });
 

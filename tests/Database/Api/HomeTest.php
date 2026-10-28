@@ -40,7 +40,7 @@ class HomeTest extends TestCase
 
     /** @var list<string> */
     private const EVENT_KEYS = [
-        'id', 'name', 'short_name', 'description', 'short_description', 'shortDescription', 'imageURL',
+        'id', 'name', 'short_name', 'description', 'short_description', 'shortDescription', 'shortDescriptionHtml', 'imageURL',
         'profileURL', 'date_start', 'date_end', 'has_image', 'ended', 'regOpen', 'primary_sponsors',
     ];
 
@@ -63,6 +63,22 @@ class HomeTest extends TestCase
         $this->assertSame('2026-11-01', $rows[0]['date_end']);
         $this->assertFalse($rows[0]['ended']);
         $this->assertTrue($rows[0]['regOpen']);
+    }
+
+    #[Test]
+    public function events_send_the_short_description_as_safe_html(): void
+    {
+        CarShow::factory()->create(['date_end' => '2026-11-01', 'is_active' => true, 'short_description' => '<p onclick="x()">Come <strong>early</strong></p><script>alert(1)</script>']);
+        CarShow::factory()->create(['date_end' => '2026-10-01', 'is_active' => true, 'short_description' => 'Fish & chips <3']);
+        CarShow::factory()->create(['date_end' => '2026-09-01', 'is_active' => true, 'short_description' => null, 'description' => '<p>First</p><p>Second &amp; <em>third</em></p>']);
+
+        $rows = $this->getJson('/home/events?limit=3')->assertOk()->json();
+
+        $this->assertSame('<p>Come <strong>early</strong></p>', $rows[0]['shortDescriptionHtml']);
+        $this->assertSame('Fish &amp; chips &lt;3', $rows[1]['shortDescriptionHtml']);
+        $this->assertSame('Fish & chips <3', $rows[1]['shortDescription']);
+        $this->assertSame('First Second &amp; third...', $rows[2]['shortDescriptionHtml']);
+        $this->assertSame('First Second & third...', $rows[2]['shortDescription']);
     }
 
     #[Test]

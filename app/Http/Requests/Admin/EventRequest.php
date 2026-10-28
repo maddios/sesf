@@ -18,6 +18,21 @@ final class EventRequest extends FormRequest
 {
     public const TEXT_MAX = 65535;
 
+    public const DESCRIPTION_MAX = 1000;
+
+    public const SHORT_DESCRIPTION_MAX = 1024;
+
+    /**
+     * Rich text fields (HTML from the admin editor) => [label in the too-long message, column width].
+     *
+     * @var array<string, array{0: string, 1: int}>
+     */
+    private const RICH_TEXT_FIELDS = [
+        'short_description' => ['short description', self::SHORT_DESCRIPTION_MAX],
+        'description' => ['description', self::DESCRIPTION_MAX],
+        'schedule' => ['schedule', self::TEXT_MAX],
+    ];
+
     public const MONEY_MAX = 9999.99;
 
     public function authorize(): bool
@@ -35,8 +50,8 @@ final class EventRequest extends FormRequest
         $rules = [
             'name' => ['required', 'string', 'max:60', new Latin1Text],
             'short_name' => ['required', 'string', 'max:20', new Latin1Text, Rule::unique('car_show', 'short_name')->ignore($eventId)],
-            'description' => ['nullable', 'string', 'max:1000', new Latin1Text],
-            'short_description' => ['nullable', 'string', 'max:1024', new Latin1Text],
+            'description' => ['nullable', 'string', 'max:'.self::DESCRIPTION_MAX, new Latin1Text],
+            'short_description' => ['nullable', 'string', 'max:'.self::SHORT_DESCRIPTION_MAX, new Latin1Text],
             'schedule' => ['nullable', 'string', 'max:'.self::TEXT_MAX, new Latin1Text],
             'is_schedule_pdf' => ['sometimes', 'boolean'],
             'price_car' => ['nullable', 'numeric', 'min:0', 'max:'.self::MONEY_MAX],
@@ -54,6 +69,30 @@ final class EventRequest extends FormRequest
         }
 
         return $rules;
+    }
+
+    /**
+     * The rich text fields are stored as HTML, so the limit counts the markup too. The message says so and gives the
+     * current length; nothing is ever cut to fit.
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        $messages = [];
+
+        foreach (self::RICH_TEXT_FIELDS as $field => [$label, $max]) {
+            $value = $this->input($field);
+            $length = is_string($value) ? mb_strlen($value) : 0;
+            $messages[$field.'.max'] = sprintf(
+                'The %s is too long: %s of %s characters, counting its formatting (HTML). Remove some text or formatting.',
+                $label,
+                number_format($length),
+                number_format($max),
+            );
+        }
+
+        return $messages;
     }
 
     /**

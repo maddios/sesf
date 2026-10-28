@@ -10,7 +10,6 @@ import BaseButton from '../../components/ui/BaseButton.vue';
 import SafeImage from '../../components/ui/SafeImage.vue';
 import { fetchAgenda, fetchEventSponsors } from '../../api/events';
 import { useEventContext, useEventData } from '../../composables/events/useEventData';
-import { formatEventDate } from '../../components/events/format';
 
 const context = useEventContext();
 const agenda = useEventData(() => context.eventId.value, (id) => fetchAgenda(id, 1));
@@ -18,7 +17,6 @@ const sponsors = useEventData(() => context.eventId.value, fetchEventSponsors);
 
 const items = computed(() => agenda.data.value ?? []);
 const sponsorList = computed(() => sponsors.data.value?.sponsors ?? []);
-const showDates = computed(() => context.info.value?.showDates ?? []);
 const registrationPath = computed(() => (context.info.value?.registrationOpen ? `${context.info.value.path}/register` : null));
 
 function reloadAll(): void {
@@ -30,23 +28,9 @@ function reloadAll(): void {
 <template>
   <div class="space-y-8">
     <div
-      v-if="showDates.length > 0 || registrationPath"
-      class="flex flex-wrap items-start justify-between gap-4"
+      v-if="registrationPath"
+      class="flex flex-wrap items-start justify-end gap-4"
     >
-      <dl
-        v-if="showDates.length > 0"
-        class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm"
-      >
-        <template
-          v-for="row in showDates"
-          :key="`${row.name}-${row.date}`"
-        >
-          <dt class="font-semibold text-title">
-            {{ row.name }}
-          </dt>
-          <dd>{{ formatEventDate(row.date) }}</dd>
-        </template>
-      </dl>
       <BaseButton
         v-if="registrationPath"
         :to="registrationPath"

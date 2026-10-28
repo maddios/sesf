@@ -299,6 +299,35 @@ class EventAdminTest extends AdminTestCase
     }
 
     #[Test]
+    public function rich_text_is_stored_verbatim_and_its_length_counts_the_markup(): void
+    {
+        $admin = $this->admin();
+        $event = CarShow::factory()->create(['name' => 'Keep', 'short_name' => 'keep', 'description' => 'Old']);
+        $description = '<p>'.str_repeat('d', 993).'</p>';
+        $schedule = '<center><big>Legacy</big></center><table border="1"><tr><td valign="top">Fri</td></tr></table><iframe src="https://v.example/1"></iframe>';
+        $short = '<p><span style="color: #b91c1c; font-family: Georgia, serif">'.str_repeat('s', 950).'</span></p>';
+
+        $this->actingAs($admin)->putJson(self::BASE.'/'.$event->id, ['name' => 'Keep', 'short_name' => 'keep', 'description' => $description, 'schedule' => $schedule, 'short_description' => $short])
+            ->assertOk();
+        $event->refresh();
+        $this->assertSame(1000, mb_strlen($description));
+        $this->assertSame($description, $event->description);
+        $this->assertSame($schedule, $event->schedule);
+        $this->assertSame($short, $event->getRawOriginal('short_description'));
+
+        $this->actingAs($admin)->putJson(self::BASE.'/'.$event->id, ['name' => 'Keep', 'short_name' => 'keep', 'description' => '<p>'.str_repeat('d', 994).'</p>'])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.description.0', 'The description is too long: 1,001 of 1,000 characters, counting its formatting (HTML). Remove some text or formatting.');
+        $this->actingAs($admin)->putJson(self::BASE.'/'.$event->id, ['name' => 'Keep', 'short_name' => 'keep', 'short_description' => '<p>'.str_repeat('s', 1019).'</p>'])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.short_description.0', 'The short description is too long: 1,026 of 1,024 characters, counting its formatting (HTML). Remove some text or formatting.');
+        $this->actingAs($admin)->putJson(self::BASE.'/'.$event->id, ['name' => 'Keep', 'short_name' => 'keep', 'schedule' => str_repeat('x', 65536)])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.schedule.0', 'The schedule is too long: 65,536 of 65,535 characters, counting its formatting (HTML). Remove some text or formatting.');
+        $this->assertSame($description, $event->refresh()->description);
+    }
+
+    #[Test]
     public function the_list_is_paginated_with_meta(): void
     {
         CarShow::factory()->count(7)->create();

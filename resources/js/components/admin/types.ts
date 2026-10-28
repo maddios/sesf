@@ -2,7 +2,7 @@
 
 export type FormValues = Record<string, unknown>;
 
-export type AdminFieldType = 'text' | 'textarea' | 'url' | 'email' | 'password' | 'number' | 'checkbox' | 'select' | 'money' | 'date' | 'datetime';
+export type AdminFieldType = 'text' | 'textarea' | 'url' | 'email' | 'password' | 'number' | 'checkbox' | 'select' | 'money' | 'date' | 'datetime' | 'richtext';
 
 /** One field in an AdminFormModal schema. `name` is the API field (errors are matched on it). */
 export interface AdminField {
@@ -10,12 +10,12 @@ export interface AdminField {
   label: string;
   type?: AdminFieldType;
   required?: boolean;
-  /** Mirror the DB column width (the server enforces it too). */
+  /** Mirror the DB column width (the server enforces it too). On 'richtext' it counts the HTML and is never enforced by cutting. */
   maxlength?: number;
   hint?: string;
   rows?: number;
   options?: Array<{ value: string; label: string }>;
-  /** Take the full form width on desktop (textareas always do). */
+  /** Take the full form width on desktop (textareas and rich text always do). */
   wide?: boolean;
   /** Start a new titled group of fields before this one. */
   section?: string;

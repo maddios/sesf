@@ -32,7 +32,7 @@ class EventListTest extends TestCase
 
     /** @var list<string> */
     private const SHOW_KEYS = [
-        'id', 'name', 'short_name', 'description', 'short_description', 'shortDescription', 'imageURL',
+        'id', 'name', 'short_name', 'description', 'short_description', 'shortDescription', 'shortDescriptionHtml', 'imageURL',
         'profileURL', 'date_start', 'date_end', 'date_active', 'date_registration_deactivation', 'has_image', 'ended', 'regOpen', 'primaryLocation',
         'num_registered_members', 'num_registered_cars',
     ];
@@ -109,6 +109,16 @@ class EventListTest extends TestCase
         $this->assertEqualsCanonicalizing(self::SHOW_KEYS, array_keys($row));
         $this->assertSame('Main Lot', $row['primaryLocation']['name']);
         $this->assertSame('Raleigh, NC', $row['primaryLocation']['address']['cityState']);
+    }
+
+    #[Test]
+    public function car_shows_send_the_short_description_as_safe_html(): void
+    {
+        CarShow::factory()->create(['date_end' => '2026-11-01', 'is_active' => true, 'short_description' => '<p style="text-align: center; position: fixed"><span style="color: #b91c1c">Red</span> <img src=x onerror=alert(1)></p>']);
+
+        $row = $this->getJson('/events/car-shows?is_active=1')->assertOk()->json('0');
+
+        $this->assertSame('<p style="text-align: center"><span style="color: #b91c1c">Red</span> <img src="x"></p>', $row['shortDescriptionHtml']);
     }
 
     #[Test]

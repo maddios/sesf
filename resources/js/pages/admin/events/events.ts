@@ -116,7 +116,7 @@ export function eventSponsorsApi(eventId: number) {
   };
 }
 
-/** Form fields. Widths mirror car_show (the server validates them too). Clone source is a create-only field. */
+/** Form fields. Widths mirror car_show (the server validates them too; rich text counts its HTML). Clone source is a create-only field. */
 export const EVENT_FIELDS: AdminField[] = [
   { name: 'name', label: 'Name', required: true, maxlength: 60, section: 'Basics' },
   { name: 'short_name', label: 'Short name', required: true, maxlength: 20, hint: 'Unique. Used in links and reports.' },
@@ -128,10 +128,10 @@ export const EVENT_FIELDS: AdminField[] = [
   { name: 'price_adult', label: 'Adult guest fee', type: 'money' },
   { name: 'price_child', label: 'Child guest fee', type: 'money' },
   { name: 'waiver_id', label: 'Waiver', maxlength: 32, hint: 'Any value turns the online waiver on for this event; blank turns it off.' },
-  { name: 'short_description', label: 'Short description', type: 'textarea', rows: 2, maxlength: 1024, section: 'Texts' },
-  { name: 'description', label: 'Description', type: 'textarea', rows: 5, maxlength: 1000 },
+  { name: 'short_description', label: 'Short description', type: 'richtext', rows: 4, maxlength: 1024, section: 'Texts' },
+  { name: 'description', label: 'Description', type: 'richtext', rows: 6, maxlength: 1000 },
   { name: 'is_schedule_pdf', label: 'Schedule is a PDF', type: 'checkbox', hint: 'Uploading a schedule PDF turns this on.' },
-  { name: 'schedule', label: 'Schedule', type: 'textarea', rows: 6 },
+  { name: 'schedule', label: 'Schedule', type: 'richtext', rows: 10, maxlength: 65535 },
 ];
 
 /** Create-only field: copy car bodies and judging setup from an earlier event. Required once any event exists. */

@@ -8,14 +8,14 @@ import { RouterLink } from 'vue-router';
 import type { CarShow } from '../../api/events';
 import BaseButton from '../ui/BaseButton.vue';
 import SafeImage from '../ui/SafeImage.vue';
-import { formatEventDateTime, formatEventRange, plainText } from './format';
+import SafeHtml from './SafeHtml.vue';
+import { formatEventDateTime, formatEventRange } from './format';
 
 const props = defineProps<{ show: CarShow }>();
 
 const headingId = useId();
 const dates = computed(() => formatEventRange(props.show.dateStart, props.show.dateEnd));
 const galleryPath = computed(() => `/gallery/e${props.show.id}`);
-const summary = computed(() => plainText(props.show.shortDescription));
 </script>
 
 <template>
@@ -106,12 +106,11 @@ const summary = computed(() => plainText(props.show.shortDescription));
         </ul>
       </div>
 
-      <p
-        v-if="summary"
-        class="mt-3"
-      >
-        {{ summary }}
-      </p>
+      <SafeHtml
+        v-if="show.shortDescriptionHtml"
+        class="event-summary mt-3"
+        :html="show.shortDescriptionHtml"
+      />
     </div>
   </article>
 </template>

@@ -19,6 +19,9 @@ use DOMProcessingInstruction;
  *   else not listed are removed. class keeps only the legacy Bootstrap layout tokens in ALLOWED_CLASSES, style
  *   keeps only the declarations in ALLOWED_STYLES with plain length or keyword values, align keeps
  *   left/center/right/justify. Legacy content relies on these for centring, image sizes and its buttons.
+ * - The admin rich text editor (RichTextEditor.vue) adds color (hex, rgb(), hsl() or a name), font-size (a bounded
+ *   px/pt/em/rem/% value or a keyword) and font-family (only the editor's own stacks, EDITOR_FONT_STACKS).
+ *   Values are matched whole, so comments, escapes, url(), expression() and similar never pass.
  * - href allows http, https, mailto, tel and relative URLs. src allows http, https and relative URLs
  *   (data: URIs are refused). Scheme checks ignore case and control or whitespace characters, so
  *   "java\tscript:" is caught.
@@ -56,6 +59,7 @@ final class HtmlSanitizer
         'ol' => [],
         'p' => ['class', 'style', 'align'],
         'pre' => [],
+        's' => [],
         'small' => [],
         'span' => ['class', 'style'],
         'strong' => [],
@@ -95,6 +99,37 @@ final class HtmlSanitizer
         'margin-left' => '/^'.self::LENGTH.'$/',
         'font-weight' => '/^(normal|bold|[1-9]00)$/',
         'font-style' => '/^(normal|italic)$/',
+        'color' => '/^(#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})|[a-z]{3,20}'
+            .'|rgba?\\(\\s*\\d{1,3}(\\.\\d{1,3})?%?(\\s*,\\s*\\d{1,3}(\\.\\d{1,3})?%?){2}(\\s*,\\s*(0|1|0?\\.\\d{1,3}|\\d{1,3}%))?\\s*\\)'
+            .'|hsla?\\(\\s*\\d{1,3}(\\.\\d{1,3})?(deg)?(\\s*,\\s*\\d{1,3}(\\.\\d{1,3})?%){2}(\\s*,\\s*(0|1|0?\\.\\d{1,3}|\\d{1,3}%))?\\s*\\))$/',
+        'font-size' => '/^((\\d{1,3}(\\.\\d{1,2})?)(px|pt|em|rem|%)|xx-small|x-small|small|medium|large|x-large|xx-large|xxx-large|smaller|larger)$/',
+    ];
+
+    /**
+     * Bounds for font-size numbers, per unit.
+     *
+     * @var array<string, array{0: int|float, 1: int|float}>
+     */
+    private const FONT_SIZE_RANGES = [
+        'px' => [6, 72],
+        'pt' => [5, 54],
+        'em' => [0.5, 5],
+        'rem' => [0.5, 5],
+        '%' => [50, 400],
+    ];
+
+    /**
+     * Font stacks the rich text editor offers (EDITOR_FONTS in resources/js/components/admin/richText.ts).
+     *
+     * @var list<string>
+     */
+    public const EDITOR_FONT_STACKS = [
+        'Arial, Helvetica, sans-serif',
+        'Georgia, serif',
+        "'Times New Roman', Times, serif",
+        'Verdana, Geneva, sans-serif',
+        "'Trebuchet MS', Helvetica, sans-serif",
+        "'Courier New', Courier, monospace",
     ];
 
     /**
@@ -246,13 +281,49 @@ final class HtmlSanitizer
 
             $property = strtolower(trim($parts[0]));
             $propertyValue = strtolower((string) preg_replace('/\s+/', ' ', trim($parts[1])));
+            $allowed = $property === 'font-family' ? $this->editorFontStack($propertyValue) : $this->styleValue($property, $propertyValue);
 
-            if (isset(self::ALLOWED_STYLES[$property]) && preg_match(self::ALLOWED_STYLES[$property], $propertyValue) === 1) {
-                $kept[] = $property.': '.$propertyValue;
+            if ($allowed !== null) {
+                $kept[] = $property.': '.$allowed;
             }
         }
 
         return implode('; ', $kept);
+    }
+
+    private function styleValue(string $property, string $value): ?string
+    {
+        if (! isset(self::ALLOWED_STYLES[$property]) || preg_match(self::ALLOWED_STYLES[$property], $value, $matches) !== 1) {
+            return null;
+        }
+
+        if ($property === 'font-size' && isset($matches[4]) && $matches[4] !== '') {
+            [$min, $max] = self::FONT_SIZE_RANGES[$matches[4]];
+            $number = (float) $matches[2];
+
+            return $number >= $min && $number <= $max ? $value : null;
+        }
+
+        return $value;
+    }
+
+    private function editorFontStack(string $value): ?string
+    {
+        foreach (self::EDITOR_FONT_STACKS as $stack) {
+            if (self::fontKey($stack) === self::fontKey($value)) {
+                return $stack;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Compares stacks without quotes, case or spacing differences ("times new roman",times vs 'Times New Roman', Times).
+     */
+    private static function fontKey(string $stack): string
+    {
+        return (string) preg_replace('/\s*,\s*/', ',', strtolower(str_replace(['"', "'"], '', trim($stack))));
     }
 
     /**

@@ -134,6 +134,42 @@ describe('EventsPage', () => {
     expect(clone.getAttribute('aria-invalid')).toBe('true');
   });
 
+  it('edits the three texts with the rich text editor, keeps legacy markup and maps a too-long 422', async () => {
+    const legacySchedule = '<table border="1"><tbody><tr><td valign="top">Fri</td><td>Check-in</td></tr></tbody></table><p>Bring <b>shades</b></p>';
+    const { seen } = stubEvents([event({ short_description: 'Short legacy text', schedule: legacySchedule })], (r) =>
+      r.method === 'PUT' && r.path === '/admin-api/events/1'
+        ? jsonResponse(422, { message: 'Too long.', errors: { description: ['The description is too long: 1,200 of 1,000 characters, counting its formatting (HTML). Remove some text or formatting.'] } })
+        : undefined,
+    );
+    const user = userEvent.setup();
+    await renderAt(Page, '/admin/events');
+    await user.click(await within(table()).findByRole('button', { name: 'Edit Spring Show' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit Spring Show' });
+
+    expect((await within(dialog).findByRole('textbox', { name: 'Short description' })).textContent).toBe('Short legacy text');
+    const schedule = await within(dialog).findByRole('textbox', { name: 'Schedule' });
+    expect(schedule.querySelectorAll('.rte-opaque')).toHaveLength(1);
+    expect(within(dialog).getByText('4 / 1,000 characters, formatting included')).toBeTruthy();
+
+    const switches = within(dialog).getAllByRole('switch', { name: 'Visual editor' });
+    expect(switches).toHaveLength(3);
+    await user.click(switches[1]!);
+    const raw = within(dialog).getByRole('textbox', { name: 'Description (HTML)' });
+    await user.clear(raw);
+    await user.type(raw, '<p>New <strong>bold</strong> text</p>');
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+    const body = (await waitFor(() => {
+      const put = seen.find((r) => r.method === 'PUT' && r.path === '/admin-api/events/1');
+      expect(put).toBeTruthy();
+      return put!.body;
+    })) as Record<string, unknown>;
+    expect(body.description).toBe('<p>New <strong>bold</strong> text</p>');
+    expect(body.schedule).toBe(legacySchedule);
+    expect(body.short_description).toBe('Short legacy text');
+    expect(await within(dialog).findByText(/The description is too long: 1,200 of 1,000 characters/)).toBeTruthy();
+  });
+
   it('activates and deactivates an event', async () => {
     const { seen } = stubEvents(undefined, (r) =>
       r.method === 'POST' && r.path === '/admin-api/events/2/activate' ? jsonResponse(200, { data: event({ id: 2, name: 'Fall Show', is_active: true }) }) : undefined,

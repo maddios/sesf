@@ -22,6 +22,7 @@ describe('event normalisers', () => {
       name: 'Southeast Sharkfest 2026',
       shortName: 'sesf26',
       shortDescription: 'We are pleased to announce the date...',
+      shortDescriptionHtml: '<p>We are pleased to announce <em>the date</em>...</p>',
       path: '/SoutheastSharkfest2026/e36',
       imageUrl: '/images/shows/36.jpg',
       dateStart: '2026-04-30',

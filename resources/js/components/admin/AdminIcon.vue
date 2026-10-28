@@ -22,7 +22,16 @@ export type AdminIconName =
   | 'calendar'
   | 'users'
   | 'power'
-  | 'refresh';
+  | 'refresh'
+  | 'bold'
+  | 'italic'
+  | 'link'
+  | 'list'
+  | 'list-ordered'
+  | 'align-left'
+  | 'align-center'
+  | 'align-right'
+  | 'align-justify';
 
 defineProps<{ name: AdminIconName }>();
 
@@ -49,6 +58,15 @@ const PATHS: Record<AdminIconName, string> = {
   users: 'M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1 M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z M22 19v-1a4 4 0 0 0-3-3.9 M16 4.1a3.5 3.5 0 0 1 0 6.8',
   power: 'M12 3v9 M6.3 6.3a8 8 0 1 0 11.4 0',
   refresh: 'M20 11a8 8 0 0 0-14.6-4.5L4 8 M4 4v4h4 M4 13a8 8 0 0 0 14.6 4.5L20 16 M20 20v-4h-4',
+  bold: 'M7 5h6a3.5 3.5 0 0 1 0 7H7Z M7 12h7a3.5 3.5 0 0 1 0 7H7Z',
+  italic: 'M19 4h-9 M14 20H5 M15 4 9 20',
+  link: 'M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7 M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7',
+  list: 'M9 6h12 M9 12h12 M9 18h12 M4 6h.01 M4 12h.01 M4 18h.01',
+  'list-ordered': 'M10 6h11 M10 12h11 M10 18h11 M4 4h1v5 M4 9h2 M6 19H4c0-1.5 2-2 2-3.2S5 14 4 14.6',
+  'align-left': 'M3 6h18 M3 12h12 M3 18h15',
+  'align-center': 'M3 6h18 M6 12h12 M4 18h16',
+  'align-right': 'M3 6h18 M9 12h12 M6 18h15',
+  'align-justify': 'M3 6h18 M3 12h18 M3 18h18',
 };
 </script>
 

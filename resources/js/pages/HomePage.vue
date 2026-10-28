@@ -9,6 +9,7 @@ import { RouterLink } from 'vue-router';
 import BaseAlert from '../components/ui/BaseAlert.vue';
 import BaseButton from '../components/ui/BaseButton.vue';
 import SafeImage from '../components/ui/SafeImage.vue';
+import SafeHtml from '../components/events/SafeHtml.vue';
 import BaseSpinner from '../components/ui/BaseSpinner.vue';
 import VideoCarousel, { type CarouselVideo } from '../components/home/VideoCarousel.vue';
 import { useHomeEvents, useHomeSponsors } from '../composables/useHomeEvents';
@@ -167,9 +168,10 @@ const homeVideoSrc = `https://www.youtube-nocookie.com/embed/${HOME_VIDEO_ID}?re
                   class="ml-2 inline-block rounded-sm bg-subtle px-2 py-0.5 align-middle text-xs font-semibold text-muted"
                 >(Ended)</span>
               </h3>
-              <p class="mt-3">
-                {{ latestEvent.shortDescription }}
-              </p>
+              <SafeHtml
+                class="event-summary mt-3"
+                :html="latestEvent.shortDescriptionHtml"
+              />
               <p class="mt-3">
                 <RouterLink :to="latestEvent.path">
                   More info <span class="sr-only">about {{ latestEvent.name }}</span>

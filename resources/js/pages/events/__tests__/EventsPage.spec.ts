@@ -13,6 +13,7 @@ const OPEN_SHOW = {
   id: 37,
   name: 'Southeast Sharkfest 2027',
   shortDescription: 'Coming next spring.',
+  shortDescriptionHtml: 'Coming <strong>next</strong> spring.',
   profileURL: '#/SoutheastSharkfest2027/e37',
   ended: false,
   regOpen: true,
@@ -32,7 +33,9 @@ describe('EventsPage', () => {
     });
     const current = screen.getByRole('region', { name: 'Current Shows' });
     expect(await within(current).findByRole('heading', { level: 3, name: 'Southeast Sharkfest 2027' })).toBeTruthy();
-    expect(within(current).getByText('Coming next spring.')).toBeTruthy();
+    const summary = current.querySelector('.event-summary');
+    expect(summary?.textContent).toBe('Coming next spring.');
+    expect(summary?.querySelector('strong')?.textContent).toBe('next');
     expect(within(current).getByText('Open')).toBeTruthy();
 
     const past = screen.getByRole('region', { name: 'Past Shows' });

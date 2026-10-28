@@ -18,7 +18,7 @@ const fields: AdminField[] = [
   { name: 'on', label: 'Enabled', type: 'checkbox', hint: 'Shown on the site' },
 ];
 
-function harness(submit: (values: FormValues) => Promise<unknown>, initial: FormValues = { name: 'Acme' }) {
+function harness(submit: (values: FormValues) => Promise<unknown>, initial: FormValues = { name: 'Acme' }, schema: AdminField[] = fields) {
   return defineComponent({
     setup() {
       const open = ref(false);
@@ -29,7 +29,7 @@ function harness(submit: (values: FormValues) => Promise<unknown>, initial: Form
         h(AdminFormModal, {
           open: open.value,
           title: 'Edit thing',
-          fields,
+          fields: schema,
           initial,
           submit,
           'onUpdate:open': (value: boolean) => (open.value = value),
@@ -128,6 +128,21 @@ describe('AdminFormModal', () => {
     render(harness(async () => ({})));
     await user.click(screen.getByRole('button', { name: 'Open form' }));
     await user.click(await screen.findByRole('button', { name: 'Close dialog' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('renders a richtext field that does not make the form dirty until it is edited', async () => {
+    const user = userEvent.setup();
+    const schema: AdminField[] = [{ name: 'body', label: 'Body', type: 'richtext', maxlength: 100, hint: 'Shown on the site' }];
+    render(harness(async () => ({}), { body: '<center>Legacy</center><p>Text</p>' }, schema));
+    await user.click(screen.getByRole('button', { name: 'Open form' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit thing' });
+    const textbox = await within(dialog).findByRole('textbox', { name: 'Body' });
+    expect(textbox.getAttribute('aria-describedby')).toContain('-hint');
+    expect(within(dialog).getByText('34 / 100 characters, formatting included')).toBeTruthy();
+    expect(await axe(dialog)).toHaveNoViolations();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Close dialog' }));
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
