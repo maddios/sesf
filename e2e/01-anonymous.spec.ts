@@ -51,7 +51,7 @@ test.describe('anonymous visitor', () => {
     await tabs.getByRole('link', { name: 'Directions' }).click();
     await expect(page.getByRole('region', { name: 'Sandbox Speedway' })).toBeVisible();
     await tabs.getByRole('link', { name: 'Sponsors' }).click();
-    for (const tier of ['M Class', 'Gold Class', 'Silver Class', 'Bronze Class']) {
+    for (const tier of ['///M Class', 'Gold Class', 'Silber Class', 'Bronzit Class']) {
       await expect(page.getByRole('region', { name: tier })).toBeVisible();
     }
     await tabs.getByRole('link', { name: "Who's Coming" }).click();

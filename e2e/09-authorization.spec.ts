@@ -88,7 +88,7 @@ test.describe('authorization', () => {
     await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
 
     await page.goto(`/waiver/${s.events.past.id}`);
-    await expect(page.getByText('Waiver status')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Waiver status' })).toBeVisible();
     await expect(page.getByRole('alert')).toBeHidden();
     await expect(page.getByText(/Ben Second/)).toBeVisible();
   });
