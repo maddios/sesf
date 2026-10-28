@@ -21,7 +21,6 @@ export const LEGACY_IMAGE_SIZES = {
   galleryEvent: fit(459, 367),
   eventCard: fit(240, 240),
   homeSponsor: fit(250, 65),
-  homeSponsorPrimary: fit(1070, 800),
   eventSponsor: fit(150, 60),
   agendaSponsor: fit(0, 60),
   memberPhoto: fit(228, 0),

@@ -103,11 +103,11 @@ const homeVideoSrc = `https://www.youtube-nocookie.com/embed/${HOME_VIDEO_ID}?re
             <h3 class="text-base font-bold uppercase tracking-wide text-heading">
               Sponsored by
             </h3>
-            <ul class="mt-2 flex flex-wrap items-center justify-center gap-5">
+            <ul class="mt-2 flex flex-wrap items-center justify-center gap-6">
               <li
                 v-for="sponsor in latestEvent.primarySponsors"
                 :key="sponsor.id"
-                class="h-[100px] max-w-[min(100%,380px)]"
+                class="h-[65px] max-w-[250px]"
               >
                 <component
                   :is="sponsor.url ? 'a' : 'span'"
@@ -118,7 +118,7 @@ const homeVideoSrc = `https://www.youtube-nocookie.com/embed/${HOME_VIDEO_ID}?re
                 >
                   <SafeImage
                     :src="sponsor.logoUrl"
-                    resize="homeSponsorPrimary"
+                    resize="homeSponsor"
                     :alt="sponsor.name"
                     img-class="max-h-full max-w-full object-contain"
                   />
