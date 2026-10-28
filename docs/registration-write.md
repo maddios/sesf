@@ -52,7 +52,12 @@ Guests, shirts and extras that are not in the body are kept (legacy). Money keys
   overrides `is_paid` / `amount_owed_cents` (null = the writer's rule). Open show: owed is recomputed with the new
   received/discount, then the overrides apply. ENDED show: stored owed moves by the change in received and discount (as
   `RegistrationPricing::owedCents`), then the overrides apply. Beyond ±9999.99: 422 `general.total`.
-- `DELETE admin-api/registrations/{id}`: 409 when money was received, PayPal payments or waivers exist (cancel instead).
+  `expected_amount_received_cents` / `expected_discount_cents` (required) are the stored values the form was loaded
+  with; when the locked row differs (e.g. an IPN payment landed meanwhile) the edit is 409 `{code: registration_changed}`
+  and nothing is written. Reassigning to another member clears the registration's waiver link, `has_signed` and
+  check-in, and detaches the previous member's own waiver rows (kept as records); guests keep theirs.
+- `DELETE admin-api/registrations/{id}`: 409 when money was received, PayPal payments, waivers (the registrant's or a
+  guest's) or judging answers exist (cancel instead).
 - Guests (`POST|PUT|DELETE admin-api/registration-guests`) and extras (`POST|PUT|DELETE admin-api/extra-registrations`,
   quantity 0 removes) go through the writer (`saveExtra(byAdmin: true)`), so amounts follow on open shows.
 - `RegistrationRejected` in admin controllers is 422 `{message, errors: {<key>: [msg]}}` (`RegistrationErrors::adminResponse`).

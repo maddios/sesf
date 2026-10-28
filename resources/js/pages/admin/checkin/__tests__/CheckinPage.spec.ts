@@ -36,7 +36,7 @@ function row(overrides: Partial<CheckinRow> = {}): CheckinRow {
 }
 
 function cardOf(name: string): HTMLElement {
-  return screen.getAllByText(name)[0].closest('li') as HTMLElement;
+  return screen.getAllByText(name)[0].closest('tr') as HTMLElement;
 }
 
 async function waitForCard(name: string): Promise<HTMLElement> {
@@ -68,8 +68,8 @@ describe('CheckinPage', () => {
     ]);
     const { container } = await renderAt(Page, '/admin/checkin?show_id=4');
 
-    const list = await screen.findByRole('list', { name: 'Registrations' });
-    expect(within(list).getByText('Waivers incomplete')).toBeTruthy();
+    const list = await screen.findByRole('table', { name: 'Registrations' });
+    expect(within(list).getByText('Incomplete')).toBeTruthy();
     expect(within(list).getByText('Unpaid')).toBeTruthy();
     expect(within(list).getByText('Mens Medium')).toBeTruthy();
     expect(within(list).getByText('None')).toBeTruthy();
@@ -81,7 +81,7 @@ describe('CheckinPage', () => {
     stubCheckin([row(), row({ id: 12, invoice_id: 8, primary_name: 'Grace Hopper', party: [{ role: 'primary', name: 'Grace Hopper', signed: true, guest_id: null }] })]);
     const user = userEvent.setup();
     await renderAt(Page, '/admin/checkin?show_id=4');
-    const list = await screen.findByRole('list', { name: 'Registrations' });
+    const list = await screen.findByRole('table', { name: 'Registrations' });
 
     await user.type(screen.getByLabelText(/Narrow by name/), 'pat');
     expect(within(list).queryByText('Grace Hopper')).toBeNull();
@@ -173,7 +173,7 @@ describe('CheckinPage', () => {
     await user.click(await screen.findByRole('button', { name: 'Sign' }));
 
     const frame = await screen.findByTitle('Ada Lovelace — Waiver');
-    expect(frame.getAttribute('src')).toBe('https://example.test/waiver_sign/t/abc');
+    expect(frame.getAttribute('src')).toBe('https://example.test/waiver_sign/t/abc?ui=embedded');
   });
 
   it('asks for an event first', async () => {

@@ -61,7 +61,7 @@ class EmailSigninController extends Controller
         $request->session()->regenerate();
 
         return response()->json(
-            (new LoginUserResource($row->user))->resolve($request) + ['redirect_path' => $row->redirect_path],
+            (new LoginUserResource($row->user))->resolve($request) + ['redirect_path' => $row->redirect_path, 'redirect' => EmailSigninService::redirectTarget($row->redirect_path)],
         );
     }
 

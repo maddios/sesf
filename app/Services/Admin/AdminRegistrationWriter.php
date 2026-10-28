@@ -6,6 +6,7 @@ use App\Models\Shirt;
 use App\Models\ShowRegistration;
 use App\Models\ShowRegistrationCar;
 use App\Models\UserGuest;
+use App\Models\Waiver;
 use App\Services\Registration\RegistrationWriter;
 use App\Services\Registration\Writer\AdminAmounts;
 use App\Services\Registration\Writer\CarInput;
@@ -68,6 +69,7 @@ final class AdminRegistrationWriter
         $from = $this->loaded($guest);
 
         return DB::transaction(function () use ($guest, $from, $to, $input): ShowRegistration {
+            self::lockUsers([(int) $from->user_id, (int) $to->user_id]);
             UserGuest::query()->whereKey($guest->id)->update(['registration_id' => $to->id, 'user_id' => $to->user_id, 'show_id' => $to->show_id]);
             $this->writeGuest($from, null);
 
@@ -75,12 +77,27 @@ final class AdminRegistrationWriter
         });
     }
 
-    /** Adds a guest (input id null) and returns it. */
+    /**
+     * Adds a guest (input id null) and returns it. The writer holds the member's row lock until commit, so the
+     * newest guest of the registration read in the same transaction is the one just added.
+     */
     public function addGuest(ShowRegistration $registration, GuestInput $input): UserGuest
     {
-        $this->writeGuest($registration, $input);
+        return DB::transaction(function () use ($registration, $input): UserGuest {
+            $this->writeGuest($registration, $input);
 
-        return $registration->guests()->latest('id')->firstOrFail();
+            return $registration->guests()->latest('id')->lockForUpdate()->firstOrFail();
+        });
+    }
+
+    /**
+     * Locks the members' rows in id order, so two opposite guest moves cannot deadlock.
+     *
+     * @param  list<int>  $userIds
+     */
+    private static function lockUsers(array $userIds): void
+    {
+        DB::table('user')->whereIn('id', array_unique($userIds))->orderBy('id')->lockForUpdate()->get(['id']);
     }
 
     /** Writes one guest (or none, which only reprices) with the stored cars and donation. */
@@ -114,10 +131,23 @@ final class AdminRegistrationWriter
         return $this->writer->save($registration->carShow, $target, $data, true, $amounts);
     }
 
+    /**
+     * The registrant's own waivers and check-in belong to the previous member: their waiver rows are detached from
+     * the registration (kept as records, and their pending sign links stop working), so the new member signs their
+     * own waiver and checks in again. Guests keep theirs.
+     */
     private function reassign(ShowRegistration $registration, int $userId): void
     {
         ShowRegistration::query()->whereKey($registration->id)->lockForUpdate()->firstOrFail();
-        $registration->forceFill(['user_id' => $userId])->save();
+        $waiverIds = Waiver::query()->where('show_registration_id', $registration->id)->whereNull('guest_id')->pluck('id')->all();
+        $registration->forceFill([
+            'user_id' => $userId,
+            'waiver_id' => null,
+            'has_signed' => false,
+            'is_checked_in' => false,
+            'date_checked_in' => null,
+        ])->save();
+        Waiver::query()->whereKey($waiverIds)->update(['show_registration_id' => null]);
         UserGuest::query()->where('registration_id', $registration->id)->update(['user_id' => $userId]);
         Shirt::query()->where('registration_id', $registration->id)->update(['user_id' => $userId]);
         $registration->unsetRelation('user');

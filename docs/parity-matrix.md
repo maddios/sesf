@@ -9,11 +9,24 @@ Status: **MISSING** = no equivalent. **CHANGED** = behaviour differs, so the own
 Severity: **H** = lost or broken workflow, or data loss. **M** = lost admin or member capability that has a workaround.
 **L** = cosmetic, a column, or a legacy URL.
 
+Update 2026-10-27: everything built since the snapshot is marked in the **Now** column of section 1 and in the rows
+below. Only the list directly below is still open.
+
+## Remaining gaps
+
+| Ref | Sev | Gap |
+|---|---|---|
+| #10 | M | No admin "create registration" in the frozennode-style registrations list (admins add registrations at the check-in table and for a member from the users page). No create for the other models listed in section 9 beyond users, cars, guests and extra-registrations. |
+| #25 | L | Extra-registrations: cannot change which extra a registration line belongs to (quantity only). |
+| #33 | L | `WaiverSignService::pruneStaleAdhoc()` is not on the scheduler (queue draining is). |
+| #44 | M | Owners see judging answers only after release (legacy: any time). Owner decision needed. |
+| #29-#32, #34-#41 | L | Accepted behaviour changes still waiting for an owner decision (password reset subject, contact log attachment, forum and about-us, PayPal IPN verbs, judge login, print sheet, impersonation, agenda ordering, show sponsors, report export, HMAC links). |
+
 ## Counts
 
 | Status | Count |
 |---|---|
-| MISSING | 22 (H 6, M 5, L 11) |
+| MISSING (original snapshot) | 22 (H 6, M 5, L 11); now 1 open (#25) plus #10 partial |
 | CHANGED | 21 (H 2, M 5, L 14), plus the low-severity portal sign-redirect row in section 8 |
 | present | 66 (sections 2-8: 58; admin sections 9-10: about 8) |
 | present+ | 30 (sections 2-8: 23; admin: about 7) |
@@ -22,53 +35,54 @@ Severity: **H** = lost or broken workflow, or data loss. **M** = lost admin or m
 
 ## 1. MISSING and CHANGED (highest severity first)
 
-| # | Sev | Status | Area | Legacy capability | Legacy ref | New ref / note |
-|---|---|---|---|---|---|---|
-| 1 | H | CHANGED | Admin events | Saving an event from the SPA sets `waiver_id` to NULL, which silently turns the event's internal waiver off. The backend accepts `waiver_id`, but the form never sends it. Legacy edited it as a text field. | config/administrator/carShow.php `waiver_id` | app/Http/Requests/Admin/EventRequest.php `fields()` (`$data['waiver_id'] ?? null`); resources/js/pages/admin/events/events.ts `EVENT_FIELDS`/`toInput` (no waiver_id) *(wip backend)* |
-| 2 | H | CHANGED | Admin registrations | The backend now requires `invoice_id`, `car_ids`, `amount_received_cents` and `discount_cents`. The SPA sends only donation, arrival and cancelled, so every edit and every cancel/reinstate returns 422. The UI also lacks the legacy fields: invoice #, cars (orderable), paid, amount owed, amount received, actual received, discount and discount note. | config/administrator/CarShowRegistration.php edit_fields | app/Http/Requests/Admin/RegistrationUpdateRequest.php *(wip)* vs resources/js/pages/admin/registrations/registrations.ts `toInput`, `cancelInput` |
-| 3 | H | MISSING | Gallery | Whole gallery: browse by event, gallery items, breadcrumbs, create/manage galleries, upload, show/hide, default item, remove, checked-in list. The header "Gallery" link and the gallery link on event cards both return 404 today. | controllers/GalleryController.php (12 actions); views/angular/gallery.blade.php; routes `/gallery*` | layouts/AppHeader.vue:33, components/events/EventCard.vue:16 link to non-existent routes |
-| 4 | H | MISSING | Check-in | Walk-in "Add registration" at the table: member search (unregistered members), cars from the garage, guests, shirts, extras, arrival, donation, then "Create & email". | Admin/Controllers/CheckinList.php `postCreateRegistrationMeta`, `postGarageCars`, `postCreateRegistration`; Sections/checkin_list.blade.php | app/Http/Controllers/Admin/CheckinController.php has index, check-in, check-out and extras only *(wip)* |
-| 5 | H | MISSING | Check-in + email | "Email billing link" (pay-link email) and its template. | CheckinList.php `postPayLinkEmail`; views/emails/member/registration_pay_link.blade.php | No mailable or template |
-| 6 | H | MISSING | Admin waivers / check-in | Staff open the signing page for one party member on site: the check-in waiver modal and the waivers-list "Open" link. | CheckinList.php `postWaiverSignUrl`; WaiversList.php `openWaiverSign` | Only emailed requests and reminders: app/Http/Controllers/Admin/WaiverController.php *(wip)* |
-| 7 | H | MISSING | Waiver portal | Email-code sign-in on the portal. Legacy offered password or a 6-digit code. | views/waiver/portal.blade.php:430 (`/login/email-signin/*`) | resources/views/waiver/portal.blade.php and resources/js/waiver/portal-page.ts: password only *(wip)* |
-| 8 | H | MISSING | Admin events | Upload event image, upload schedule PDF, release judging toggle, "Send judging results" action and waiver toggle. Upload, schedule-pdf and release routes exist with no UI. | carShow.php actions `upload_image`, `upload_schedule_pdf`, `send_judging_results`, fields `is_judging_released`, `waiver_id`; CarShowImageUpload, CarShowScheduleUpload | routes/web/admin/events.php `image`, `schedule-pdf`, `release-judging`; EventsPage.vue has edit, activate, sponsors and delete only. Results mail is in admin judging *(wip)* |
-| 9 | M | MISSING | Admin events | Expense tracker per event: income/expense lines, totals against amount received and actual received. Legacy page had no auth; new needs admin. | controllers/ExpenseTracker.php, `/expense_tracker`, carShow.php action | app/Models/Expense.php only |
-| 10 | M | CHANGED | Admin (frozennode defaults) | Frozennode let admins create and delete on every model (no `action_permissions`). Lost: create user (with password), create car, create and delete registration, create guest, create extra-registration. | config/administrator/*.php (no action_permissions) | routes/web/admin/users.php, cars.php, registrations.php, registration-guests.php, extra-registrations.php have no store (registrations also have no delete) |
-| 11 | M | CHANGED | Admin users | Admin set a member's password (password + confirm). Now only "send password reset email". | user.php edit_fields `password`, `confirm_password` | resources/js/pages/admin/users/users.ts (no password); UserController `sendPasswordReset` |
-| 12 | M | CHANGED | Admin registration on behalf | "Register for Event" and "Edit Registration" opened the full registration editor for the member (`/#/admin/register-user/:user/:show`). Now a modal with event + cars only. The full on-behalf editor exists (`/:event/e:id/register?user_id=`), but no admin page links to it. | user.php `register_for_event`; CarShowRegistration.php `edit_registration`; views/angular/admin_register_user.blade.php | pages/admin/users/RegisterForEventModal.vue; pages/registration/RegistrationPage.vue (`userId` prop) |
-| 13 | M | MISSING | Waiver portal | "Share" sign link for a guest (navigator.share or clipboard). | WaiverPortalController `getShare`; views/waiver/share.blade.php | Portal shows a sign button only |
-| 14 | M | MISSING | Admin waivers | Blank waiver PDF (print). `WaiverSignService::blankPdf()` exists, but no route uses it. | WaiversList.php `downloadBlankPdf` | app/Services/Waivers/WaiverSignService.php:378 |
-| 15 | M | MISSING | Admin waivers | "Open generic waiver for this event" (walk-in link) button. | Sections/waivers_list.blade.php | Walk-in list exists; no link |
-| 16 | M | CHANGED | Admin waivers | Bulk "Send waiver emails" to selected rows (select all / unselect all) is now one row at a time. The "Arriving" and "Date signed" columns are missing. | waivers_list.blade.php `users[]`, `send_waivers` | pages/admin/waivers/WaiversPage.vue `requestWaiver(row)` *(wip)* |
-| 17 | M | CHANGED | Admin nav / legacy URLs | `/admin2/*` redirects point to paths the registry does not use (`check-in`, `members-report`, `events-report`, `extras-report`; the registry has `checkin`, `reports/members`, `reports/event-summary`, `reports/extras`). `/admin/{Config}/{id}` deep links go to the dashboard. The header "Judging" link goes to `/#/admin/judging`, which is not registered yet. | admin2 routes, frozennode URLs | app/Http/Controllers/Admin/LegacyAdminRedirectController.php `ADMIN2_SECTIONS`; resources/js/admin/registry.ts; layouts/navigation.ts `JUDGING_URL` |
-| 18 | M | MISSING | Check-in | Per-registration "Send waiver reminder" in the check-in modal. Bulk reminders exist on the Waivers page. | CheckinList.php `postWaiverReminder` | — |
-| 19 | L | MISSING | Member UX | First-login tutorial banner (show and dismiss). The API is ported; the UI is not. | views/nav.blade.php:47, angular/member.blade.php `memberTutorialController` | routes/web/account.php `tutorial/tutorial`; no Vue usage |
-| 20 | L | CHANGED | Check-in | T-shirts column in the check-in list. Now only on the T-shirts page. | checkin_list.blade.php | CheckinRegistrationResource has no shirts |
-| 21 | L | MISSING | Admin cars | Edit "registration" (Show) relation, VIN and Profile-link columns, filters for body, type and owner. Search covers model, nickname and VIN. | car.php | pages/admin/cars/cars.ts |
-| 22 | L | MISSING | Admin users | Columns Date Registered, Date Deleted and Profile Link. The API has a `date_registered` filter; the UI does not use it. | user.php columns | pages/admin/users/users.ts `USER_COLUMNS` |
-| 23 | L | MISSING | Admin registrations | Date Registered column; reassign show or user. | CarShowRegistration.php | registrations.ts |
-| 24 | L | MISSING | Admin guests | Reassign registration or user; Registration ID and Date Added columns. | RegistrationGuest.php | registration-guests.ts |
-| 25 | L | MISSING | Admin extra-registrations | Change which extra (showExtra); Date Registered column; filter by registration id (the API supports it). | extraRegistration.php | extraRegistrations.ts (quantity only) |
-| 26 | L | MISSING | Admin agenda | Filter by Type. The API supports `type_id`; the UI does not expose it. | Agenda.php filters | AgendaPage.vue `filterKeys: ['show_id']` |
-| 27 | L | MISSING | Routing | `/:carName/c:carId` car alias route. | angular/main.blade.php:273 | router/routes/members.ts has `/car/:id` only |
-| 28 | L | MISSING | Shell | Datadog RUM snippet and `og:image` meta. RUM config exists, but the shell never injects it. | views/partials/datadog_rum.blade.php, wrapper.blade.php:8 | config/sesf.php `datadog.rum`; resources/views/app.blade.php |
-| 29 | L | CHANGED | Email | Password reset subject "SESF Password Reminder" is now "Reset your password — Southeast Sharkfest". | UserAuth.php:151 | app/Mail/ResetPasswordMail.php:50 |
-| 30 | L | CHANGED | Contact | The client `$log` attachment ("include log" checkbox) is dropped. Location is kept. | home/report_page.blade.php | app/Http/Controllers/Api/ContactController.php:17 |
-| 31 | L | CHANGED | Pages | `/forum` embedded Vanilla page is now an external link (`SESF_FORUM_URL`). `/about-us` placeholder ("WE'RE THE BOMB") is dropped. | views/forum, views/about_us | layouts/AppHeader.vue |
-| 32 | L | CHANGED | PayPal IPN | Any verb is now POST only (GET returns 405). This is documented. | routes.php `Route::any('paypal-ipn')` | routes/web/paypal.php, docs/paypal-ipn.md |
-| 33 | L | CHANGED | Mail delivery | Legacy queued mail in a DB queue drained by cron (`ProcessDbQueue`). New uses `QUEUE_CONNECTION=sync` with no worker or scheduler, so bulk waiver mail runs inside the request. | commands/ProcessDbQueue.php, services/QueuedMailer.php | .env.example:51; routes/console.php (no schedule) |
-| 34 | L | CHANGED | Judging | Judge login on the judging page (`POST judging/login/{id}`) is replaced by the site login with a redirect. | CarJudging `judgingLogin` | routes/web/judging.php; router/postLogin.ts *(wip)* |
-| 35 | L | CHANGED | T-shirts | The dedicated print sheet view is replaced by `window.print()` of the page. | TshirtList `printSheet`, Sections/tshirt_print.blade.php | pages/admin/tshirts/TshirtsPage.vue:153 *(wip)* |
-| 36 | L | CHANGED | Admin impersonation | "Log In" as any user, including admins, is now refused for admin targets and disabled users. Accepted as an improvement. | user.php `login` | ImpersonationController |
-| 37 | L | CHANGED | Admin cars | New confirm/unconfirm and car image actions (additions). Legacy had no admin car image upload. | — | routes/web/admin/cars.php |
-| 38 | L | CHANGED | Admin agenda/locations/show sponsors | Order Up / Order Down actions are replaced by drag reorder. The `sort_order` edit field is gone. | Agenda.php, Locations.php, CarShowSponsors.php actions | ReorderableList.vue, `*/reorder` routes |
-| 39 | L | CHANGED | Admin show sponsors | The global "Show Sponsors" list (show, sponsor, type, sort, filters show/type) is replaced by a per-event dialog that adds the primary sponsor. | CarShowSponsors.php | pages/admin/events/EventSponsorsDialog.vue |
-| 40 | L | CHANGED | Admin reports | Extras summary gains export, which legacy did not have. Event-summary export keeps the SpreadsheetML .xls. | ExtraList.php | routes/web/admin/reports.php *(wip)* |
-| 41 | L | CHANGED | Waiver legacy HMAC links | `waiver_sign/{show}/{reg?}/{guest?}?token=` was removed. Legacy never issued these tokens (no caller of `WaiverSignToken` creates them), so nothing is lost. | WaiverSignController `getSign`/`postSign` | docs/waivers.md |
-| 42 | L | MISSING | Admin events list | Event `id` column. The new list shows name, short name, start, status and registrations. | carShow.php columns | events.ts `EVENT_COLUMNS` |
-| 43 | L | MISSING | Admin car admin `type` column | Legacy defined the `type` key twice (Type, then Body), so only Body showed. New shows both. Listed for completeness only. | car.php | cars.ts |
+| # | Sev | Status | Area | Legacy capability | Legacy ref | New ref / note | Now |
+|---|---|---|---|---|---|---|---|
+| 1 | H | CHANGED | Admin events | Saving an event from the SPA sets `waiver_id` to NULL, which silently turns the event's internal waiver off. The backend accepts `waiver_id`, but the form never sends it. Legacy edited it as a text field. | config/administrator/carShow.php `waiver_id` | app/Http/Requests/Admin/EventRequest.php `fields()` (`$data['waiver_id'] ?? null`); resources/js/pages/admin/events/events.ts `EVENT_FIELDS`/`toInput` (no waiver_id) *(wip backend)* | present: waiver field in the event form (no longer wiped) |
+| 2 | H | CHANGED | Admin registrations | The backend now requires `invoice_id`, `car_ids`, `amount_received_cents` and `discount_cents`. The SPA sends only donation, arrival and cancelled, so every edit and every cancel/reinstate returns 422. The UI also lacks the legacy fields: invoice #, cars (orderable), paid, amount owed, amount received, actual received, discount and discount note. | config/administrator/CarShowRegistration.php edit_fields | app/Http/Requests/Admin/RegistrationUpdateRequest.php *(wip)* vs resources/js/pages/admin/registrations/registrations.ts `toInput`, `cancelInput` | present: full registration editor fields in the SPA |
+| 3 | H | MISSING | Gallery | Whole gallery: browse by event, gallery items, breadcrumbs, create/manage galleries, upload, show/hide, default item, remove, checked-in list. The header "Gallery" link and the gallery link on event cards both return 404 today. | controllers/GalleryController.php (12 actions); views/angular/gallery.blade.php; routes `/gallery*` | layouts/AppHeader.vue:33, components/events/EventCard.vue:16 link to non-existent routes | present: gallery pages and API |
+| 4 | H | MISSING | Check-in | Walk-in "Add registration" at the table: member search (unregistered members), cars from the garage, guests, shirts, extras, arrival, donation, then "Create & email". | Admin/Controllers/CheckinList.php `postCreateRegistrationMeta`, `postGarageCars`, `postCreateRegistration`; Sections/checkin_list.blade.php | app/Http/Controllers/Admin/CheckinController.php has index, check-in, check-out and extras only *(wip)* | present: check-in Add registration dialog (OnSiteRegistration) |
+| 5 | H | MISSING | Check-in + email | "Email billing link" (pay-link email) and its template. | CheckinList.php `postPayLinkEmail`; views/emails/member/registration_pay_link.blade.php | No mailable or template | present: RegistrationPayLinkMail, queued |
+| 6 | H | MISSING | Admin waivers / check-in | Staff open the signing page for one party member on site: the check-in waiver modal and the waivers-list "Open" link. | CheckinList.php `postWaiverSignUrl`; WaiversList.php `openWaiverSign` | Only emailed requests and reminders: app/Http/Controllers/Admin/WaiverController.php *(wip)* | present: check-in sign dialog (embedded sign page, postMessage close, unsaved-signature confirm); waivers-list Open |
+| 7 | H | MISSING | Waiver portal | Email-code sign-in on the portal. Legacy offered password or a 6-digit code. | views/waiver/portal.blade.php:430 (`/login/email-signin/*`) | resources/views/waiver/portal.blade.php and resources/js/waiver/portal-page.ts: password only *(wip)* | present: emailed-code tab on the portal |
+| 8 | H | MISSING | Admin events | Upload event image, upload schedule PDF, release judging toggle, "Send judging results" action and waiver toggle. Upload, schedule-pdf and release routes exist with no UI. | carShow.php actions `upload_image`, `upload_schedule_pdf`, `send_judging_results`, fields `is_judging_released`, `waiver_id`; CarShowImageUpload, CarShowScheduleUpload | routes/web/admin/events.php `image`, `schedule-pdf`, `release-judging`; EventsPage.vue has edit, activate, sponsors and delete only. Results mail is in admin judging *(wip)* | present: image and schedule uploads, release toggle, send results |
+| 9 | M | MISSING | Admin events | Expense tracker per event: income/expense lines, totals against amount received and actual received. Legacy page had no auth; new needs admin. | controllers/ExpenseTracker.php, `/expense_tracker`, carShow.php action | app/Models/Expense.php only | present: admin expenses page |
+| 10 | M | CHANGED | Admin (frozennode defaults) | Frozennode let admins create and delete on every model (no `action_permissions`). Lost: create user (with password), create car, create and delete registration, create guest, create extra-registration. | config/administrator/*.php (no action_permissions) | routes/web/admin/users.php, cars.php, registrations.php, registration-guests.php, extra-registrations.php have no store (registrations also have no delete) | partial, see Remaining gaps |
+| 11 | M | CHANGED | Admin users | Admin set a member's password (password + confirm). Now only "send password reset email". | user.php edit_fields `password`, `confirm_password` | resources/js/pages/admin/users/users.ts (no password); UserController `sendPasswordReset` | present: admin set password |
+| 12 | M | CHANGED | Admin registration on behalf | "Register for Event" and "Edit Registration" opened the full registration editor for the member (`/#/admin/register-user/:user/:show`). Now a modal with event + cars only. The full on-behalf editor exists (`/:event/e:id/register?user_id=`), but no admin page links to it. | user.php `register_for_event`; CarShowRegistration.php `edit_registration`; views/angular/admin_register_user.blade.php | pages/admin/users/RegisterForEventModal.vue; pages/registration/RegistrationPage.vue (`userId` prop) | present: modal links to the full on-behalf editor |
+| 13 | M | MISSING | Waiver portal | "Share" sign link for a guest (navigator.share or clipboard). | WaiverPortalController `getShare`; views/waiver/share.blade.php | Portal shows a sign button only | present: share page |
+| 14 | M | MISSING | Admin waivers | Blank waiver PDF (print). `WaiverSignService::blankPdf()` exists, but no route uses it. | WaiversList.php `downloadBlankPdf` | app/Services/Waivers/WaiverSignService.php:378 | present: blank PDF route |
+| 15 | M | MISSING | Admin waivers | "Open generic waiver for this event" (walk-in link) button. | Sections/waivers_list.blade.php | Walk-in list exists; no link | present: generic waiver link |
+| 16 | M | CHANGED | Admin waivers | Bulk "Send waiver emails" to selected rows (select all / unselect all) is now one row at a time. The "Arriving" and "Date signed" columns are missing. | waivers_list.blade.php `users[]`, `send_waivers` | pages/admin/waivers/WaiversPage.vue `requestWaiver(row)` *(wip)* | present: bulk send, Arriving and Date signed columns |
+| 17 | M | CHANGED | Admin nav / legacy URLs | `/admin2/*` redirects point to paths the registry does not use (`check-in`, `members-report`, `events-report`, `extras-report`; the registry has `checkin`, `reports/members`, `reports/event-summary`, `reports/extras`). `/admin/{Config}/{id}` deep links go to the dashboard. The header "Judging" link goes to `/#/admin/judging`, which is not registered yet. | admin2 routes, frozennode URLs | app/Http/Controllers/Admin/LegacyAdminRedirectController.php `ADMIN2_SECTIONS`; resources/js/admin/registry.ts; layouts/navigation.ts `JUDGING_URL` | present: redirect paths and Judging link fixed |
+| 18 | M | MISSING | Check-in | Per-registration "Send waiver reminder" in the check-in modal. Bulk reminders exist on the Waivers page. | CheckinList.php `postWaiverReminder` | — | present: per-row reminder in the check-in modal, queued |
+| 19 | L | MISSING | Member UX | First-login tutorial banner (show and dismiss). The API is ported; the UI is not. | views/nav.blade.php:47, angular/member.blade.php `memberTutorialController` | routes/web/account.php `tutorial/tutorial`; no Vue usage | present: TutorialBanner |
+| 20 | L | CHANGED | Check-in | T-shirts column in the check-in list. Now only on the T-shirts page. | checkin_list.blade.php | CheckinRegistrationResource has no shirts | present: shirt lines in the check-in resource |
+| 21 | L | MISSING | Admin cars | Edit "registration" (Show) relation, VIN and Profile-link columns, filters for body, type and owner. Search covers model, nickname and VIN. | car.php | pages/admin/cars/cars.ts | present: VIN, profile link and shows columns |
+| 22 | L | MISSING | Admin users | Columns Date Registered, Date Deleted and Profile Link. The API has a `date_registered` filter; the UI does not use it. | user.php columns | pages/admin/users/users.ts `USER_COLUMNS` | present: Date registered, Date deleted, Profile link |
+| 23 | L | MISSING | Admin registrations | Date Registered column; reassign show or user. | CarShowRegistration.php | registrations.ts | present: Date registered column |
+| 24 | L | MISSING | Admin guests | Reassign registration or user; Registration ID and Date Added columns. | RegistrationGuest.php | registration-guests.ts | present: registration id, date added, reassign |
+| 25 | L | MISSING | Admin extra-registrations | Change which extra (showExtra); Date Registered column; filter by registration id (the API supports it). | extraRegistration.php | extraRegistrations.ts (quantity only) | partial, see Remaining gaps |
+| 26 | L | MISSING | Admin agenda | Filter by Type. The API supports `type_id`; the UI does not expose it. | Agenda.php filters | AgendaPage.vue `filterKeys: ['show_id']` | present: Type filter |
+| 27 | L | MISSING | Routing | `/:carName/c:carId` car alias route. | angular/main.blade.php:273 | router/routes/members.ts has `/car/:id` only | present: car alias route |
+| 28 | L | MISSING | Shell | Datadog RUM snippet and `og:image` meta. RUM config exists, but the shell never injects it. | views/partials/datadog_rum.blade.php, wrapper.blade.php:8 | config/sesf.php `datadog.rum`; resources/views/app.blade.php | present: RUM in the SPA shell, waiver and judging layouts; og:image in the shell |
+| 29 | L | CHANGED | Email | Password reset subject "SESF Password Reminder" is now "Reset your password — Southeast Sharkfest". | UserAuth.php:151 | app/Mail/ResetPasswordMail.php:50 | unchanged |
+| 30 | L | CHANGED | Contact | The client `$log` attachment ("include log" checkbox) is dropped. Location is kept. | home/report_page.blade.php | app/Http/Controllers/Api/ContactController.php:17 | unchanged |
+| 31 | L | CHANGED | Pages | `/forum` embedded Vanilla page is now an external link (`SESF_FORUM_URL`). `/about-us` placeholder ("WE'RE THE BOMB") is dropped. | views/forum, views/about_us | layouts/AppHeader.vue | unchanged |
+| 32 | L | CHANGED | PayPal IPN | Any verb is now POST only (GET returns 405). This is documented. | routes.php `Route::any('paypal-ipn')` | routes/web/paypal.php, docs/paypal-ipn.md | unchanged |
+| 33 | L | CHANGED | Mail delivery | Legacy queued mail in a DB queue drained by cron (`ProcessDbQueue`). New uses `QUEUE_CONNECTION=sync` with no worker or scheduler, so bulk waiver mail runs inside the request. | commands/ProcessDbQueue.php, services/QueuedMailer.php | .env.example:51; routes/console.php (no schedule) | present: database queue, worker and scheduler (docs/running-dev.md); pruneStaleAdhoc still unscheduled |
+| 34 | L | CHANGED | Judging | Judge login on the judging page (`POST judging/login/{id}`) is replaced by the site login with a redirect. | CarJudging `judgingLogin` | routes/web/judging.php; router/postLogin.ts *(wip)* | unchanged |
+| 35 | L | CHANGED | T-shirts | The dedicated print sheet view is replaced by `window.print()` of the page. | TshirtList `printSheet`, Sections/tshirt_print.blade.php | pages/admin/tshirts/TshirtsPage.vue:153 *(wip)* | present: printable checklist again (`?print=1`, new tab, legacy layout, Print / Back) |
+| 36 | L | CHANGED | Admin impersonation | "Log In" as any user, including admins, is now refused for admin targets and disabled users. Accepted as an improvement. | user.php `login` | ImpersonationController | unchanged |
+| 37 | L | CHANGED | Admin cars | New confirm/unconfirm and car image actions (additions). Legacy had no admin car image upload. | — | routes/web/admin/cars.php | unchanged |
+| 38 | L | CHANGED | Admin agenda/locations/show sponsors | Order Up / Order Down actions are replaced by drag reorder. The `sort_order` edit field is gone. | Agenda.php, Locations.php, CarShowSponsors.php actions | ReorderableList.vue, `*/reorder` routes | present: Move up / Move down buttons on every row (drag too on desktop) |
+| 39 | L | CHANGED | Admin show sponsors | The global "Show Sponsors" list (show, sponsor, type, sort, filters show/type) is replaced by a per-event dialog that adds the primary sponsor. | CarShowSponsors.php | pages/admin/events/EventSponsorsDialog.vue | unchanged |
+| 40 | L | CHANGED | Admin reports | Extras summary gains export, which legacy did not have. Event-summary export keeps the SpreadsheetML .xls. | ExtraList.php | routes/web/admin/reports.php *(wip)* | unchanged |
+| 41 | L | CHANGED | Waiver legacy HMAC links | `waiver_sign/{show}/{reg?}/{guest?}?token=` was removed. Legacy never issued these tokens (no caller of `WaiverSignToken` creates them), so nothing is lost. | WaiverSignController `getSign`/`postSign` | docs/waivers.md | unchanged |
+| 42 | L | MISSING | Admin events list | Event `id` column. The new list shows name, short name, start, status and registrations. | carShow.php columns | events.ts `EVENT_COLUMNS` | present: ID column |
+| 43 | L | MISSING | Admin car admin `type` column | Legacy defined the `type` key twice (Type, then Body), so only Body showed. New shows both. Listed for completeness only. | car.php | cars.ts | unchanged |
+| 44 | M | CHANGED | Judging | A car owner could open the judging answers page at any time. Now they see it only after the event's results are released or its end date has passed; before that the page says results are not available yet. | CarJudging `getJudgingView` | judging answers page. Owner decision needed. | unchanged |
 
-(Rows 36 to 43 are low-impact notes, mostly accepted improvements. Their Status column decides whether they count as CHANGED or MISSING.)
+(Rows 36 to 44 are low-impact notes, mostly accepted improvements. Their Status column decides whether they count as CHANGED or MISSING.)
 
 ## 2. Public SPA
 
@@ -171,7 +185,7 @@ Severity: **H** = lost or broken workflow, or data loss. **M** = lost admin or m
 | member/new_account, member/private_message | same | present |
 | member/judging_result | same *(wip)* | present |
 | member/waiver_request, member/waiver_reminder | emails/waivers/request, reminder | present |
-| member/registration_pay_link | — | **MISSING** (#5) |
+| member/registration_pay_link | emails/member/registration_pay_link | present |
 | partials/{badge,button,footer,header,kv,raw_block} (6) | same | present |
 
 ## 8. Waivers
@@ -182,17 +196,17 @@ Severity: **H** = lost or broken workflow, or data loss. **M** = lost admin or m
 | Signature modes draw / type | present | sesf-waiver-widget.js | resources/js/waiver/sign-page.ts, typed.ts |
 | Signing for a minor (guardian name) | present | widget | form.ts |
 | Retries, offline detection, pending recovery | present | widget.js:752-899 | retry.ts, recovery.ts |
-| Widget modes embedded / standalone | present (embedded only posted) | _widget.blade.php `waiver_ui_mode` | SignWaiverRequest |
+| Widget modes embedded / standalone | present+ (embedded when framed; sign page exposes `sesfWaiverIsDirty` for the check-in close confirm) | _widget.blade.php `waiver_ui_mode` | SignWaiverRequest |
 | Geolocation | N/A (legacy never captured it; new accepts it as optional) | — | docs/waivers.md |
 | Thank-you page | present | `getThankYou` | thank-you-page.ts |
 | Walk-in (ad hoc per show) | present+ (per-IP budget, session reuse) | `*ByShowAdhoc` | WaiverSignController `prefillAdhoc/signAdhoc` |
 | Portal password login / logout / status list / sign link | present | WaiverPortalController | WaiverPortalController, portal-page.ts |
 | Portal `/waiver/{id}/sign` redirect | CHANGED (JSON `sign-url` + client redirect) | `getSign` | `sign-url` |
-| Portal email-code login | **MISSING** (#7) | portal.blade.php | — |
-| Portal share | **MISSING** (#13) | `getShare` | — |
+| Portal email-code login | present | portal.blade.php | portal-page.ts, EmailSigninController |
+| Portal share | present | `getShare` | share-page.ts |
 | Signed PDF download (admin) | present+ (storage, regenerated on demand, legacy PDFs imported) | Waiver `getWaiverPDF`, WaiversList `downloadSignedPdf` | WaiverPdfController |
 | "Regenerate missing PDFs" button | present+ (automatic on view) | WaiversList `updateWaivers` | WaiverSignService `pdfPathForAdmin` |
-| Blank PDF | **MISSING** (#14) | `downloadBlankPdf` | — |
+| Blank PDF | present | `downloadBlankPdf` | routes/web/admin/waivers.php `waivers/blank-pdf` |
 | Request / reminder mails (dedupe) | present+ | WaiversList `sendWaivers/sendWaiverReminders` | WaiverMailer, Jobs/Waivers *(wip)* |
 
 ## 9. Admin: frozennode configs (menu: user, car, carShow, Agenda, Locations, CarShowSponsors, CarShowRegistration, RegistrationGuest, sponsor, extras, extraRegistration)
@@ -241,24 +255,24 @@ some of these JSON routes for contract parity (`event/attendees`, `events/list-f
 
 ## 12. Planned backlog checklist (from the legacy route table)
 
-- [ ] **Gallery**: `gallery/*` (getCheckedIn, getCarShowList, getList, getBreadcrumb, getInfo, getItems, postItems,
+- [x] **Gallery**: `gallery/*` (getCheckedIn, getCarShowList, getList, getBreadcrumb, getInfo, getItems, postItems,
       postCreate, postShowHide, postUploadFile, postDefaultItem, postRemoveItem) and SPA `/gallery`,
       `/gallery/e:eventId/:galleryId?`, `/gallery/create/:eventId/:galleryId?`, `/gallery/manage/:galleryId` (#3)
-- [ ] **Judging** *(wip)*: register the admin judging page in `registry.ts` (minLevel 2); judging/{id}, judgingData,
+- [x] **Judging** *(wip)*: register the admin judging page in `registry.ts` (minLevel 2); judging/{id}, judgingData,
       judgingSubmit, judging_answers, judging_draw, judging_qr_code (+ show sheet); release toggle and results mail;
       decide on `judging/login` (#34)
-- [ ] **Check-in** *(wip)*: walk-in registration (#4), pay-link email + template (#5), on-site waiver sign (#6),
+- [x] **Check-in** *(wip)*: walk-in registration (#4), pay-link email + template (#5), on-site waiver sign (#6),
       per-row waiver reminder (#18), shirts column (#20)
-- [ ] **T-shirts** *(wip)*: confirm print layout matches tshirt_print (#35)
-- [ ] **Waivers admin** *(wip)*: open sign (#6), walk-in link (#15), blank PDF route (#14), bulk send (#16),
+- [x] **T-shirts** *(wip)*: confirm print layout matches tshirt_print (#35)
+- [x] **Waivers admin** *(wip)*: open sign (#6), walk-in link (#15), blank PDF route (#14), bulk send (#16),
       arriving and date-signed columns
-- [ ] **Waiver portal**: email-code login (#7), share (#13)
-- [ ] **Reports** *(wip)*: registered; fix legacy `/admin2` redirect paths (#17)
-- [ ] **Events admin UI**: waiver toggle and the null-wipe fix (#1), image upload, schedule PDF upload, judging
+- [x] **Waiver portal**: email-code login (#7), share (#13)
+- [x] **Reports** *(wip)*: registered; fix legacy `/admin2` redirect paths (#17)
+- [x] **Events admin UI**: waiver toggle and the null-wipe fix (#1), image upload, schedule PDF upload, judging
       release, send results (#8)
-- [ ] **Registrations admin UI**: match the new backend fields (#2); link to the full on-behalf editor (#12)
-- [ ] **Expense tracker** (#9)
+- [x] **Registrations admin UI**: match the new backend fields (#2); link to the full on-behalf editor (#12)
+- [x] **Expense tracker** (#9)
 - [ ] **Frozennode create/delete parity**: decide per model (#10); admin set password (#11)
-- [ ] **Tutorial** welcome banner (#19)
+- [x] **Tutorial** welcome banner (#19)
 - [ ] **Low**: car alias route (#27), Datadog RUM + og:image (#28), admin columns and filters (#21-#26), forum and
       about-us decision (#31), queue worker / scheduler for mail and `pruneStaleAdhoc` (#33)

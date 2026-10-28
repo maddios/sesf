@@ -2,7 +2,21 @@ import { describe, it, expect, vi } from 'vitest';
 import { screen, within, waitFor, fireEvent } from '@testing-library/vue';
 import { axe } from 'vitest-axe';
 import { jsonResponse, type RouteHandler } from '../../../test/helpers';
+import { loadPdfjs } from '../../../components/events/pdfjsLoader';
 import { AGENDA_RAW, JUDGING_RAW, LOCATIONS_RAW, SCHEDULE_PDF, eventHandlers, renderEventRoute } from './eventFixtures';
+
+vi.mock('../../../components/events/pdfjsLoader', () => ({
+  loadPdfjs: vi.fn(async () => ({
+    open: async () => ({
+      numPages: 2,
+      destroy: async () => undefined,
+      getPage: async () => ({
+        getViewport: ({ scale }: { scale: number }) => ({ width: 600 * scale, height: 800 * scale }),
+        render: () => ({ promise: Promise.resolve() }),
+      }),
+    }),
+  })),
+}));
 
 const BASE = '/SoutheastSharkfest2026/e36';
 const AGENDA1 = 'GET /event/agenda?show_id=36&type_id=1';
@@ -68,15 +82,11 @@ describe('EventJudgingPage', () => {
 });
 
 describe('EventSchedulePage', () => {
-  it('embeds a PDF schedule with a download link', async () => {
-    const { container } = await renderEventRoute(`${BASE}/schedule`, eventHandlers({ [SCHEDULE]: () => jsonResponse(200, SCHEDULE_PDF) }));
-    const object = await waitFor(() => {
-      const el = container.querySelector('object');
-      expect(el).not.toBeNull();
-      return el as HTMLObjectElement;
-    });
-    expect(object.getAttribute('data')).toBe('/images/shows/schedule36.pdf');
-    expect(object.getAttribute('type')).toBe('application/pdf');
+  it('renders a PDF schedule with pdf.js and keeps the download link', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(400);
+    await renderEventRoute(`${BASE}/schedule`, eventHandlers({ [SCHEDULE]: () => jsonResponse(200, SCHEDULE_PDF) }));
+    await waitFor(() => expect(loadPdfjs).toHaveBeenCalled());
+    expect(await screen.findByRole('img', { name: 'Event schedule, page 1 of 2' })).toBeTruthy();
     expect(screen.getByRole('link', { name: /download the schedule \(pdf\)/i }).getAttribute('href')).toBe('/images/shows/schedule36.pdf');
   });
 
@@ -121,7 +131,7 @@ describe('EventDirectionsPage', () => {
 describe('EventSponsorsPage', () => {
   it('groups sponsors by tier and keeps unknown tiers in an other group', async () => {
     await renderEventRoute(`${BASE}/sponsors`);
-    expect(await screen.findByRole('heading', { level: 2, name: 'M Class' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 2, name: '///M Class' })).toBeTruthy();
     expect(screen.getByRole('heading', { level: 2, name: 'Gold Class' })).toBeTruthy();
     expect(screen.getByRole('heading', { level: 2, name: 'Other sponsors' })).toBeTruthy();
     const links = screen.getAllByRole('link', { name: /odometer gears/i });
@@ -137,7 +147,7 @@ describe('EventSponsorsPage', () => {
 
   it('has no accessibility violations', async () => {
     const { container } = await renderEventRoute(`${BASE}/sponsors`);
-    await screen.findByRole('heading', { level: 2, name: 'M Class' });
+    await screen.findByRole('heading', { level: 2, name: '///M Class' });
     expect(await axe(container)).toHaveNoViolations();
   });
 });

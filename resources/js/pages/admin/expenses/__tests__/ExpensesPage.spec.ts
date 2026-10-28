@@ -70,13 +70,13 @@ describe('ExpensesPage', () => {
     expect(screen.getByText('Registration Fees').nextElementSibling?.textContent?.trim()).toBe('$1,500.10');
     expect(screen.getByText('Net (Actual received registration fees)').nextElementSibling?.textContent?.trim()).toBe('$995.50');
     const expenseCell = within(await lines()).getByText('($1,300.10)');
-    expect(expenseCell.className).toContain('text-danger');
-    expect(within(await lines()).getByText('$200.00').className).not.toContain('text-danger');
+    expect(expenseCell.className).toContain('text-[#a94442]');
+    expect(within(await lines()).getByText('$200.00').className).not.toContain('text-[#a94442]');
     expect(within(await lines()).getAllByText('Feb 1, 2026')).toHaveLength(2);
     expect(screen.getByText('Total Expenses').nextElementSibling?.textContent?.trim()).toBe('($1,100.10)');
     const gross = screen.getByText('Gross (Registration fees - Expenses)').nextElementSibling;
     expect(gross?.textContent?.trim()).toBe('($104.60)');
-    expect(gross?.className).toContain('text-danger');
+    expect(gross?.className).toContain('text-[#a94442]');
     expect(await axe(container)).toHaveNoViolations();
   });
 
@@ -110,7 +110,8 @@ describe('ExpensesPage', () => {
     const dialog = await screen.findByRole('dialog', { name: 'New item' });
     await user.type(within(dialog).getByLabelText('Description'), 'Raffle');
     await user.type(within(dialog).getByLabelText('Amount (required)'), '1,250.5');
-    await user.selectOptions(within(dialog).getByLabelText('Type (required)'), 'income');
+    await user.click(within(dialog).getByRole('combobox', { name: /^Type/ }));
+    await user.click(await screen.findByRole('option', { name: 'Income' }));
     await user.click(within(dialog).getByRole('button', { name: 'Add item' }));
 
     await waitFor(() => expect(seen.some((r) => r.method === 'POST' && r.path === '/admin-api/expenses')).toBe(true));
@@ -133,7 +134,7 @@ describe('ExpensesPage', () => {
     await user.click(await within(await lines()).findByRole('button', { name: 'Edit Sponsor check' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit item' });
     expect((within(dialog).getByLabelText('Amount (required)') as HTMLInputElement).value).toBe('200.00');
-    expect((within(dialog).getByLabelText('Type (required)') as HTMLSelectElement).value).toBe('income');
+    expect((within(dialog).getByRole('combobox', { name: /^Type/ }) as HTMLInputElement).value).toBe('Income');
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     expect(await within(dialog).findByText('The amount field must not be greater than 999999.99.')).toBeTruthy();
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));

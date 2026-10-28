@@ -90,7 +90,8 @@ describe('AgendaPage', () => {
     const user = userEvent.setup();
     const { router } = await renderAt(Page, '/admin/agenda?f.show_id=4');
     await screen.findByRole('list', { name: 'Agenda items' });
-    await user.selectOptions(screen.getByLabelText('Type'), '2');
+    await user.click(screen.getByRole('combobox', { name: 'Type' }));
+    await user.click(await screen.findByRole('option', { name: 'Judging' }));
     await waitFor(() => expect(router.currentRoute.value.query['f.type_id']).toBe('2'));
     await waitFor(() => expect(seen.filter((r) => r.path === '/admin-api/agenda').at(-1)?.params.get('filter[type_id]')).toBe('2'));
     expect(await screen.findByText('Clear the type filter to change the order.')).toBeTruthy();

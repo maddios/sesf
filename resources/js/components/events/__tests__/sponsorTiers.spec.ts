@@ -10,9 +10,9 @@ describe('groupSponsorsByTier', () => {
   it('groups by tier in M, Gold, Silver, Bronze order and drops empty tiers', () => {
     const groups = groupSponsorsByTier([sponsor(1, 4), sponsor(2, 1), sponsor(3, 4), sponsor(4, 3)]);
     expect(groups.map((g) => [g.heading, g.sponsors.map((s) => s.id)])).toEqual([
-      ['M Class', [2]],
-      ['Silver Class', [4]],
-      ['Bronze Class', [1, 3]],
+      ['///M Class', [2]],
+      ['Silber Class', [4]],
+      ['Bronzit Class', [1, 3]],
     ]);
   });
 

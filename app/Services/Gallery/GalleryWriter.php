@@ -71,7 +71,8 @@ final class GalleryWriter
 
     /**
      * Stores an uploaded photo as the next item of the gallery. The row is created first (its id
-     * names the file); if the image is rejected or cannot be written the row is removed again.
+     * shards the directory; the file name is 128 random bits, so it cannot be guessed); if the image
+     * is rejected or cannot be written the row is removed again.
      *
      * @throws ImageUploadException when the file is not an acceptable image
      * @throws Throwable when the row or the file cannot be saved
@@ -80,6 +81,7 @@ final class GalleryWriter
     {
         $item = DB::transaction(function () use ($gallery, $uploader, $file, $lastModifiedDate): GalleryItem {
             $this->lockGallery((int) $gallery->id);
+            $this->assertWithinUploadLimits($gallery, $uploader);
 
             $name = mb_substr($file->getClientOriginalName(), 0, self::TITLE_MAX);
 
@@ -90,6 +92,7 @@ final class GalleryWriter
             $item->title = $name;
             $item->original_name = $name;
             $item->type_id = GalleryItemType::Image;
+            $item->forceFill(['file_name' => bin2hex(random_bytes(16)).'.jpg']);
             $item->save();
 
             $gallery->items()->attach($item->id, ['user_id' => $item->user_id]);
@@ -98,7 +101,7 @@ final class GalleryWriter
         });
 
         try {
-            $this->images->storeAs($file, $this->directoryFor((int) $item->id), $item->id.'.jpg');
+            $this->images->storeAs($file, $this->directoryFor((int) $item->id), (string) $item->file_name);
         } catch (Throwable $e) {
             $this->deleteItemRows($item);
 
@@ -155,7 +158,7 @@ final class GalleryWriter
     {
         $this->deleteItemRows($item);
 
-        $path = $this->directoryFor((int) $item->id).'/'.$item->id.'.jpg';
+        $path = rtrim((string) config('sesf.gallery_image_root'), '/\\').'/'.$item->relativeImagePath();
         if (is_file($path)) {
             @unlink($path);
         }
@@ -178,6 +181,34 @@ final class GalleryWriter
     private function lockGallery(int $galleryId): void
     {
         DB::table('gallery')->where('id', $galleryId)->lockForUpdate()->first(['id']);
+    }
+
+    /**
+     * @throws ImageUploadException when the album or the member's allowance for the show is full
+     */
+    private function assertWithinUploadLimits(Gallery $gallery, User $uploader): void
+    {
+        $albumLimit = (int) config('sesf.gallery_max_items_per_album');
+        $albumCount = DB::table('gallery_item_xref')->where('gallery_id', $gallery->id)->count();
+        if ($albumCount >= $albumLimit) {
+            throw ImageUploadException::albumFull($albumLimit);
+        }
+
+        if ($uploader->isAdmin()) {
+            return;
+        }
+
+        $memberLimit = (int) config('sesf.gallery_max_items_per_member_per_show');
+        $memberCount = DB::table('gallery_item')
+            ->join('gallery_item_xref', 'gallery_item.id', '=', 'gallery_item_xref.item_id')
+            ->join('gallery', 'gallery.id', '=', 'gallery_item_xref.gallery_id')
+            ->where('gallery_item.user_id', $uploader->id)
+            ->where('gallery.show_id', $gallery->show_id)
+            ->distinct()
+            ->count('gallery_item.id');
+        if ($memberCount >= $memberLimit) {
+            throw ImageUploadException::memberLimitReached($memberLimit);
+        }
     }
 
     private function nextSortOrder(int $galleryId): int

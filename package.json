@@ -39,6 +39,7 @@
         "vue-tsc": "3.3.13"
     },
     "dependencies": {
+        "pdfjs-dist": "6.4.299",
         "pinia": "4.1.0",
         "survey-core": "3.2.0",
         "survey-vue3-ui": "3.2.0",

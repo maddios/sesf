@@ -6,8 +6,15 @@ import { parsePrefill } from './prefill';
 import { clearPending, markCompleted, markPending, recoveryHint } from './recovery';
 import { reportToRum } from './rum';
 import { isTransient, MAX_SUBMIT_ATTEMPTS, retryDelayMs, SUBMIT_TIMEOUT_MS } from './retry';
+import { isSignatureDirty } from './dirty';
 import { SignaturePad } from './signature';
 import { renderTypedSignature } from './typed';
+
+declare global {
+    interface Window {
+        sesfWaiverIsDirty?: () => boolean;
+    }
+}
 
 const CAPTION_DEFAULT = 'Signature:';
 const CAPTION_MINOR = 'Signature (parent or guardian signing for the participant named above):';
@@ -204,7 +211,7 @@ export function mountSignPage(doc: Document, base: string): void {
 
         submitting = true;
         submit.disabled = true;
-        const result = await sendWithRetries(buildSignPayload(input, signatureMode, mainDataUrl, typeText.value, 'standalone'));
+        const result = await sendWithRetries(buildSignPayload(input, signatureMode, mainDataUrl, typeText.value, embedded ? 'embedded' : 'standalone'));
         const thankYouUrl = thankYouUrlOf(result);
         if (result.ok && thankYouUrl !== null) {
             markCompleted(base, thankYouUrl, Date.now());
@@ -269,6 +276,8 @@ export function mountSignPage(doc: Document, base: string): void {
         void submitWaiver();
     });
     window.addEventListener('resize', () => pad.resize());
+
+    window.sesfWaiverIsDirty = (): boolean => isSignatureDirty(completed, submitting, mainDataUrl, typeText.value);
 
     if (!embedded) {
         window.addEventListener('beforeunload', (event) => {

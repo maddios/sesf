@@ -1,14 +1,13 @@
 <script setup lang="ts">
 /**
- * On-site check-in for one event (legacy CheckinList), built for a phone at the door: one card per registration with
- * the legacy columns (waivers, T-shirts, paid, check-in, action), search by name, guest or invoice, "hide checked in"
- * and "coming soon", and the check-in modal. The event is in the hash query (?show_id=).
+ * On-site check-in for one event (legacy CheckinList), laid out like the legacy /admin2 check-in list: event filter,
+ * toolbar (add registration, hide checked in, coming soon), search by name, guest or invoice, the registrations table
+ * (cards on phones) and the check-in modal. The event is in the hash query (?show_id=).
  */
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import RelationSelect from '../../../components/admin/RelationSelect.vue';
-import BaseButton from '../../../components/ui/BaseButton.vue';
-import { ADMIN_API_BASE, mapAdminError } from '../../../composables/admin/useAdminResource';
+import EventFilter from '../../../components/admin/EventFilter.vue';
+import { mapAdminError } from '../../../composables/admin/useAdminResource';
 import CheckinActionsDialog from './components/CheckinActionsDialog.vue';
 import CheckinAddDialog from './components/CheckinAddDialog.vue';
 import { checkinApi, expectedArrival, isComingSoon, matchesSearch, shirtSummary, type CheckinRow } from './checkin';
@@ -24,6 +23,7 @@ const hideChecked = ref(false);
 const soonOnly = ref(false);
 const selectedId = ref<number | null>(null);
 const addOpen = ref(false);
+const searchInput = ref<HTMLInputElement | null>(null);
 
 const showId = computed<number | null>(() => {
   const raw = Array.isArray(route.query.show_id) ? route.query.show_id[0] : route.query.show_id;
@@ -40,6 +40,8 @@ const visible = computed(() => {
     return true;
   });
 });
+
+const checkedCount = computed(() => rows.value.filter((row) => row.is_checked_in).length);
 
 const selectedRow = computed(() => rows.value.find((row) => row.id === selectedId.value) ?? null);
 
@@ -75,191 +77,201 @@ function open(row: CheckinRow): void {
   selectedId.value = row.id;
 }
 
+function clearSearch(): void {
+  search.value = '';
+  searchInput.value?.focus();
+}
+
 watch(showId, () => void load());
 onMounted(() => void load());
 </script>
 
 <template>
-  <div class="space-y-4">
-    <div class="flex flex-wrap items-end justify-between gap-3">
-      <h1 class="page-title">
-        Check-in
-      </h1>
-      <BaseButton
-        variant="primary"
-        size="lg"
-        class="min-h-12"
+  <div class="a2-page">
+    <h1 class="sr-only">
+      Check-in
+    </h1>
+
+    <EventFilter
+      :model-value="showId"
+      @update:model-value="onShowChange"
+    />
+
+    <div class="a2-toolbar">
+      <button
+        type="button"
+        class="a2-btn a2-btn-info"
         :disabled="showId === null"
         @click="addOpen = true"
       >
         Add registration
-      </BaseButton>
-    </div>
-
-    <div class="grid gap-3 sm:grid-cols-2">
-      <div>
-        <label
-          for="checkin-show"
-          class="block text-sm font-medium text-text"
-        >Event</label>
-        <div class="mt-1">
-          <RelationSelect
-            id="checkin-show"
-            :endpoint="`${ADMIN_API_BASE}/lookups/events`"
-            :model-value="showId"
-            placeholder="Choose an event"
-            @update:model-value="onShowChange"
-          />
-        </div>
-      </div>
-      <div>
-        <label
-          for="checkin-search"
-          class="block text-sm font-medium text-text"
-        >Narrow by name (primary or guest) or registration number</label>
-        <div class="mt-1 flex gap-2">
-          <input
-            id="checkin-search"
-            v-model="search"
-            type="search"
-            autocomplete="off"
-            placeholder="Name or reg # (e.g. 42 or #42)…"
-            class="min-h-12 w-full min-w-0 rounded-md border border-border bg-surface px-3 text-base"
-          >
-          <button
-            v-if="search !== ''"
-            type="button"
-            class="min-h-12 min-w-12 rounded-md border border-border px-3"
-            aria-label="Clear search"
-            @click="search = ''"
-          >
-            ×
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <div class="flex flex-wrap items-center gap-4 text-base">
-      <label class="flex min-h-12 items-center gap-2">
+      </button>
+      <label class="a2-check">
         <input
           v-model="hideChecked"
           type="checkbox"
-          class="h-6 w-6"
         >
         Hide checked-in
       </label>
-      <label class="flex min-h-12 items-center gap-2">
+      <label class="a2-check">
         <input
           v-model="soonOnly"
           type="checkbox"
-          class="h-6 w-6"
         >
         Coming soon (next 6h)
       </label>
       <span
         v-if="showId !== null"
+        class="a2-toolbar-count"
         role="status"
-      ><strong>Showing:</strong> {{ visible.length }} · {{ rows.filter((row) => row.is_checked_in).length }} of {{ rows.length }} checked in</span>
+      ><b>Showing:</b> {{ visible.length }} · {{ checkedCount }} of {{ rows.length }} checked in</span>
+    </div>
+
+    <div class="a2-search">
+      <label
+        for="checkin-search"
+        class="a2-search-label"
+      >Narrow by name (primary or guest) or registration number</label>
+      <div class="a2-search-field">
+        <input
+          id="checkin-search"
+          ref="searchInput"
+          v-model="search"
+          type="search"
+          autocomplete="off"
+          placeholder="Name or reg # (e.g. 42 or #42)…"
+          class="a2-input"
+        >
+        <button
+          v-if="search.trim() !== ''"
+          type="button"
+          class="a2-search-clear"
+          aria-label="Clear search"
+          title="Clear search"
+          @click="clearSearch"
+        >
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
     </div>
 
     <p
       v-if="showId === null"
-      class="rounded-md border border-border bg-subtle p-4 text-sm"
+      class="a2-well"
     >
       Choose an event to start checking people in.
     </p>
     <p
       v-else-if="loadError"
       role="alert"
-      class="rounded-md border border-danger-border bg-danger-bg p-4 text-sm"
+      class="a2-alert a2-alert-error"
     >
       {{ loadError }}
     </p>
     <p
       v-else-if="loading && rows.length === 0"
-      class="text-sm text-muted"
+      class="a2-muted"
     >
       Loading registrations…
     </p>
     <p
       v-else-if="visible.length === 0"
-      class="rounded-md border border-border bg-subtle p-4 text-sm"
+      class="a2-muted"
     >
       No registrations match.
     </p>
 
-    <ul
+    <table
       v-else
-      class="space-y-3"
+      class="a2-table a2-cards a2-cards--pair"
       aria-label="Registrations"
     >
-      <li
-        v-for="row in visible"
-        :key="row.id"
-        class="rounded-md border border-border bg-surface p-4"
-        :data-registration-id="row.id"
-      >
-        <div class="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <p class="text-lg font-semibold">
-              {{ row.primary_name }}
-            </p>
-            <p class="text-sm text-muted">
-              Reg #{{ row.invoice_id }}
-            </p>
-          </div>
-          <div class="flex flex-wrap gap-1.5 text-sm">
+      <thead>
+        <tr>
+          <th scope="col">
+            Reg #
+          </th>
+          <th scope="col">
+            Name
+          </th>
+          <th scope="col">
+            Waivers
+          </th>
+          <th scope="col">
+            T-shirts
+          </th>
+          <th scope="col">
+            Paid
+          </th>
+          <th scope="col">
+            Check-in
+          </th>
+          <th scope="col">
+            Action
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr
+          v-for="row in visible"
+          :key="row.id"
+          :data-registration-id="row.id"
+        >
+          <td data-label="Reg #">
+            {{ row.invoice_id }}
+          </td>
+          <td
+            data-label="Name"
+            class="a2-cell-title"
+          >
+            {{ row.primary_name }}
+          </td>
+          <td
+            data-label="Waivers"
+            class="a2-cell-sep"
+          >
             <span
-              class="rounded-full px-2 py-0.5"
-              :class="row.party_complete ? 'bg-success-bg text-success-fg' : 'bg-warning-bg text-warning-fg'"
-            >{{ row.party_complete ? 'Waivers complete' : 'Waivers incomplete' }}</span>
+              class="a2-label"
+              :class="row.party_complete ? 'a2-label-success' : 'a2-label-warning'"
+            >{{ row.party_complete ? 'Complete' : 'Incomplete' }}</span>
+          </td>
+          <td data-label="T-shirts">
+            {{ row.shirt_lines.length === 0 ? 'None' : shirtSummary(row.shirt_lines) }}
+          </td>
+          <td data-label="Paid">
             <span
-              class="rounded-full px-2 py-0.5"
-              :class="row.is_paid ? 'bg-success-bg text-success-fg' : 'bg-warning-bg text-warning-fg'"
+              class="a2-label"
+              :class="row.is_paid ? 'a2-label-success' : 'a2-label-warning'"
             >{{ row.is_paid ? 'Paid' : 'Unpaid' }}</span>
-          </div>
-        </div>
-
-        <dl class="mt-3 grid gap-2 text-sm sm:grid-cols-3">
-          <div>
-            <dt class="text-muted">
-              T-shirts
-            </dt>
-            <dd>{{ row.shirt_lines.length === 0 ? 'None' : shirtSummary(row.shirt_lines) }}</dd>
-          </div>
-          <div>
-            <dt class="text-muted">
-              Check-in
-            </dt>
-            <dd v-if="row.is_checked_in">
-              <span class="rounded-full bg-success-bg px-2 text-success-fg">Checked in</span>
+          </td>
+          <td data-label="Check-in">
+            <template v-if="row.is_checked_in">
+              <span class="a2-label a2-label-success">Checked in</span>
               <span
                 v-if="row.checked_in_at"
-                class="block text-muted"
+                class="a2-muted a2-small block"
               >{{ new Date(row.checked_in_at).toLocaleString() }}</span>
-            </dd>
-            <dd v-else>
-              <span class="rounded-full border border-border px-2">Not checked in</span>
+            </template>
+            <template v-else>
+              <span class="a2-label">Not checked in</span>
               <span
                 v-if="expectedArrival(row)"
-                class="block text-muted"
+                class="a2-muted a2-small block"
               >Expected: {{ expectedArrival(row) }}</span>
-            </dd>
-          </div>
-        </dl>
-        <div class="mt-3 sm:flex sm:justify-end">
-          <BaseButton
-            :variant="row.is_checked_in ? 'default' : 'primary'"
-            size="lg"
-            block
-            class="min-h-12"
-            @click="open(row)"
-          >
-            {{ row.is_checked_in ? 'View / actions' : 'Check-in' }}
-          </BaseButton>
-        </div>
-      </li>
-    </ul>
+            </template>
+          </td>
+          <td class="a2-cell-nolabel">
+            <button
+              type="button"
+              class="a2-btn a2-btn-info a2-btn-block"
+              @click="open(row)"
+            >
+              {{ row.is_checked_in ? 'View / actions' : 'Check-in' }}
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
 
     <CheckinActionsDialog
       v-if="selectedRow"

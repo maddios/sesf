@@ -80,12 +80,12 @@ watch(
   },
 );
 
-const navLinkClass = 'text-nav uppercase tracking-[0.04em] no-underline';
+const navLinkClass = 'text-nav font-medium uppercase no-underline';
 </script>
 
 <template>
   <header class="mx-auto w-full max-w-site bg-panel shadow-header md:w-[calc(100%-2rem)]">
-    <div class="flex items-center gap-4 px-4 py-3 md:gap-8 md:px-panel md:py-5">
+    <div class="flex items-center gap-4 px-4 py-3 md:gap-8 md:px-panel md:py-[21px]">
       <RouterLink
         to="/"
         class="shrink-0 no-underline"
@@ -93,9 +93,9 @@ const navLinkClass = 'text-nav uppercase tracking-[0.04em] no-underline';
         <img
           :src="LOGO_SRC"
           alt="Southeast Sharkfest home"
-          width="170"
-          height="65"
-          class="h-12 w-auto md:h-[65px]"
+          width="182"
+          height="70"
+          class="h-12 w-auto md:h-[70px]"
         >
       </RouterLink>
 
@@ -111,7 +111,7 @@ const navLinkClass = 'text-nav uppercase tracking-[0.04em] no-underline';
             <RouterLink
               v-if="link.to"
               :to="link.to"
-              :class="[navLinkClass, 'border-b-2 py-1', isActive(link) ? 'border-brand font-semibold text-heading' : 'border-transparent text-muted hover:text-heading']"
+              :class="[navLinkClass, 'border-b-2 py-1', isActive(link) ? 'border-brand font-semibold text-heading' : 'border-transparent text-title hover:text-heading']"
               :aria-current="isActive(link) ? 'page' : undefined"
             >
               {{ link.label }}
@@ -119,7 +119,7 @@ const navLinkClass = 'text-nav uppercase tracking-[0.04em] no-underline';
             <a
               v-else
               :href="link.href"
-              :class="[navLinkClass, 'border-b-2 border-transparent py-1 text-muted hover:text-heading']"
+              :class="[navLinkClass, 'border-b-2 border-transparent py-1 text-title hover:text-heading']"
             >{{ link.label }}</a>
           </li>
         </ul>
@@ -128,12 +128,12 @@ const navLinkClass = 'text-nav uppercase tracking-[0.04em] no-underline';
       <div class="ml-auto hidden md:block">
         <ul
           v-if="!auth.isLoggedIn"
-          class="flex flex-col items-end gap-1.5 text-utility uppercase tracking-[0.04em]"
+          class="flex flex-col items-end gap-1.5 text-utility font-medium uppercase tracking-[0.5px]"
         >
           <li>
             <RouterLink
               to="/login"
-              class="text-text no-underline hover:text-brand hover:underline"
+              class="text-title no-underline hover:text-brand hover:underline"
             >
               Login
             </RouterLink>
@@ -141,7 +141,7 @@ const navLinkClass = 'text-nav uppercase tracking-[0.04em] no-underline';
           <li>
             <a
               href="#/register"
-              class="text-text no-underline hover:text-brand hover:underline"
+              class="text-title no-underline hover:text-brand hover:underline"
             >Create Account</a>
           </li>
         </ul>

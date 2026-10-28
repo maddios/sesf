@@ -3,7 +3,7 @@
  * Adds a car to judging: pick a registration, then its car, then a judging type offered for that car's body.
  */
 import { computed, ref, watch } from 'vue';
-import BaseButton from '../../../components/ui/BaseButton.vue';
+import BaseCombobox from '../../../components/ui/BaseCombobox.vue';
 import { mapAdminError } from '../../../composables/admin/useAdminResource';
 import { useToast } from '../../../composables/admin/useToast';
 import { addEntry, fetchTypes, fetchUnjudged, type JudgingType, type UnjudgedRegistration } from './judging';
@@ -30,6 +30,11 @@ let typesSequence = 0;
 
 const registration = computed(() => registrations.value.find((r) => String(r.registration_id) === registrationId.value) ?? null);
 const cars = computed(() => registration.value?.cars ?? []);
+const registrationOptions = computed(() =>
+  registrations.value.map((item) => ({ value: String(item.registration_id), label: `${item.name} (invoice ${item.invoice_id})` })),
+);
+const carOptions = computed(() => cars.value.map((car) => ({ value: String(car.car_id), label: car.name })));
+const typeOptions = computed(() => types.value.map((type) => ({ value: String(type.id), label: type.name })));
 const canSubmit = computed(() => carId.value !== '' && judgingTypeId.value !== '' && !submitting.value);
 
 function fieldError(field: string): string | undefined {
@@ -101,7 +106,7 @@ async function submit(): Promise<void> {
   <section aria-labelledby="add-judging-heading">
     <h2
       id="add-judging-heading"
-      class="text-lg font-semibold text-heading"
+      class="sr-only"
     >
       Add judging entry
     </h2>
@@ -109,13 +114,13 @@ async function submit(): Promise<void> {
     <p
       v-if="loadError"
       role="alert"
-      class="mt-2 text-danger"
+      class="a2-alert a2-alert-error mt-2"
     >
       {{ loadError }}
     </p>
     <p
       v-else-if="registrations.length === 0"
-      class="mt-2 text-muted"
+      class="a2-muted"
     >
       Every registered car in this event is already in judging.
     </p>
@@ -128,26 +133,17 @@ async function submit(): Promise<void> {
       <div>
         <label
           for="judging-registration"
-          class="block text-sm font-medium text-text"
+          class="a2-search-label"
         >Registration</label>
-        <select
+        <BaseCombobox
           id="judging-registration"
-          v-model="registrationId"
-          class="form-control mt-1"
+          :model-value="registrationId === '' ? null : registrationId"
+          :options="registrationOptions"
+          placeholder="Choose a registration"
           :aria-invalid="fieldError('registration_id') ? 'true' : undefined"
           :aria-describedby="fieldError('registration_id') ? 'judging-registration-error' : undefined"
-        >
-          <option value="">
-            Choose a registration
-          </option>
-          <option
-            v-for="item in registrations"
-            :key="item.registration_id"
-            :value="String(item.registration_id)"
-          >
-            {{ item.name }} (invoice {{ item.invoice_id }})
-          </option>
-        </select>
+          @update:model-value="(value) => (registrationId = value === null ? '' : String(value))"
+        />
         <p
           v-if="fieldError('registration_id')"
           id="judging-registration-error"
@@ -160,27 +156,18 @@ async function submit(): Promise<void> {
       <div>
         <label
           for="judging-car"
-          class="block text-sm font-medium text-text"
+          class="a2-search-label"
         >Car</label>
-        <select
+        <BaseCombobox
           id="judging-car"
-          v-model="carId"
-          class="form-control mt-1"
+          :model-value="carId === '' ? null : carId"
+          :options="carOptions"
+          placeholder="Choose a car"
           :disabled="registration === null"
           :aria-invalid="fieldError('car_id') ? 'true' : undefined"
           :aria-describedby="fieldError('car_id') ? 'judging-car-error' : undefined"
-        >
-          <option value="">
-            Choose a car
-          </option>
-          <option
-            v-for="car in cars"
-            :key="car.car_id"
-            :value="String(car.car_id)"
-          >
-            {{ car.name }}
-          </option>
-        </select>
+          @update:model-value="(value) => (carId = value === null ? '' : String(value))"
+        />
         <p
           v-if="fieldError('car_id')"
           id="judging-car-error"
@@ -193,27 +180,18 @@ async function submit(): Promise<void> {
       <div>
         <label
           for="judging-type"
-          class="block text-sm font-medium text-text"
+          class="a2-search-label"
         >Judging type</label>
-        <select
+        <BaseCombobox
           id="judging-type"
-          v-model="judgingTypeId"
-          class="form-control mt-1"
+          :model-value="judgingTypeId === '' ? null : judgingTypeId"
+          :options="typeOptions"
+          placeholder="Choose a type"
           :disabled="types.length === 0"
           :aria-invalid="fieldError('judging_type_id') ? 'true' : undefined"
           :aria-describedby="fieldError('judging_type_id') ? 'judging-type-error' : undefined"
-        >
-          <option value="">
-            Choose a type
-          </option>
-          <option
-            v-for="type in types"
-            :key="type.id"
-            :value="String(type.id)"
-          >
-            {{ type.name }}
-          </option>
-        </select>
+          @update:model-value="(value) => (judgingTypeId = value === null ? '' : String(value))"
+        />
         <p
           v-if="fieldError('judging_type_id')"
           id="judging-type-error"
@@ -224,13 +202,13 @@ async function submit(): Promise<void> {
       </div>
 
       <div class="flex items-end">
-        <BaseButton
+        <button
+          class="a2-btn a2-btn-info"
           type="submit"
-          variant="primary"
           :disabled="!canSubmit"
         >
           Add to judging
-        </BaseButton>
+        </button>
       </div>
 
       <p

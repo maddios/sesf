@@ -6,6 +6,7 @@
         <meta name="referrer" content="strict-origin-when-cross-origin">
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <title>@yield('title') · Southeast Sharkfest Judging</title>
+        @include('partials.datadog_rum')
         <link rel="icon" href="/images/favicon.ico" sizes="any">
         @vite($entries ?? ['resources/css/app.css'])
     </head>

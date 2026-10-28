@@ -152,7 +152,6 @@ describe('AppLayout', () => {
       'Settings',
       'Billing',
       'Admin',
-      'Judging',
       'Logout',
     ]);
     expect(screen.getByRole('menuitem', { name: 'Profile' }).getAttribute('href')).toBe('/fan/u7');

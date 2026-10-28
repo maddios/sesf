@@ -54,7 +54,6 @@ function table() {
   return screen.getByRole('table', { name: 'Waivers' });
 }
 
-/** Row checkboxes live in the table; the mobile card layout repeats them outside it. */
 async function tableCheckbox(name: string) {
   return within(await screen.findByRole('table', { name: 'Waivers' })).findByRole('checkbox', { name });
 }

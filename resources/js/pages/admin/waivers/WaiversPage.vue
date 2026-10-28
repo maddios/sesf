@@ -1,22 +1,24 @@
 <script setup lang="ts">
 /**
- * Waivers per event (legacy WaiversList). Opens on the most recent event. Each row has a checkbox; the bulk actions
- * regenerate missing PDFs, email the waiver request to the selected people, or remind every incomplete party. The
- * "Signed" filter and the check-in sort match the legacy page. Open signs the person's waiver; PDF opens a signed one.
- * Walk-in waivers signed at the event are listed below. Sends and PDF work are queued on the server.
+ * Waivers per event, laid out like the legacy /admin2 waivers_list: event filter (with the Signed filter and the
+ * check-in sort), the bulk bar (regenerate missing PDFs, send waiver emails to the selected people, remind every
+ * incomplete party), the roster (cards on phones) and the signed walk-in / QR waivers. Open signs the person's
+ * waiver; PDF opens a signed one. Sends and PDF work are queued on the server.
  */
-import { computed, onMounted, ref, watch } from 'vue';
-import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
-import RelationSelect from '../../../components/admin/RelationSelect.vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import EventFilter from '../../../components/admin/EventFilter.vue';
 import BaseButton from '../../../components/ui/BaseButton.vue';
-import { useAdminList } from '../../../composables/admin/useAdminList';
-import { ADMIN_API_BASE, mapAdminError, type ListResponse } from '../../../composables/admin/useAdminResource';
+import BaseCombobox from '../../../components/ui/BaseCombobox.vue';
+import { PER_PAGE_OPTIONS, useAdminList } from '../../../composables/admin/useAdminList';
+import { mapAdminError, type ListResponse } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
 import { defaultEventId } from '../reports/reports';
 import { STATUS_OPTIONS, formatDateTime, personOf, waiversApi, type RosterRow, type WalkInRow } from './waivers';
 
 const EMPTY: ListResponse<RosterRow> = { data: [], meta: { page: 1, per_page: 25, total: 0, last_page: 1 } };
+const PER_PAGE_CHOICES = PER_PAGE_OPTIONS.map((perPage) => ({ value: perPage, label: String(perPage) }));
+const SEARCH_DEBOUNCE_MS = 300;
 
 const showId = ref<number | null>(null);
 const sortCheckedIn = ref(false);
@@ -32,14 +34,17 @@ const list = useAdminList<RosterRow>({
   filterKeys: ['status'],
 });
 
+const searchText = ref(list.state.value.search);
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+
 const COLUMNS = computed(() => [
-  { key: 'invoice_id', label: 'Invoice ID', sortable: true, align: 'left' as const },
+  { key: 'invoice_id', label: 'Invoice ID', sortable: true },
   { key: 'first', label: 'First Name', sortable: true },
   { key: 'last', label: 'Last Name', sortable: true },
   { key: 'email', label: 'Email', sortable: true },
   { key: 'status', label: 'Signed', sortable: true },
   { key: 'arrival', label: 'Arriving', sortable: true },
-  ...(sortCheckedIn.value ? [{ key: 'date_checked_in', label: 'Checked in' }] : []),
+  ...(sortCheckedIn.value ? [{ key: 'date_checked_in', label: 'Checked in', sortable: false }] : []),
   { key: 'signed_at', label: 'Date signed', sortable: true },
 ]);
 
@@ -77,16 +82,44 @@ onMounted(async () => {
   }
 });
 
+onBeforeUnmount(() => clearTimeout(searchTimer));
+
 function onEvent(value: number | null): void {
   showId.value = value;
 }
 
-function onStatus(value: string): void {
-  void list.setFilter('status', value === '' ? null : value);
+function onStatus(value: string | number | null): void {
+  void list.setFilter('status', value === null || value === '' ? null : String(value));
 }
 
 function statusValue(): string {
   return list.state.value.filters.status ?? '';
+}
+
+function onSearch(value: string): void {
+  searchText.value = value;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => void list.setSearch(value), SEARCH_DEBOUNCE_MS);
+}
+
+function clearSearch(): void {
+  clearTimeout(searchTimer);
+  searchText.value = '';
+  void list.setSearch('');
+}
+
+function onPerPage(value: string | number | null): void {
+  if (value !== null) void list.setPerPage(Number(value));
+}
+
+function ariaSort(key: string): 'ascending' | 'descending' | 'none' {
+  if (list.state.value.sort !== key) return 'none';
+  return list.state.value.direction === 'asc' ? 'ascending' : 'descending';
+}
+
+function sortMark(key: string): string {
+  if (list.state.value.sort !== key) return '⇅';
+  return list.state.value.direction === 'asc' ? '▲' : '▼';
 }
 
 function openSignUrl(row: RosterRow): string {
@@ -179,268 +212,392 @@ async function regeneratePdfs(): Promise<void> {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <h1 class="page-title">
+  <div class="a2-page">
+    <h1 class="sr-only">
       Waivers
     </h1>
 
-    <div class="sm:w-96">
-      <label
-        for="waivers-event"
-        class="block text-sm font-medium text-text"
-      >Event</label>
-      <div class="mt-1">
-        <RelationSelect
-          id="waivers-event"
-          :endpoint="`${ADMIN_API_BASE}/lookups/events`"
-          :model-value="showId"
-          placeholder="Choose an event"
-          @update:model-value="onEvent"
+    <EventFilter
+      :model-value="showId"
+      @update:model-value="onEvent"
+    >
+      <div>
+        <label
+          for="waivers-filter-status"
+          class="a2-small"
+        >Signed</label>
+        <BaseCombobox
+          id="waivers-filter-status"
+          :model-value="statusValue()"
+          :options="STATUS_OPTIONS"
+          @update:model-value="onStatus"
         />
       </div>
-    </div>
+      <label class="a2-check">
+        <input
+          v-model="sortCheckedIn"
+          type="checkbox"
+          name="sort_checked_in"
+        >
+        Sort by check-in time (most recent first; not checked in at bottom)
+      </label>
+    </EventFilter>
 
     <p
       v-if="showId === null"
-      class="text-muted"
+      class="a2-well"
     >
       Choose an event to see its waivers.
     </p>
 
     <template v-else>
-      <div class="flex flex-wrap items-end gap-3">
-        <div>
-          <label
-            for="waivers-filter-status"
-            class="block text-sm font-medium text-text"
-          >Signed</label>
-          <select
-            id="waivers-filter-status"
-            class="form-control mt-1"
-            :value="statusValue()"
-            @change="onStatus(($event.target as HTMLSelectElement).value)"
-          >
-            <option
-              v-for="option in STATUS_OPTIONS"
-              :key="option.value"
-              :value="option.value"
-            >
-              {{ option.label }}
-            </option>
-          </select>
-        </div>
-        <label class="flex items-center gap-2 text-sm text-text">
-          <input
-            v-model="sortCheckedIn"
-            type="checkbox"
-            name="sort_checked_in"
-          >
-          Sort by check-in time (most recent first; not checked in at bottom)
-        </label>
-      </div>
-
-      <div class="flex flex-wrap gap-2">
-        <BaseButton
-          :loading="busy === 'pdfs'"
-          loading-label="Queuing PDFs"
+      <div class="mb-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          class="a2-btn a2-btn-info"
+          :disabled="busy !== null"
           @click="regeneratePdfs"
         >
           Regenerate missing PDFs
-        </BaseButton>
-        <BaseButton
-          :loading="busy === 'send'"
-          loading-label="Queuing emails"
-          :disabled="selected.length === 0"
+        </button>
+        <button
+          type="button"
+          class="a2-btn a2-btn-info"
+          :disabled="busy !== null || selected.length === 0"
           @click="sendSelected"
         >
           Send waiver emails
-        </BaseButton>
-        <BaseButton
-          :loading="busy === 'reminders'"
-          loading-label="Queuing reminders"
+        </button>
+        <button
+          type="button"
+          class="a2-btn a2-btn-info"
+          :disabled="busy !== null"
           @click="sendReminders"
         >
           Send waiver reminders
-        </BaseButton>
+        </button>
       </div>
 
-      <p class="flex flex-wrap items-center gap-3 text-sm">
-        <b>Num Users: {{ list.meta.value.total }}</b>
+      <h2 class="a2-legend">
+        Result
+      </h2>
+
+      <div class="a2-toolbar">
+        <span class="a2-toolbar-count"><b>Num Users: {{ list.meta.value.total }}</b></span>
+        <span class="a2-links">
+          <BaseButton
+            variant="link"
+            size="sm"
+            @click="selectAll"
+          >
+            Select all
+          </BaseButton>
+          <BaseButton
+            variant="link"
+            size="sm"
+            @click="unselectAll"
+          >
+            Unselect all
+          </BaseButton>
+        </span>
+      </div>
+
+      <div class="a2-search">
+        <label
+          for="waivers-search"
+          class="a2-search-label"
+        >Search waivers</label>
+        <div class="a2-search-field">
+          <input
+            id="waivers-search"
+            type="search"
+            autocomplete="off"
+            class="a2-input"
+            :value="searchText"
+            @input="onSearch(($event.target as HTMLInputElement).value)"
+          >
+          <button
+            v-if="searchText.trim() !== ''"
+            type="button"
+            class="a2-search-clear"
+            aria-label="Clear search"
+            title="Clear search"
+            @click="clearSearch"
+          >
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+      </div>
+
+      <p
+        v-if="list.error.value"
+        role="alert"
+        class="a2-alert a2-alert-error"
+      >
+        {{ list.error.value }}
         <BaseButton
-          variant="link"
-          @click="selectAll"
+          size="sm"
+          @click="list.reload"
         >
-          Select all
-        </BaseButton>
-        <BaseButton
-          variant="link"
-          @click="unselectAll"
-        >
-          Unselect all
+          Try again
         </BaseButton>
       </p>
-
-      <AdminDataTable
-        label="Waivers"
-        search-label="Search waivers"
-        row-key="row_key"
-        :columns="COLUMNS"
-        :rows="list.rows.value"
-        :meta="list.meta.value"
-        :state="list.state.value"
-        :loading="list.loading.value"
-        :error="list.error.value"
-        empty-message="No one is on this event's waiver list."
-        @sort="list.setSort"
-        @page="list.setPage"
-        @search="list.setSearch"
-        @per-page="list.setPerPage"
-        @retry="list.reload"
+      <p
+        v-else-if="list.loading.value && list.rows.value.length === 0"
+        class="a2-muted"
       >
-        <template #cell-invoice_id="{ row }">
-          <label class="inline-flex items-center gap-2">
-            <input
-              type="checkbox"
-              :aria-label="`Select ${fullName(row)}`"
-              :checked="selected.includes(row.row_key)"
-              @change="toggle(row, ($event.target as HTMLInputElement).checked)"
+        Loading…
+      </p>
+
+      <table
+        v-else
+        class="a2-table a2-cards a2-cards--pair"
+        aria-label="Waivers"
+      >
+        <thead>
+          <tr>
+            <th
+              v-for="column in COLUMNS"
+              :key="column.key"
+              scope="col"
+              :aria-sort="column.sortable ? ariaSort(column.key) : undefined"
             >
-            <span>{{ row.invoice_id }}</span>
-          </label>
-          <span
-            v-if="row.kind === 'guest'"
-            class="ml-2 rounded-sm bg-subtle px-1 text-xs"
-          >guest</span>
-        </template>
-        <template #cell-status="{ row }">
-          <span v-if="row.status === 'signed'">
-            Yes
-            <a
-              v-if="row.pdf_url"
-              :href="row.pdf_url"
-              target="_blank"
-              rel="noopener noreferrer"
-              :aria-label="`Open signed waiver PDF for ${fullName(row)}`"
-            >PDF</a>
-          </span>
-          <span v-else>
-            {{ row.status === 'not_signed' ? 'Pending' : 'Not sent' }}
-            <a
-              :href="openSignUrl(row)"
-              target="_blank"
-              rel="noopener noreferrer"
-              :aria-label="`Open waiver for ${fullName(row)}`"
-            >Open</a>
-          </span>
-        </template>
-        <template #cell-arrival="{ row }">
-          {{ row.arrival ?? '' }}
-        </template>
-        <template #cell-date_checked_in="{ row }">
-          {{ formatDateTime(row.checked_in_at) }}
-        </template>
-        <template #cell-signed_at="{ row }">
-          {{ row.status === 'signed' ? formatDateTime(row.signed_at) : '—' }}
-        </template>
-        <template #cell-email="{ row }">
-          {{ row.email ?? '' }}
-        </template>
-      </AdminDataTable>
-
-      <section
-        aria-labelledby="walk-ins-heading"
-        class="space-y-3"
-      >
-        <h2
-          id="walk-ins-heading"
-          class="text-lg font-semibold text-heading"
-        >
-          Signed walk-in / QR waivers
-        </h2>
-        <p class="flex flex-wrap gap-3">
-          <a
-            class="btn"
-            :href="`/waiver_sign/s/${showId}`"
-            target="_blank"
-            rel="noopener noreferrer"
-          >Open generic waiver for this event</a>
-          <a
-            class="btn"
-            :href="blankPdfUrl()"
-            target="_blank"
-            rel="noopener noreferrer"
-          >Blank waiver PDF (print)</a>
-        </p>
-        <p
-          v-if="walkIns.length === 0"
-          class="text-muted"
-        >
-          None for this event.
-        </p>
-        <template v-else>
-          <table
-            class="w-full text-sm"
-            aria-label="Walk-in waivers"
-          >
-            <thead>
-              <tr>
-                <th
-                  scope="col"
-                  class="text-left"
-                >
-                  First name
-                </th>
-                <th
-                  scope="col"
-                  class="text-left"
-                >
-                  Last name
-                </th>
-                <th
-                  scope="col"
-                  class="text-left"
-                >
-                  Email
-                </th>
-                <th
-                  scope="col"
-                  class="text-left"
-                >
-                  Signed
-                </th>
-                <th
-                  scope="col"
-                  class="text-left"
-                >
-                  PDF
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="walkIn in walkIns"
-                :key="walkIn.waiver_id ?? `${walkIn.first}-${walkIn.signed_at}`"
+              <BaseButton
+                v-if="column.sortable"
+                variant="link"
+                size="sm"
+                @click="list.setSort(column.key)"
               >
-                <td>{{ walkIn.first }}</td>
-                <td>{{ walkIn.last }}</td>
-                <td>{{ walkIn.email ?? '' }}</td>
-                <td>{{ formatDateTime(walkIn.signed_at) }}</td>
-                <td>
-                  <a
-                    v-if="walkIn.pdf_url"
-                    :href="walkIn.pdf_url"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >PDF</a>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <p class="text-sm text-muted">
-            <b>Count:</b> {{ walkIns.length }}
-          </p>
-        </template>
-      </section>
+                {{ column.label }}
+                <span aria-hidden="true">{{ sortMark(column.key) }}</span>
+              </BaseButton>
+              <template v-else>
+                {{ column.label }}
+              </template>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="row in list.rows.value"
+            :key="row.row_key"
+          >
+            <td
+              data-label="Invoice ID"
+              class="a2-cell-title"
+            >
+              <label class="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  :aria-label="`Select ${fullName(row)}`"
+                  :checked="selected.includes(row.row_key)"
+                  @change="toggle(row, ($event.target as HTMLInputElement).checked)"
+                >
+                <span>{{ row.invoice_id }}</span>
+              </label>
+              <span
+                v-if="row.kind === 'guest'"
+                class="a2-label a2-label-info ml-2"
+              >guest</span>
+            </td>
+            <td
+              data-label="First Name"
+              class="a2-cell-half"
+            >
+              {{ row.first }}
+            </td>
+            <td
+              data-label="Last Name"
+              class="a2-cell-half"
+            >
+              {{ row.last }}
+            </td>
+            <td data-label="Email">
+              {{ row.email ?? '' }}
+            </td>
+            <td
+              data-label="Signed"
+              class="a2-cell-sep"
+            >
+              <template v-if="row.status === 'signed'">
+                <span class="a2-label a2-label-success">Yes</span>
+                <a
+                  v-if="row.pdf_url"
+                  :href="row.pdf_url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="ml-1.5"
+                  :aria-label="`Open signed waiver PDF for ${fullName(row)}`"
+                >PDF</a>
+              </template>
+              <template v-else>
+                <span
+                  class="a2-label"
+                  :class="row.status === 'not_signed' ? 'a2-label-warning' : 'a2-label-pending'"
+                >{{ row.status === 'not_signed' ? 'Pending' : 'Not sent' }}</span>
+                <a
+                  :href="openSignUrl(row)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="ml-1.5"
+                  :aria-label="`Open waiver for ${fullName(row)}`"
+                >Open</a>
+              </template>
+            </td>
+            <td
+              data-label="Arriving"
+              class="a2-cell-half"
+            >
+              {{ row.arrival ?? '' }}
+            </td>
+            <td
+              v-if="sortCheckedIn"
+              data-label="Checked in"
+              class="a2-cell-half"
+            >
+              {{ formatDateTime(row.checked_in_at) }}
+            </td>
+            <td
+              data-label="Date signed"
+              class="a2-cell-half"
+            >
+              {{ row.status === 'signed' ? formatDateTime(row.signed_at) : '—' }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p
+        v-if="!list.loading.value && !list.error.value && list.rows.value.length === 0"
+        class="a2-muted"
+      >
+        No one is on this event's waiver list.
+      </p>
+
+      <nav
+        class="mt-3 mb-6 flex flex-wrap items-center gap-2.5"
+        aria-label="Roster pages"
+      >
+        <button
+          type="button"
+          class="a2-btn"
+          :disabled="list.meta.value.page <= 1"
+          @click="list.setPage(list.meta.value.page - 1)"
+        >
+          Previous
+        </button>
+        <span class="a2-muted">Page {{ list.meta.value.page }} of {{ list.meta.value.last_page }}</span>
+        <button
+          type="button"
+          class="a2-btn"
+          :disabled="list.meta.value.page >= list.meta.value.last_page"
+          @click="list.setPage(list.meta.value.page + 1)"
+        >
+          Next
+        </button>
+        <label
+          for="waivers-per-page"
+          class="a2-small ml-auto"
+        >Per page</label>
+        <BaseCombobox
+          id="waivers-per-page"
+          class="w-28"
+          :model-value="list.state.value.perPage"
+          :options="PER_PAGE_CHOICES"
+          @update:model-value="onPerPage"
+        />
+      </nav>
+
+      <h2 class="a2-legend">
+        Signed walk-in / QR waivers
+      </h2>
+      <p class="a2-links mb-2.5">
+        <a
+          class="a2-btn"
+          :href="`/waiver_sign/s/${showId}`"
+          target="_blank"
+          rel="noopener noreferrer"
+        >Open generic waiver for this event</a>
+        <a
+          class="a2-btn"
+          :href="blankPdfUrl()"
+          target="_blank"
+          rel="noopener noreferrer"
+        >Blank waiver PDF (print)</a>
+      </p>
+      <p
+        v-if="walkIns.length === 0"
+        class="a2-muted"
+      >
+        None for this event.
+      </p>
+      <template v-else>
+        <table
+          class="a2-table a2-cards"
+          aria-label="Walk-in waivers"
+        >
+          <thead>
+            <tr>
+              <th scope="col">
+                First name
+              </th>
+              <th scope="col">
+                Last name
+              </th>
+              <th scope="col">
+                Email
+              </th>
+              <th scope="col">
+                Signed
+              </th>
+              <th scope="col">
+                PDF
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="walkIn in walkIns"
+              :key="walkIn.waiver_id ?? `${walkIn.first}-${walkIn.signed_at}`"
+            >
+              <td
+                data-label="First name"
+                class="a2-cell-title"
+              >
+                {{ walkIn.first }}
+              </td>
+              <td
+                data-label="Last name"
+                class="a2-cell-half"
+              >
+                {{ walkIn.last }}
+              </td>
+              <td data-label="Email">
+                {{ walkIn.email ?? '' }}
+              </td>
+              <td
+                data-label="Signed"
+                class="a2-cell-half"
+              >
+                {{ formatDateTime(walkIn.signed_at) }}
+              </td>
+              <td
+                data-label="PDF"
+                class="a2-cell-half"
+              >
+                <a
+                  v-if="walkIn.pdf_url"
+                  :href="walkIn.pdf_url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >PDF</a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="a2-small mt-2.5">
+          <b>Count:</b> {{ walkIns.length }}
+        </p>
+      </template>
     </template>
   </div>
 </template>

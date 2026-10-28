@@ -23,6 +23,8 @@ use Illuminate\Validation\Rule;
  * Cars (legacy: constrained to the member's cars): each id is a car of the (new) member or already on this
  * registration (a car sold since keeps its place). An empty list while cancelling keeps the stored cars.
  * is_paid and amount_owed_cents may be null: the writer's rule applies (AdminAmounts).
+ * expected_amount_received_cents and expected_discount_cents are the stored values the form was loaded with
+ * (received_cents and discount_cents of the resource); a mismatch with the locked row is a 409.
  */
 final class RegistrationUpdateRequest extends FormRequest
 {
@@ -70,6 +72,8 @@ final class RegistrationUpdateRequest extends FormRequest
             'discount_note' => ['nullable', 'string', 'max:65535', new Latin1Text],
             'is_paid' => ['nullable', 'boolean'],
             'amount_owed_cents' => ['nullable', ...$money],
+            'expected_amount_received_cents' => ['required', ...$money],
+            'expected_discount_cents' => ['required', ...$money],
         ];
     }
 
@@ -143,6 +147,8 @@ final class RegistrationUpdateRequest extends FormRequest
             discountNote: $note === '' ? null : $note,
             isPaid: $this->filled('is_paid') ? $this->boolean('is_paid') : null,
             owedCents: $this->filled('amount_owed_cents') ? $this->integer('amount_owed_cents') : null,
+            expectedReceivedCents: $this->integer('expected_amount_received_cents'),
+            expectedDiscountCents: $this->integer('expected_discount_cents'),
         );
     }
 

@@ -5,6 +5,7 @@
  */
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import BaseCombobox from '../../../components/ui/BaseCombobox.vue';
 import { mapAdminError } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
@@ -47,6 +48,9 @@ const showId = computed<number | null>(() => {
   if (shows.value.some((show) => show.id === requested)) return requested;
   return shows.value[0]?.id ?? null;
 });
+
+const showOptions = computed(() => shows.value.map((show) => ({ value: show.id, label: show.name })));
+const TYPE_OPTIONS = [{ value: '', label: 'All' }, ...JUDGING_TYPE_FILTERS.map((type) => ({ value: String(type.id), label: type.name }))];
 
 const selectedShow = computed<JudgingShow | null>(() => shows.value.find((show) => show.id === showId.value) ?? null);
 
@@ -110,98 +114,115 @@ async function remove(entry: JudgingEntry): Promise<void> {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <h1 class="page-title">
+  <div class="a2-page">
+    <h1 class="sr-only">
       Judging
     </h1>
 
     <p
       v-if="showsError"
       role="alert"
-      class="text-danger"
+      class="a2-alert a2-alert-error"
     >
       {{ showsError }}
     </p>
 
-    <div class="flex flex-wrap items-end gap-3">
-      <div class="min-w-64 flex-1 sm:max-w-md">
-        <label
-          for="judging-show"
-          class="block text-sm font-medium text-text"
-        >Event</label>
-        <select
-          id="judging-show"
-          class="form-control mt-1"
-          :value="showId === null ? '' : String(showId)"
-          :disabled="shows.length === 0"
-          @change="updateQuery({ show: ($event.target as HTMLSelectElement).value })"
-        >
-          <option
-            v-for="show in shows"
-            :key="show.id"
-            :value="String(show.id)"
-          >
-            {{ show.name }}
-          </option>
-        </select>
+    <template v-if="shows.length > 0">
+      <h2 class="a2-legend">
+        Filter
+      </h2>
+      <div class="mb-3 grid gap-3 sm:grid-cols-2 sm:gap-4 md:max-w-3xl">
+        <div>
+          <label
+            for="judging-show"
+            class="a2-search-label"
+          >Event</label>
+          <BaseCombobox
+            id="judging-show"
+            :model-value="showId"
+            :options="showOptions"
+            @update:model-value="(value) => value !== null && updateQuery({ show: String(value) })"
+          />
+        </div>
+        <div>
+          <label
+            for="judging-type-filter"
+            class="a2-search-label"
+          >Filter by type</label>
+          <BaseCombobox
+            id="judging-type-filter"
+            :model-value="typeId === null ? '' : String(typeId)"
+            :options="TYPE_OPTIONS"
+            @update:model-value="(value) => updateQuery({ type: value === null || value === '' ? null : String(value) })"
+          />
+        </div>
       </div>
-      <div class="min-w-48">
-        <label
-          for="judging-type-filter"
-          class="block text-sm font-medium text-text"
-        >Filter by type</label>
-        <select
-          id="judging-type-filter"
-          class="form-control mt-1"
-          :value="typeId === null ? '' : String(typeId)"
-          @change="updateQuery({ type: ($event.target as HTMLSelectElement).value || null })"
-        >
-          <option value="">
-            All
-          </option>
-          <option
-            v-for="type in JUDGING_TYPE_FILTERS"
-            :key="type.id"
-            :value="String(type.id)"
-          >
-            {{ type.name }}
-          </option>
-        </select>
-      </div>
-    </div>
+    </template>
 
     <template v-if="showId !== null">
-      <div class="flex flex-wrap items-center gap-4 text-sm">
-        <a
-          :href="drawUrl(showId)"
-          target="_blank"
-          rel="noopener"
-          class="text-link underline"
-        >Draw winners</a>
-        <a
-          :href="qrSheetUrl(showId)"
-          target="_blank"
-          rel="noopener"
-          class="text-link underline"
-        >QR sheet (PDF)</a>
-        <span
-          class="text-muted"
-          aria-live="polite"
+      <h2 class="a2-legend">
+        Result
+      </h2>
+
+      <div class="mb-4">
+        <details
+          v-if="auth.isAdmin"
+          class="a2-accordion"
         >
-          {{ loadingEntries ? 'Loading cars…' : `${entries.length} ${entries.length === 1 ? 'car' : 'cars'}` }}
-        </span>
+          <summary>Event judges</summary>
+          <div class="a2-accordion-body">
+            <EventJudges :show-id="showId" />
+          </div>
+        </details>
+        <details class="a2-accordion">
+          <summary>New judging entry</summary>
+          <div class="a2-accordion-body">
+            <AddJudgingEntry
+              :show-id="showId"
+              @added="loadEntries"
+            />
+          </div>
+        </details>
+        <details
+          v-if="auth.isAdmin && selectedShow !== null"
+          class="a2-accordion"
+        >
+          <summary>Results release and emails</summary>
+          <div class="a2-accordion-body">
+            <JudgingResults
+              :show="selectedShow"
+              @changed="loadShows"
+            />
+          </div>
+        </details>
       </div>
+
+      <p class="a2-toolbar">
+        <b aria-live="polite">{{ loadingEntries ? 'Loading cars…' : `Num Cars: ${entries.length}` }}</b>
+        <span class="a2-links">
+          <a
+            :href="drawUrl(showId)"
+            target="_blank"
+            rel="noopener"
+          >Draw winners</a>
+          <a
+            :href="qrSheetUrl(showId)"
+            target="_blank"
+            rel="noopener"
+          >QR sheet (PDF)</a>
+        </span>
+      </p>
 
       <p
         v-if="entriesError"
         role="alert"
-        class="text-danger"
+        class="a2-alert a2-alert-error"
       >
         {{ entriesError }}
       </p>
       <p
         v-else-if="!loadingEntries && entries.length === 0"
-        class="text-muted"
+        class="a2-muted"
       >
         No cars are in judging for this selection.
       </p>
@@ -210,26 +231,13 @@ async function remove(entry: JudgingEntry): Promise<void> {
         :entries="entries"
         @remove="remove"
       />
-
-      <AddJudgingEntry
-        :show-id="showId"
-        @added="loadEntries"
-      />
-
-      <template v-if="auth.isAdmin && selectedShow !== null">
-        <EventJudges :show-id="showId" />
-        <JudgingResults
-          :show="selectedShow"
-          @changed="loadShows"
-        />
-      </template>
     </template>
 
-    <p
+    <h2
       v-else-if="!showsError && shows.length === 0"
-      class="text-muted"
+      class="a2-legend"
     >
-      No events are open for judging.
-    </p>
+      Not a judge for any events
+    </h2>
   </div>
 </template>

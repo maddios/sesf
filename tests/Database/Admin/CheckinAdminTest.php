@@ -2,6 +2,8 @@
 
 namespace Tests\Database\Admin;
 
+use App\Jobs\Admin\SendOutreachMail;
+use App\Jobs\Waivers\ThrottleWaiverMail;
 use App\Mail\RegistrationPayLinkMail;
 use App\Mail\WaiverReminderMail;
 use App\Models\Car;
@@ -16,9 +18,13 @@ use Database\Factories\CarBodyFactory;
 use Database\Factories\ShirtTypeFactory;
 use Database\Factories\ShowExtraFactory;
 use Database\Factories\ShowRegistrationFactory;
+use Illuminate\Log\Events\MessageLogged;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Queue;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
+use RuntimeException;
 
 /**
  * admin-api/checkin: the event list, check-in and check-out (paid, waivers, override), waiver reminder, sign links,
@@ -206,6 +212,90 @@ class CheckinAdminTest extends AdminTestCase
 
         Mail::assertSent(WaiverReminderMail::class, fn (WaiverReminderMail $mail): bool => $mail->hasTo($registration->user->email));
         $this->assertSame('registration.waiver_reminder', collect($this->auditEntries())->last()['action']);
+    }
+
+    #[Test]
+    public function the_outreach_mails_are_queued_not_sent_in_the_request(): void
+    {
+        Queue::fake();
+        Mail::fake();
+        $show = $this->registrationShow();
+        $registration = $this->registrationWithCarAndGuest($show);
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->postJson(self::BASE."/registrations/{$registration->id}/waiver-reminder")->assertOk();
+        $this->actingAs($admin)->postJson(self::BASE."/registrations/{$registration->id}/pay-link-email")->assertOk();
+
+        Mail::assertNothingSent();
+        Queue::assertPushed(SendOutreachMail::class, 2);
+        Queue::assertPushed(SendOutreachMail::class, fn (SendOutreachMail $job): bool => $job->mail instanceof WaiverReminderMail
+            && $job->to === $registration->user->email
+            && $job->middleware()[0] instanceof ThrottleWaiverMail);
+    }
+
+    #[Test]
+    public function a_failure_while_dispatching_is_logged_and_does_not_fail_the_request(): void
+    {
+        $errors = $this->captureErrorLog();
+        Mail::shouldReceive('to')->andThrow(new RuntimeException('smtp down'));
+        $show = $this->registrationShow();
+        $registration = $this->registrationWithCarAndGuest($show);
+
+        $this->actingAs($this->admin())
+            ->postJson(self::BASE."/registrations/{$registration->id}/pay-link-email")
+            ->assertOk()
+            ->assertJsonPath('queued', false)
+            ->assertJsonStructure(['message']);
+
+        $this->assertContains('Check-in email could not be queued', $errors->getArrayCopy());
+    }
+
+    #[Test]
+    public function a_walk_in_registration_whose_mails_cannot_be_queued_stays_created_and_says_so(): void
+    {
+        $errors = $this->captureErrorLog();
+        Mail::shouldReceive('to')->andThrow(new RuntimeException('smtp down'));
+        $show = $this->registrationShow();
+        $member = $this->memberWithCar();
+        $car = Car::query()->where('user_id', $member->id)->firstOrFail();
+
+        $this->actingAs($this->admin())
+            ->postJson(self::BASE."/shows/{$show->id}/registrations", $this->payload($show, $member, $car))
+            ->assertStatus(201)
+            ->assertJsonPath('queued', false)
+            ->assertJsonStructure(['message']);
+
+        $this->assertSame(1, ShowRegistration::query()->where('user_id', $member->id)->where('show_id', $show->id)->count());
+    }
+
+    #[Test]
+    public function a_double_submitted_walk_in_registration_is_refused_and_writes_nothing_twice(): void
+    {
+        Queue::fake();
+        $show = $this->registrationShow();
+        $member = $this->memberWithCar();
+        $car = Car::query()->where('user_id', $member->id)->firstOrFail();
+        $admin = $this->admin();
+        $payload = $this->payload($show, $member, $car);
+
+        $this->actingAs($admin)->postJson(self::BASE."/shows/{$show->id}/registrations", $payload)->assertStatus(201);
+        $this->actingAs($admin)->postJson(self::BASE."/shows/{$show->id}/registrations", $payload)->assertStatus(409);
+
+        $registration = ShowRegistration::query()->where('user_id', $member->id)->where('show_id', $show->id)->firstOrFail();
+        $this->assertSame(1, ShowRegistration::query()->where('user_id', $member->id)->where('show_id', $show->id)->count());
+        $this->assertSame(1, UserGuest::query()->where('registration_id', $registration->id)->count());
+        Queue::assertPushed(SendOutreachMail::class, 2);
+    }
+
+    #[Test]
+    public function a_failed_outreach_job_is_logged(): void
+    {
+        $errors = $this->captureErrorLog();
+
+        (new SendOutreachMail('a@example.test', new WaiverReminderMail('u', 'Ann', 'Show'), WaiverReminderMail::class))
+            ->failed(new RuntimeException('smtp down'));
+
+        $this->assertSame(['Check-in email failed'], $errors->getArrayCopy());
     }
 
     #[Test]
@@ -486,6 +576,20 @@ class CheckinAdminTest extends AdminTestCase
         Car::factory()->create(['user_id' => $member->id, 'body_id' => CarBodyFactory::E24]);
 
         return $member;
+    }
+
+    /** @return \ArrayObject<int, string> */
+    private function captureErrorLog(): \ArrayObject
+    {
+        /** @var \ArrayObject<int, string> $errors */
+        $errors = new \ArrayObject;
+        Event::listen(MessageLogged::class, function (MessageLogged $log) use ($errors): void {
+            if ($log->level === 'error') {
+                $errors[] = $log->message;
+            }
+        });
+
+        return $errors;
     }
 
     /**

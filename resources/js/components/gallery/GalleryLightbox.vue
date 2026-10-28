@@ -2,8 +2,10 @@
 /**
  * Photo viewer for a gallery: one photo at a time with Previous / Next, the date taken, the uploader and a link
  * to the original. Keys (as legacy): Left/Up previous, Right/Down/Space next, Escape closes. A horizontal swipe
- * moves between photos, the Zoom button shows the photo at full size, and the neighbouring photos are preloaded.
- * Navigation waits until the current photo has loaded or failed.
+ * moves between photos and the Zoom button shows the photo at full size. The viewer never waits for the network:
+ * while the 1070x800 photo loads, the grid thumbnail (already in the browser cache) is shown blurred in its place.
+ * Once the current photo has loaded, the next and previous photos are preloaded at low priority when the browser is
+ * idle. When `items` is replaced while open (the full list arriving), the current photo stays on screen.
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
@@ -27,7 +29,12 @@ const loading = ref(true);
 const zoomed = ref(false);
 let swipeStartX: number | null = null;
 
+const preloaded = new Set<string>();
+let mounted = true;
+
 const item = computed<GalleryItem | undefined>(() => props.items[index.value]);
+const photoSrc = computed(() => (item.value ? resizedImageUrl(item.value.imageUrl, LEGACY_IMAGE_SIZES.galleryLightbox) : ''));
+const thumbnailSrc = computed(() => (item.value ? resizedImageUrl(item.value.imageUrl, LEGACY_IMAGE_SIZES.galleryItem) : ''));
 const hasPrev = computed(() => index.value > 0);
 const hasNext = computed(() => index.value < props.items.length - 1);
 const title = computed(() => `Photo ${index.value + 1} of ${props.items.length}`);
@@ -43,10 +50,35 @@ watch(
   { immediate: true },
 );
 
+watch(
+  () => props.items,
+  (list, previous) => {
+    const currentId = previous?.[index.value]?.id;
+    const kept = currentId === undefined ? -1 : list.findIndex((row) => row.id === currentId);
+    if (kept >= 0) index.value = kept;
+  },
+);
+
+function whenIdle(task: () => void): void {
+  if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(task, { timeout: 2000 });
+  else window.setTimeout(task, 200);
+}
+
 function preloadNeighbours(): void {
-  for (const neighbour of [props.items[index.value - 1], props.items[index.value + 1]]) {
-    if (neighbour !== undefined && neighbour.imageUrl !== '') new Image().src = resizedImageUrl(neighbour.imageUrl, LEGACY_IMAGE_SIZES.galleryLightbox);
-  }
+  const expected = index.value;
+  whenIdle(() => {
+    if (!mounted || !props.open || index.value !== expected) return;
+    for (const neighbour of [props.items[expected + 1], props.items[expected - 1]]) {
+      if (neighbour === undefined || neighbour.imageUrl === '') continue;
+      const src = resizedImageUrl(neighbour.imageUrl, LEGACY_IMAGE_SIZES.galleryLightbox);
+      if (preloaded.has(src)) continue;
+      preloaded.add(src);
+      const image = new Image();
+      image.fetchPriority = 'low';
+      image.decoding = 'async';
+      image.src = src;
+    }
+  });
 }
 
 function onLoaded(): void {
@@ -66,7 +98,6 @@ function onPointerUp(event: PointerEvent): void {
 }
 
 function go(step: -1 | 1): void {
-  if (loading.value) return;
   const next = index.value + step;
   if (next < 0 || next >= props.items.length) return;
   index.value = next;
@@ -101,14 +132,17 @@ watch(
   { immediate: true },
 );
 
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
+onBeforeUnmount(() => {
+  mounted = false;
+  window.removeEventListener('keydown', onKeydown);
+});
 </script>
 
 <template>
   <BaseModal
     :open="open"
     :title="title"
-    size="lg"
+    size="xl"
     close-label="Close photo viewer"
     @update:open="emit('update:open', $event)"
   >
@@ -117,7 +151,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
       class="space-y-3"
     >
       <div
-        class="flex max-h-[70vh] min-h-48 touch-pan-y bg-subtle"
+        class="relative flex max-h-[70vh] min-h-48 touch-pan-y bg-subtle"
         :class="zoomed ? 'overflow-auto' : 'items-center justify-center overflow-hidden'"
         data-testid="lightbox-stage"
         @pointerdown="onPointerDown"
@@ -126,19 +160,30 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
       >
         <img
           :key="item.id"
-          :src="resizedImageUrl(item.imageUrl, LEGACY_IMAGE_SIZES.galleryLightbox)"
+          :src="photoSrc"
           :alt="item.title"
+          fetchpriority="high"
+          decoding="async"
           class="transition-opacity"
-          :class="[loading ? 'opacity-0' : 'opacity-100', zoomed ? 'max-w-none' : 'max-h-[70vh] w-auto max-w-full object-contain']"
+          :class="[loading ? 'absolute inset-0 m-auto opacity-0' : 'opacity-100', zoomed ? 'max-w-none' : 'max-h-[70vh] w-auto max-w-full object-contain']"
           draggable="false"
           @load="onLoaded"
           @error="loading = false"
+        >
+        <img
+          v-if="loading"
+          :key="`thumb-${item.id}`"
+          :src="thumbnailSrc"
+          alt=""
+          aria-hidden="true"
+          data-testid="lightbox-placeholder"
+          class="h-[min(70vh,800px)] w-full scale-105 object-contain blur-sm"
+          draggable="false"
         >
       </div>
       <div class="flex items-center justify-between gap-3">
         <BaseButton
           v-if="hasPrev"
-          :disabled="loading"
           @click="go(-1)"
         >
           <span aria-hidden="true">←</span> Previous
@@ -153,7 +198,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
         </BaseButton>
         <BaseButton
           v-if="hasNext"
-          :disabled="loading"
           @click="go(1)"
         >
           Next <span aria-hidden="true">→</span>

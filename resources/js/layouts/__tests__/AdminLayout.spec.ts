@@ -63,8 +63,8 @@ describe('AdminLayout', () => {
     const { router } = await renderAt(App, '/admin');
     const nav = await screen.findByRole('navigation', { name: 'Admin' });
     await user.click(within(nav).getByRole('link', { name: 'Sponsors' }));
-    await screen.findByRole('heading', { name: 'Sponsors' });
-    expect(router.currentRoute.value.name).toBe('admin-sponsors');
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('admin-sponsors'));
+    await screen.findByRole('heading', { level: 1, name: 'Sponsors' });
     expect(within(nav).getByRole('link', { name: 'Sponsors' }).getAttribute('aria-current')).toBe('page');
     const crumbs = within(screen.getByRole('navigation', { name: 'Breadcrumb' }));
     expect(crumbs.getByRole('link', { name: 'Admin' })).toBeTruthy();
@@ -94,6 +94,19 @@ describe('AdminLayout', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Sign out' }));
     await vi.waitFor(() => expect(router.currentRoute.value.path).toBe('/'));
     expect(seen.some((r) => r.path === '/login/logout')).toBe(true);
+  });
+
+  it('shows a judge only the judging pages', async () => {
+    stubAdminFetch(({ path }) => {
+      if (path === '/admin-api/judging/shows') return jsonResponse(200, { data: [] });
+      if (path === '/admin-api/impersonation') return jsonResponse(200, { data: { impersonating: false, impersonator_name: null } });
+      return undefined;
+    }, { ...ADMIN_SESSION, user_level: 2, type_id: 2 });
+    const { router } = await renderAt(App, '/admin');
+    expect(router.currentRoute.value.name).toBe('admin-judging');
+    const nav = await screen.findByRole('navigation', { name: 'Admin' });
+    expect(within(nav).getAllByRole('link').map((link) => link.textContent?.trim())).toEqual(['Judging']);
+    expect(within(screen.getByRole('navigation', { name: 'Breadcrumb' })).queryByRole('link')).toBeNull();
   });
 
   it('sends members home and guests to the login page', async () => {

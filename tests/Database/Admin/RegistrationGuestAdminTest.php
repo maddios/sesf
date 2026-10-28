@@ -5,6 +5,7 @@ namespace Tests\Database\Admin;
 use App\Models\User;
 use App\Models\UserGuest;
 use Database\Factories\UserGuestFactory;
+use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -246,6 +247,48 @@ class RegistrationGuestAdminTest extends AdminTestCase
         $this->assertSame('65.00', (string) $to->refresh()->amount_owed);
         $entry = collect($this->auditEntries())->firstWhere('action', 'registration_guest.update');
         $this->assertSame(['old' => $from->id, 'new' => $to->id], $entry['changes']['registration_id']);
+    }
+
+    #[Test]
+    public function a_move_locks_both_members_in_id_order_before_anything_else(): void
+    {
+        $show = $this->registrationShow();
+        $to = $this->registrationWithCarAndGuest($show);
+        $from = $this->registrationWithCarAndGuest($show);
+        $moving = UserGuestFactory::new()->forRegistration($from)->create();
+        $admin = $this->admin();
+        $queries = [];
+        DB::listen(function ($query) use (&$queries): void {
+            $queries[] = $query;
+        });
+
+        $this->actingAs($admin)->putJson(self::BASE.'/'.$moving->id, $this->guestBody(['registration_id' => $to->id]))->assertOk();
+
+        $writes = array_values(array_filter($queries, fn ($q): bool => preg_match('/^(update|insert|delete)|for update$/i', trim($q->sql)) === 1));
+        $this->assertMatchesRegularExpression('/^select .* from `user` where `id` in \(\?, \?\) order by `id` asc for update$/', $writes[0]->sql);
+        $ids = [(int) $from->user_id, (int) $to->user_id];
+        sort($ids);
+        $locked = array_map(intval(...), $writes[0]->bindings);
+        sort($locked);
+        $this->assertSame($ids, $locked);
+    }
+
+    #[Test]
+    public function the_added_guest_is_read_back_inside_the_write_transaction(): void
+    {
+        $registration = $this->registrationWithCarAndGuest($this->registrationShow());
+        $levels = [];
+        DB::listen(function ($query) use (&$levels): void {
+            if (preg_match('/from `user_guest` .*order by `id` desc limit 1/', $query->sql) === 1) {
+                $levels[] = DB::transactionLevel();
+            }
+        });
+        $baseline = DB::transactionLevel();
+
+        $this->actingAs($this->admin())->postJson(self::BASE, $this->guestBody(['registration_id' => $registration->id, 'first' => 'Kid']))->assertCreated();
+
+        $this->assertNotEmpty($levels);
+        $this->assertGreaterThan($baseline, min($levels));
     }
 
     #[Test]

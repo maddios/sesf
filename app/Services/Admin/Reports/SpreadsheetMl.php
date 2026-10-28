@@ -3,13 +3,11 @@
 namespace App\Services\Admin\Reports;
 
 /**
- * Writes SpreadsheetML 2003 (the legacy .xls export). Text that a spreadsheet could read as a formula
- * is prefixed with an apostrophe, and XML-unsafe characters are removed or escaped.
+ * Writes SpreadsheetML 2003 (the legacy .xls export). Every text cell is typed String, so spreadsheet
+ * apps never evaluate it as a formula; XML-unsafe characters are removed or escaped.
  */
 final class SpreadsheetMl
 {
-    private const FORMULA_PREFIXES = ['=', '+', '-', '@', "\t", "\r"];
-
     public static function open(): string
     {
         return '<?xml version="1.0" encoding="UTF-8"?>'."\n"
@@ -62,22 +60,12 @@ final class SpreadsheetMl
             return '<Cell><Data ss:Type="String">'.($value ? 'Yes' : 'No').'</Data></Cell>';
         }
 
-        return '<Cell><Data ss:Type="String">'.self::escape(self::text($value)).'</Data></Cell>';
+        return '<Cell><Data ss:Type="String">'.self::escape($value === null ? '' : (string) $value).'</Data></Cell>';
     }
 
     private static function styled(string $cell, string $style): string
     {
         return str_replace('<Cell>', '<Cell ss:StyleID="'.$style.'">', $cell);
-    }
-
-    private static function text(mixed $value): string
-    {
-        $text = $value === null ? '' : (string) $value;
-        if ($text !== '' && in_array($text[0], self::FORMULA_PREFIXES, true)) {
-            return "'".$text;
-        }
-
-        return $text;
     }
 
     private static function escape(string $text): string

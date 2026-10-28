@@ -1,20 +1,19 @@
 <script setup lang="ts">
 /**
- * Expense tracker for one event (legacy /expense_tracker, now admin-only). The event is chosen above and kept in the
- * hash query as ?show_id= (legacy URLs redirect here). Shows the legacy totals: registration fees, net (actual
- * received), each expense and income line, total expenses and gross (net minus expenses). Lines are added, edited
- * and deleted in a dialog. Expenses are positive and shown in red parentheses; income is negative.
+ * Expense tracker for one event (legacy /expense_tracker, now admin-only), laid out like the legacy /admin2 page: event
+ * filter, the registration income well, the expense and income lines (cards on phones), and the totals. The event is
+ * kept in the hash query as ?show_id= (legacy URLs redirect here). Lines are added, edited and deleted in a sheet.
+ * Expenses are positive and shown in red parentheses; income is negative.
  */
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import FormField from '../../../components/FormField.vue';
+import EventFilter from '../../../components/admin/EventFilter.vue';
 import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
+import FormField from '../../../components/FormField.vue';
 import MoneyInput from '../../../components/admin/MoneyInput.vue';
-import RelationSelect from '../../../components/admin/RelationSelect.vue';
 import { formatAdminDate } from '../../../components/admin/format';
 import type { FormValues } from '../../../components/admin/types';
-import BaseButton from '../../../components/ui/BaseButton.vue';
-import { ADMIN_API_BASE, mapAdminError } from '../../../composables/admin/useAdminResource';
+import { mapAdminError } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
 import {
@@ -126,35 +125,25 @@ function grossText(decimal: string): string {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <h1 class="page-title">
+  <div class="a2-page">
+    <h1 class="sr-only">
       Expense tracker
     </h1>
 
-    <div class="sm:w-80">
-      <label
-        for="expenses-show"
-        class="block text-sm font-medium text-text"
-      >Event</label>
-      <div class="mt-1">
-        <RelationSelect
-          id="expenses-show"
-          :endpoint="`${ADMIN_API_BASE}/lookups/events`"
-          :model-value="showId"
-          placeholder="Choose an event"
-          @update:model-value="chooseShow"
-        />
-      </div>
-    </div>
+    <EventFilter
+      :model-value="showId"
+      @update:model-value="chooseShow"
+    />
 
     <p
       v-if="showId === null"
-      class="text-muted"
+      class="a2-well"
     >
       Choose an event to see its expenses.
     </p>
     <p
       v-else-if="loading"
+      class="a2-muted"
       role="status"
     >
       Loading expenses…
@@ -162,156 +151,150 @@ function grossText(decimal: string): string {
     <div
       v-else-if="error"
       role="alert"
-      class="space-y-2"
+      class="a2-alert a2-alert-error"
     >
-      <p class="text-danger">
-        {{ error }}
-      </p>
-      <BaseButton
-        size="sm"
+      <p>{{ error }}</p>
+      <button
+        type="button"
+        class="a2-btn a2-btn-small mt-2"
         @click="load"
       >
         Try again
-      </BaseButton>
+      </button>
     </div>
 
     <template v-else-if="ledger">
-      <section aria-labelledby="expenses-income">
+      <section
+        class="a2-well"
+        aria-labelledby="expenses-income"
+      >
         <h2
           id="expenses-income"
-          class="text-lg font-semibold"
+          class="font-bold"
         >
           Registration Income
         </h2>
         <dl class="mt-2 grid max-w-xl grid-cols-[1fr_auto] gap-x-4 gap-y-1">
           <dt>Registration Fees</dt>
-          <dd class="text-right tabular-nums">
+          <dd class="a2-num">
             {{ formatAmount(ledger.totals.registration_fees) }}
           </dd>
           <dt>Net (Actual received registration fees)</dt>
-          <dd class="text-right tabular-nums">
+          <dd class="a2-num">
             {{ formatAmount(ledger.totals.net_received) }}
           </dd>
         </dl>
       </section>
 
-      <section
-        aria-labelledby="expenses-lines"
-        class="space-y-2"
-      >
-        <div class="flex flex-wrap items-center justify-between gap-2">
+      <section aria-labelledby="expenses-lines">
+        <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <h2
             id="expenses-lines"
-            class="text-lg font-semibold"
+            class="a2-legend"
           >
             Expense and Income
           </h2>
-          <BaseButton
-            variant="primary"
+          <button
+            type="button"
+            class="a2-btn a2-btn-info"
             @click="openCreate"
           >
             New item
-          </BaseButton>
+          </button>
         </div>
-        <p class="text-sm text-muted">
+        <p class="a2-muted a2-small mb-2">
           Expenses are shown in red, in parentheses.
         </p>
-        <div class="overflow-x-auto">
-          <table
-            class="w-full text-sm"
-            aria-labelledby="expenses-lines"
-          >
-            <thead>
-              <tr class="border-b border-border text-left">
-                <th
-                  scope="col"
-                  class="py-2 pr-3"
-                >
-                  Description
-                </th>
-                <th
-                  scope="col"
-                  class="py-2 pr-3"
-                >
-                  Date
-                </th>
-                <th
-                  scope="col"
-                  class="py-2 pr-3 text-right"
-                >
-                  Amount
-                </th>
-                <th
-                  scope="col"
-                  class="py-2"
-                >
-                  <span class="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="ledger.data.length === 0">
-                <td
-                  colspan="4"
-                  class="py-2 text-muted"
-                >
-                  No expenses or income yet.
-                </td>
-              </tr>
-              <tr
-                v-for="item in ledger.data"
-                :key="item.id"
-                class="border-b border-border"
+        <table
+          class="a2-table a2-cards"
+          aria-labelledby="expenses-lines"
+        >
+          <thead>
+            <tr>
+              <th scope="col">
+                Description
+              </th>
+              <th scope="col">
+                Date
+              </th>
+              <th
+                scope="col"
+                class="a2-num"
               >
-                <td class="py-2 pr-3">
-                  {{ item.description }}
-                </td>
-                <td class="py-2 pr-3 whitespace-nowrap">
-                  {{ formatAdminDate(item.created_at) }}
-                </td>
-                <td
-                  class="py-2 pr-3 text-right tabular-nums"
-                  :class="item.type === 'expense' ? 'text-danger' : undefined"
-                >
-                  {{ item.type === 'expense' ? `(${formatAmount(item.amount)})` : formatAmount(item.amount) }}
-                  <span class="sr-only">{{ item.type }}</span>
-                </td>
-                <td class="py-2 text-right">
-                  <div class="inline-flex gap-1">
-                    <BaseButton
-                      size="sm"
-                      :aria-label="`Edit ${item.description || `item ${item.id}`}`"
-                      @click="openEdit(item)"
-                    >
-                      Edit
-                    </BaseButton>
-                    <BaseButton
-                      size="sm"
-                      variant="danger"
-                      :loading="busyId === item.id"
-                      :aria-label="`Delete ${item.description || `item ${item.id}`}`"
-                      @click="remove(item)"
-                    >
-                      Delete
-                    </BaseButton>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <dl class="mt-2 grid max-w-xl grid-cols-[1fr_auto] gap-x-4 gap-y-1">
+                Amount
+              </th>
+              <th scope="col">
+                <span class="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="ledger.data.length === 0">
+              <td
+                colspan="4"
+                class="a2-cell-nolabel a2-muted"
+              >
+                No expenses or income yet.
+              </td>
+            </tr>
+            <tr
+              v-for="item in ledger.data"
+              :key="item.id"
+            >
+              <td
+                data-label="Description"
+                class="a2-cell-title"
+              >
+                {{ item.description }}
+              </td>
+              <td data-label="Date">
+                {{ formatAdminDate(item.created_at) }}
+              </td>
+              <td
+                data-label="Amount"
+                class="a2-num"
+                :class="item.type === 'expense' ? 'text-[#a94442]' : undefined"
+              >
+                {{ item.type === 'expense' ? `(${formatAmount(item.amount)})` : formatAmount(item.amount) }}
+                <span class="sr-only">{{ item.type }}</span>
+              </td>
+              <td class="a2-cell-nolabel">
+                <div class="flex justify-end gap-1">
+                  <button
+                    type="button"
+                    class="a2-btn a2-btn-info a2-btn-small"
+                    :aria-label="`Edit ${item.description || `item ${item.id}`}`"
+                    @click="openEdit(item)"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    class="a2-btn a2-btn-danger a2-btn-small"
+                    :disabled="busyId === item.id"
+                    :aria-label="`Delete ${item.description || `item ${item.id}`}`"
+                    @click="remove(item)"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <dl class="a2-well mt-3 grid max-w-xl grid-cols-[1fr_auto] gap-x-4 gap-y-1">
           <dt>Total Expenses</dt>
           <dd
-            class="text-right tabular-nums"
-            :class="isPositive(ledger.totals.total_expenses) ? 'text-danger' : undefined"
+            class="a2-num"
+            :class="isPositive(ledger.totals.total_expenses) ? 'text-[#a94442]' : undefined"
           >
             {{ totalText(ledger.totals.total_expenses) }}
           </dd>
           <dt>Gross (Registration fees - Expenses)</dt>
           <dd
-            class="text-right tabular-nums"
-            :class="isNegative(ledger.totals.gross) ? 'text-danger' : undefined"
+            class="a2-num"
+            :class="isNegative(ledger.totals.gross) ? 'text-[#a94442]' : undefined"
           >
             {{ grossText(ledger.totals.gross) }}
           </dd>

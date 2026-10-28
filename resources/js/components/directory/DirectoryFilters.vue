@@ -17,6 +17,8 @@ const props = defineProps<{
   values: DirectoryParams;
   /** Accessible name of the filter form, e.g. "Filter members". */
   label: string;
+  /** One row above the grid (event tabs) instead of a sidebar column. */
+  inline?: boolean;
 }>();
 
 const emit = defineEmits<{ change: [patch: Partial<DirectoryParams>] }>();
@@ -46,7 +48,7 @@ function onSearch(): void {
 
 <template>
   <form
-    class="space-y-4"
+    :class="inline ? 'flex flex-wrap items-end gap-x-6 gap-y-3' : 'space-y-4'"
     role="search"
     :aria-label="label"
     @submit.prevent="onSearch"
@@ -55,7 +57,10 @@ function onSearch(): void {
       v-for="field in fields"
       :key="field.name"
     >
-      <div v-if="field.kind === 'select'">
+      <div
+        v-if="field.kind === 'select'"
+        :class="inline ? 'w-56' : undefined"
+      >
         <label
           :for="fieldId(field.name)"
           class="block text-sm font-semibold text-heading"
@@ -78,25 +83,30 @@ function onSearch(): void {
           </option>
         </select>
       </div>
-      <div v-else>
+      <div
+        v-else
+        :class="inline ? 'w-72' : undefined"
+      >
         <label
           :for="fieldId(field.name)"
           class="block text-sm font-semibold text-heading"
         >{{ field.label }}</label>
-        <input
-          :id="fieldId(field.name)"
-          v-model="draft.name"
-          type="text"
-          :placeholder="field.placeholder"
-          autocomplete="off"
-          class="mt-1 block w-full rounded-sm border border-border-strong bg-panel px-2 py-1.5 text-sm text-text"
-        >
-        <button
-          type="submit"
-          class="mt-2 rounded-sm border border-default-border bg-default px-3 py-1 text-sm text-text hover:bg-default-hover"
-        >
-          Search
-        </button>
+        <div :class="inline ? 'mt-1 flex gap-2' : undefined">
+          <input
+            :id="fieldId(field.name)"
+            v-model="draft.name"
+            type="text"
+            :placeholder="field.placeholder"
+            autocomplete="off"
+            :class="['block w-full rounded-sm border border-border-strong bg-panel px-2 py-1.5 text-sm text-text', inline ? '' : 'mt-1']"
+          >
+          <button
+            type="submit"
+            :class="['shrink-0 rounded-sm border border-default-border bg-default px-3 py-1 text-sm text-text hover:bg-default-hover', inline ? '' : 'mt-2']"
+          >
+            Search
+          </button>
+        </div>
       </div>
     </template>
   </form>

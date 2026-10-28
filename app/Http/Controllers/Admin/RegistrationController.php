@@ -10,6 +10,7 @@ use App\Models\Car;
 use App\Models\ShowRegistration;
 use App\Services\Admin\AdminRegistrationWriter;
 use App\Services\Registration\RegistrationPricing;
+use App\Services\Registration\Writer\RegistrationChanged;
 use App\Services\Registration\Writer\RegistrationRejected;
 use App\Support\Admin\AdminQuery;
 use App\Support\Admin\AuditLog;
@@ -27,10 +28,11 @@ use Illuminate\Support\Facades\DB;
  */
 final class RegistrationController extends Controller
 {
-    /** Fields an admin edit can change (the audit diff). */
+    /** Fields an admin edit can change (the audit diff); a reassignment also clears the waiver and check-in. */
     private const EDITABLE = [
         'invoice_id', 'user_id', 'donation', 'arrival_date', 'arrival_time', 'is_cancelled', 'is_paid',
         'amount_owed', 'amount_received', 'amount_received_actual', 'discount', 'discount_note',
+        'waiver_id', 'has_signed', 'is_checked_in', 'date_checked_in',
     ];
 
     public function __construct(private readonly AdminRegistrationWriter $writer) {}
@@ -91,6 +93,8 @@ final class RegistrationController extends Controller
             $this->writer->update($model, $request->edit());
         } catch (RegistrationRejected $e) {
             return RegistrationErrors::adminResponse($e);
+        } catch (RegistrationChanged $e) {
+            return response()->json(['message' => $e->getMessage(), 'code' => 'registration_changed'], 409);
         } catch (UniqueConstraintViolationException) {
             // A concurrent edit took the invoice number or the member first (validation checks both).
             return response()->json(['message' => 'That invoice number or member is already used for this event.'], 409);
@@ -104,7 +108,8 @@ final class RegistrationController extends Controller
 
     /**
      * Deletes a registration (legacy frozennode delete); its cars, guests, shirts and extras go with it. A registration
-     * with money received, PayPal payments or waivers is a 409: cancel it instead, so the records are kept.
+     * with money received, PayPal payments, waivers (its own or a guest's, which the guest cascade would delete) or
+     * judging answers (no cascade) is a 409: cancel it instead, so the records are kept.
      */
     public function destroy(int $registration): JsonResponse
     {
@@ -116,6 +121,10 @@ final class RegistrationController extends Controller
                 'amount_received' => RegistrationPricing::signedCents((string) $locked->amount_received) !== 0 ? 1 : 0,
                 'paypal_payment' => DB::table('paypal_payment')->where('registration_id', $model->id)->count(),
                 'waiver' => DB::table('waiver')->where('show_registration_id', $model->id)->count(),
+                'guest_waiver' => DB::table('waiver')->whereIn('guest_id', DB::table('user_guest')->select('id')->where('registration_id', $model->id))->count(),
+                'judging_answers' => DB::table('show_registration_car_judging')
+                    ->whereIn('show_registration_car_id', DB::table('show_registration_car')->select('id')->where('registration_id', $model->id))
+                    ->count(),
             ]);
             if ($references === []) {
                 $locked->delete();
@@ -126,7 +135,7 @@ final class RegistrationController extends Controller
 
         if ($references !== []) {
             return response()->json([
-                'message' => 'This registration has payments or waivers ('.implode(', ', array_keys($references)).') and cannot be deleted. Cancel it instead.',
+                'message' => 'This registration has payments, waivers or judging answers ('.implode(', ', array_keys($references)).') and cannot be deleted. Cancel it instead.',
                 'references' => $references,
             ], 409);
         }

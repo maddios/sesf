@@ -101,6 +101,31 @@ class HtmlSanitizerTest extends TestCase
                 '<p>Ok</p>',
                 'svg',
             ],
+            'legacy center and big are kept' => [
+                '<p><center><big>Primary Sponsors</big></center></p>',
+                '<p></p><center><big>Primary Sponsors</big></center>',
+                '',
+            ],
+            'legacy button and alignment classes are kept, other classes dropped' => [
+                '<a href="/x" class="btn btn-danger evil-overlay">Go</a><p class="text-center foo">C</p><span class="x">S</span>',
+                '<a href="/x" class="btn btn-danger">Go</a><p class="text-center">C</p><span>S</span>',
+                'evil',
+            ],
+            'style keeps sizes and alignment only' => [
+                '<img src="/a.jpg" style="height:188px; width:250px; position:fixed; background:url(x)"><p style="text-align: Center;color:red">T</p>',
+                '<img src="/a.jpg" style="height: 188px; width: 250px"><p style="text-align: center">T</p>',
+                'url(',
+            ],
+            'style with expressions or unknown units is removed' => [
+                '<div style="width: expression(alert(1)); margin: 1px 2px 3px 4px 5px">D</div>',
+                '<div>D</div>',
+                'expression',
+            ],
+            'align keeps keywords only' => [
+                '<p align="CENTER">A</p><td align="javascript:x">B</td>',
+                '<p align="center">A</p><td>B</td>',
+                'javascript',
+            ],
             'escaped text stays escaped' => [
                 '<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>',
                 '<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>',

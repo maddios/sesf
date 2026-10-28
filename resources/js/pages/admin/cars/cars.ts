@@ -51,8 +51,8 @@ export const carsApi = useAdminResource<Car, CarInput>('cars');
 
 export function carFields(options: CarOptions): AdminField[] {
   return [
-    { name: 'user_id', label: 'Owner' },
-    { name: 'type_id', label: 'Type', type: 'select', required: true, options: options.types.map(toSelect) },
+    { name: 'user_id', label: 'Owner', section: 'Owner', wide: true, hint: 'Leave empty for a sold car.' },
+    { name: 'type_id', label: 'Type', type: 'select', required: true, section: 'Vehicle', options: options.types.map(toSelect) },
     { name: 'body_id', label: 'Body', type: 'select', required: true, options: options.bodies.map(toSelect), hint: 'Body style, e.g. coupe or sedan.' },
     { name: 'year', label: 'Year', maxlength: 5 },
     { name: 'model', label: 'Model', maxlength: 30 },
@@ -70,7 +70,7 @@ export const CAR_COLUMNS: AdminColumn<Car>[] = [
   { key: 'id', label: 'ID', sortable: true, hideOnMobile: true },
   { key: 'model', label: 'Year, model', sortable: true, format: (row) => `${row.year ?? ''} ${row.model ?? ''}`.trim() },
   { key: 'nickname', label: 'Nickname', sortable: true, hideOnMobile: true },
-  { key: 'owner_name', label: 'Owner', hideOnMobile: true },
+  { key: 'owner_name', label: 'Owner' },
   { key: 'type_name', label: 'Type', hideOnMobile: true },
   { key: 'body_name', label: 'Body', hideOnMobile: true },
   { key: 'VIN', label: 'VIN', sortable: true, hideOnMobile: true },

@@ -45,22 +45,22 @@ export interface ExtraInput {
 export const extrasApi = useAdminResource<Extra, ExtraInput>('extras');
 
 export const EXTRA_FIELDS: AdminField[] = [
-  { name: 'name', label: 'Name', required: true, maxlength: 64 },
+  { name: 'name', label: 'Name', required: true, maxlength: 64, section: 'Details' },
   { name: 'type_id', label: 'Type', type: 'select', required: true, options: EXTRA_TYPE_OPTIONS },
   { name: 'price', label: 'Price', type: 'money', required: true, hint: 'In dollars, for example 12.50.' },
-  { name: 'min_value', label: 'Minimum quantity', type: 'number' },
+  { name: 'min_value', label: 'Minimum quantity', type: 'number', section: 'Quantity' },
   { name: 'max_value', label: 'Maximum quantity', type: 'number' },
-  { name: 'auth_key', label: 'Landing key', maxlength: 64, hint: 'Public key in the extras link. Letters, digits, dashes and underscores. Leave blank for none.' },
+  { name: 'auth_key', label: 'Landing key', maxlength: 64, section: 'Public link', hint: 'Public key in the extras link. Letters, digits, dashes and underscores. Leave blank for none.' },
   { name: 'description', label: 'Description', type: 'textarea', rows: 4 },
-  { name: 'is_enabled', label: 'Enabled (open for registration)', type: 'checkbox' },
+  { name: 'is_enabled', label: 'Enabled (open for registration)', type: 'checkbox', wide: true },
 ];
 
 export const EXTRA_COLUMNS: AdminColumn<Extra>[] = [
   { key: 'name', label: 'Name', sortable: true },
-  { key: 'show_name', label: 'Event' },
+  { key: 'show_name', label: 'Event', hideOnMobile: true },
   { key: 'type', label: 'Type' },
   { key: 'price', label: 'Price', sortable: true, align: 'right', format: (row) => `$${row.price}` },
-  { key: 'registrations_count', label: 'Registrations', align: 'right', format: (row) => String(row.registrations_count) },
+  { key: 'registrations_count', label: 'Registrations', align: 'right', hideOnMobile: true, format: (row) => String(row.registrations_count) },
   { key: 'is_enabled', label: 'Status', sortable: true },
 ];
 

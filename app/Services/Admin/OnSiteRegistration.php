@@ -137,35 +137,37 @@ final class OnSiteRegistration
         if (trim((string) $member->email) === '') {
             self::reject('user_id', 'Member has no email on file; add one before registering');
         }
-        if (ShowRegistration::query()->where('show_id', $show->id)->where('user_id', $member->id)->exists()) {
-            abort(409, 'This member already has a registration record for this event');
-        }
 
-        $arrivalDate = trim((string) ($input['arrival_date'] ?? ''));
-        $arrivalTime = trim((string) ($input['arrival_time'] ?? ''));
-        if ($arrivalDate === '' || $arrivalTime === '') {
-            self::reject('arrival_date', 'Arrival date and time are required');
-        }
+        return (new ShowRegistration)->getConnection()->transaction(function () use ($show, $member, $input): ShowRegistration {
+            User::query()->whereKey($member->id)->lockForUpdate()->first(['id']);
+            if (ShowRegistration::query()->where('show_id', $show->id)->where('user_id', $member->id)->exists()) {
+                abort(409, 'This member already has a registration record for this event');
+            }
 
-        $data = new RegistrationData(
-            cars: $this->cars($show, $member, $input['cars']),
-            guests: $this->guests($member, $input['guests']),
-            shirts: $this->shirts($input['shirts']),
-            extras: $this->extras($show, $input['extras']),
-            arrivalDate: $this->arrivalDate($show, $arrivalDate),
-            arrivalTime: $arrivalTime,
-            donation: in_array($input['donation'] ?? 0, self::DONATIONS, true) ? (int) $input['donation'] : 0,
-            cancel: null,
-        );
-        $this->assertRules($show, $member, $data);
+            $arrivalDate = trim((string) ($input['arrival_date'] ?? ''));
+            $arrivalTime = trim((string) ($input['arrival_time'] ?? ''));
+            if ($arrivalDate === '' || $arrivalTime === '') {
+                self::reject('arrival_date', 'Arrival date and time are required');
+            }
 
-        try {
-            $registration = $this->writer->save($show, $member, $data, true);
-        } catch (RegistrationRejected $e) {
-            throw ValidationException::withMessages(array_map(fn (string $message): array => [$message], $e->errors()));
-        }
+            $data = new RegistrationData(
+                cars: $this->cars($show, $member, $input['cars']),
+                guests: $this->guests($member, $input['guests']),
+                shirts: $this->shirts($input['shirts']),
+                extras: $this->extras($show, $input['extras']),
+                arrivalDate: $this->arrivalDate($show, $arrivalDate),
+                arrivalTime: $arrivalTime,
+                donation: in_array($input['donation'] ?? 0, self::DONATIONS, true) ? (int) $input['donation'] : 0,
+                cancel: null,
+            );
+            $this->assertRules($show, $member, $data);
 
-        return $registration;
+            try {
+                return $this->writer->save($show, $member, $data, true);
+            } catch (RegistrationRejected $e) {
+                throw ValidationException::withMessages(array_map(fn (string $message): array => [$message], $e->errors()));
+            }
+        });
     }
 
     /**

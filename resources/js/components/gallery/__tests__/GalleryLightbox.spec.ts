@@ -64,18 +64,53 @@ describe('GalleryLightbox', () => {
     expect(currentImage().getAttribute('alt')).toBe('Side');
   });
 
-  it('keeps Next and Previous disabled until the photo has loaded', async () => {
+  it('shows the cached thumbnail blurred until the photo loads, without blocking navigation', async () => {
     await renderLightbox(1);
-    expect(nextButton().disabled).toBe(true);
-    expect((screen.getByRole('button', { name: 'Previous' }) as HTMLButtonElement).disabled).toBe(true);
-
-    await fireEvent.click(nextButton());
-    expect(screen.getByRole('dialog', { name: 'Photo 2 of 3' })).toBeTruthy();
+    const placeholder = screen.getByTestId('lightbox-placeholder') as HTMLImageElement;
+    expect(placeholder.getAttribute('src')).toBe('/images/2/320/230/5/images/gallery/2.jpg');
+    expect(currentImage().getAttribute('src')).toBe('/images/4/1070/800/images/gallery/2.jpg');
+    expect(nextButton().disabled).toBe(false);
 
     await finishLoading();
-    expect(nextButton().disabled).toBe(false);
+    expect(screen.queryByTestId('lightbox-placeholder')).toBeNull();
+
     await fireEvent.click(nextButton());
     expect(screen.getByRole('dialog', { name: 'Photo 3 of 3' })).toBeTruthy();
+    expect(screen.getByTestId('lightbox-placeholder')).toBeTruthy();
+  });
+
+  it('keeps the current photo when the list is replaced while open', async () => {
+    const { rerender } = await renderLightbox(1);
+    await rerender({ items: [{ ...ITEMS[0], id: 9 }, ...ITEMS], startIndex: 1 });
+    expect(screen.getByRole('dialog', { name: 'Photo 3 of 4' })).toBeTruthy();
+    expect(currentImage().getAttribute('alt')).toBe('Side');
+  });
+
+  it('preloads only the next and previous photo, at low priority, after the current one has loaded', async () => {
+    const created: HTMLImageElement[] = [];
+    const RealImage = window.Image;
+    vi.stubGlobal('Image', class extends RealImage {
+      constructor() {
+        super();
+        created.push(this);
+      }
+    });
+    vi.stubGlobal('requestIdleCallback', (task: () => void) => {
+      task();
+      return 1;
+    });
+    try {
+      await renderLightbox(1);
+      expect(created).toHaveLength(0);
+      await finishLoading();
+      expect(created.map((image) => image.getAttribute('src'))).toEqual([
+        '/images/4/1070/800/images/gallery/3.jpg',
+        '/images/4/1070/800/images/gallery/1.jpg',
+      ]);
+      expect(created.every((image) => image.fetchPriority === 'low')).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('moves forward with ArrowRight, ArrowDown and Space and back with ArrowLeft and ArrowUp', async () => {

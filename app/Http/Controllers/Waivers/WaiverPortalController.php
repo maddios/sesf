@@ -135,7 +135,11 @@ class WaiverPortalController extends Controller
         }
         $registration = $this->registrationFor($show, $user);
         if ($registration === null) {
-            return response()->json(['error' => 'not_registered', 'message' => 'You are not registered for this event.'], 403);
+            return response()->json([
+                'error' => 'not_registered',
+                'message' => 'You are not registered for this event.',
+                'signedInAs' => (string) $user->email,
+            ], 403);
         }
 
         $guests = UserGuest::query()->where('registration_id', $registration->id)->orderBy('last')->orderBy('first')->get();

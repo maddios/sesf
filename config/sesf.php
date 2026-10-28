@@ -24,6 +24,8 @@ return [
     'email_logo_path' => 'images/sesf_final_logo_v2.jpg',
 
     'gallery_items_per_page' => 36,
+    'gallery_max_items_per_album' => (int) env('SESF_GALLERY_MAX_ITEMS_PER_ALBUM', 2000),
+    'gallery_max_items_per_member_per_show' => (int) env('SESF_GALLERY_MAX_ITEMS_PER_MEMBER_PER_SHOW', 1000),
     'waiver_sign_ttl_seconds' => 2592000,
     'waiver_signature_base64_max_chars' => 400000,
 

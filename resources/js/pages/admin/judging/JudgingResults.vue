@@ -1,7 +1,6 @@
 <script setup lang="ts">
 /** Release state of one event's judging results and the results-email send (admin only). */
 import { ref, watch } from 'vue';
-import BaseButton from '../../../components/ui/BaseButton.vue';
 import { mapAdminError } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
@@ -67,7 +66,7 @@ async function sendMail(): Promise<void> {
   <section aria-labelledby="judging-results-heading">
     <h2
       id="judging-results-heading"
-      class="text-lg font-semibold text-heading"
+      class="sr-only"
     >
       Results
     </h2>
@@ -82,25 +81,27 @@ async function sendMail(): Promise<void> {
         >
         Results released
       </label>
-      <BaseButton
+      <button
+        type="button"
+        class="a2-btn"
         :disabled="sending"
         @click="sendMail"
       >
         Send results emails
-      </BaseButton>
+      </button>
     </div>
 
     <p
       v-if="releaseError"
       role="alert"
-      class="mt-2 text-danger"
+      class="a2-alert a2-alert-error mt-2"
     >
       {{ releaseError }}
     </p>
     <p
       v-if="mailError"
       role="alert"
-      class="mt-2 text-danger"
+      class="a2-alert a2-alert-error mt-2"
     >
       {{ mailError }}
     </p>

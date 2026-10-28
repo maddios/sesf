@@ -208,6 +208,17 @@ class EmailSigninTest extends TestCase
             ->assertOk();
     }
 
+    public function test_the_verify_response_carries_the_resolved_redirect_target(): void
+    {
+        $user = $this->makeUser();
+        ['code' => $code] = $this->requestSignin($user->email, '/members');
+
+        $this->postJson('/login/email-signin/verify-code', ['email' => $user->email, 'code' => $code])
+            ->assertOk()
+            ->assertJsonPath('redirect_path', '/members')
+            ->assertJsonPath('redirect', '/#/members');
+    }
+
     public function test_the_login_payload_and_redirect_path_are_returned_on_a_correct_code(): void
     {
         $user = $this->makeUser();

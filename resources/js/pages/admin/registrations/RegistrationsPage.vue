@@ -2,13 +2,16 @@
 /**
  * Event registrations (admin). List with counts, event and status filters and a member-name filter (URL-synced),
  * edit of the legacy admin fields (donation, arrival, cancellation, invoice number, cars, payments, discount, paid
- * and owed overrides), cancel/reinstate, delete (409 when money or waivers are recorded: cancel instead), add a
+ * and owed overrides; a 409 when received or discount changed since it was opened offers a reload), cancel/reinstate, delete (409 when money or waivers are recorded: cancel instead), add a
  * guest or an extra, a new registration for a member, and a link to the full on-behalf editor. Ended shows show
  * stored amounts ("stored" badge). Guests are edited on the registration guests page.
  */
-import { ref } from 'vue';
+import { nextTick, ref } from 'vue';
 import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
+import AdminFormField from '../../../components/admin/AdminFormField.vue';
 import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
+import AdminIconButton from '../../../components/admin/AdminIconButton.vue';
+import AdminPageHeader from '../../../components/admin/AdminPageHeader.vue';
 import RelationSelect from '../../../components/admin/RelationSelect.vue';
 import StatusBadge from '../../../components/admin/StatusBadge.vue';
 import RegisterForEventModal from '../users/RegisterForEventModal.vue';
@@ -18,13 +21,15 @@ import { useAdminResource } from '../../../composables/admin/useAdminResource';
 import type { Extra } from '../extras/extras';
 import type { AdminField } from '../../../components/admin/types';
 import BaseButton from '../../../components/ui/BaseButton.vue';
+import BaseCombobox from '../../../components/ui/BaseCombobox.vue';
 import { useAdminList } from '../../../composables/admin/useAdminList';
 import { ADMIN_API_BASE, mapAdminError } from '../../../composables/admin/useAdminResource';
-import { api } from '../../../api/client';
+import { api, ApiError } from '../../../api/client';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
 import type { FormValues } from '../../../components/admin/types';
 import {
+  REGISTRATION_CHANGED,
   REGISTRATION_COLUMNS,
   REGISTRATION_FIELDS,
   cancelInput,
@@ -32,7 +37,7 @@ import {
   registrationCarsUrl,
   registrationsApi,
   toForm,
-  toInput,
+  updateInput,
   type Registration,
   type RegistrationCarOption,
 } from './registrations';
@@ -44,6 +49,12 @@ const list = useAdminList<Registration>({
 });
 const toast = useToast();
 const { confirm } = useConfirm();
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: '0', label: 'Active' },
+  { value: '1', label: 'Cancelled' },
+];
 
 const editing = ref<Registration | null>(null);
 const formOpen = ref(false);
@@ -151,8 +162,38 @@ function toggleCar(selected: unknown, id: number, on: boolean): number[] {
   return on ? [...ids, id] : ids;
 }
 
-function save(values: FormValues): Promise<Registration> {
-  return registrationsApi.update((editing.value as Registration).id, toInput(values));
+function isChanged(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 409 && (error.body as { code?: unknown } | null)?.code === REGISTRATION_CHANGED;
+}
+
+/** The registration changed under the open form (e.g. a payment): offer to reload it with its current values. */
+async function offerReload(id: number): Promise<void> {
+  const ok = await confirm({
+    title: 'Registration changed',
+    message: 'This registration was changed after you opened it (for example a payment came in). Reload it to see the current values? Your unsaved changes will be lost.',
+    confirmLabel: 'Reload',
+  });
+  void list.reload();
+  if (!ok) return;
+  try {
+    const fresh = await registrationsApi.get(id);
+    formOpen.value = false;
+    await nextTick();
+    editing.value = fresh;
+    formOpen.value = true;
+  } catch (error) {
+    toast.error(mapAdminError(error, 'The registration could not be reloaded.').message);
+  }
+}
+
+async function save(values: FormValues): Promise<Registration> {
+  const registration = editing.value as Registration;
+  try {
+    return await registrationsApi.update(registration.id, updateInput(registration, values));
+  } catch (error) {
+    if (isChanged(error)) void offerReload(registration.id);
+    throw error;
+  }
 }
 
 function onSaved(result: unknown): void {
@@ -178,6 +219,7 @@ async function setCancelled(registration: Registration, cancelled: boolean): Pro
     await list.reload();
   } catch (error) {
     toast.error(mapAdminError(error).message);
+    if (isChanged(error)) void list.reload();
   } finally {
     busyId.value = null;
   }
@@ -194,10 +236,17 @@ function showFilterValue(): number | null {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <h1 class="page-title">
-      Registrations
-    </h1>
+  <div>
+    <AdminPageHeader title="Registrations">
+      <template #actions>
+        <BaseButton
+          variant="primary"
+          @click="creating = true"
+        >
+          New registration
+        </BaseButton>
+      </template>
+    </AdminPageHeader>
 
     <AdminDataTable
       label="Registrations"
@@ -209,6 +258,8 @@ function showFilterValue(): number | null {
       :loading="list.loading.value"
       :error="list.error.value"
       empty-message="No registrations match."
+      :active-filters="list.activeFilters.value"
+      @row-click="openEdit"
       @sort="list.setSort"
       @page="list.setPage"
       @search="list.setSearch"
@@ -216,65 +267,35 @@ function showFilterValue(): number | null {
       @retry="list.reload"
     >
       <template #filters>
-        <div class="sm:w-64">
-          <label
-            for="registration-filter-show"
-            class="block text-sm font-medium text-text"
-          >Event</label>
-          <div class="mt-1">
-            <RelationSelect
-              id="registration-filter-show"
-              :endpoint="`${ADMIN_API_BASE}/lookups/events`"
-              :model-value="showFilterValue()"
-              placeholder="Any event"
-              @update:model-value="onShowFilter"
-            />
-          </div>
+        <div class="w-64">
+          <label for="registration-filter-show">Event</label>
+          <RelationSelect
+            id="registration-filter-show"
+            :endpoint="`${ADMIN_API_BASE}/lookups/events`"
+            :model-value="showFilterValue()"
+            placeholder="Any event"
+            @update:model-value="onShowFilter"
+          />
         </div>
-        <div>
-          <label
-            for="registration-filter-cancelled"
-            class="block text-sm font-medium text-text"
-          >Status</label>
-          <select
+        <div class="w-40">
+          <label for="registration-filter-cancelled">Status</label>
+          <BaseCombobox
             id="registration-filter-cancelled"
-            class="form-control mt-1"
-            :value="list.state.value.filters.is_cancelled ?? ''"
-            @change="list.setFilter('is_cancelled', ($event.target as HTMLSelectElement).value)"
-          >
-            <option value="">
-              All
-            </option>
-            <option value="0">
-              Active
-            </option>
-            <option value="1">
-              Cancelled
-            </option>
-          </select>
+            :model-value="list.state.value.filters.is_cancelled ?? ''"
+            :options="STATUS_OPTIONS"
+            @update:model-value="(value) => list.setFilter('is_cancelled', value === null ? '' : String(value))"
+          />
         </div>
-        <div class="sm:w-56">
-          <label
-            for="registration-filter-member"
-            class="block text-sm font-medium text-text"
-          >Member name</label>
+        <div class="w-48">
+          <label for="registration-filter-member">Member name</label>
           <input
             id="registration-filter-member"
-            class="form-control mt-1 w-full"
+            class="form-control w-full"
             type="search"
             :value="list.state.value.filters.member ?? ''"
             @change="list.setFilter('member', ($event.target as HTMLInputElement).value)"
           >
         </div>
-      </template>
-
-      <template #toolbar-end>
-        <BaseButton
-          variant="primary"
-          @click="creating = true"
-        >
-          New registration
-        </BaseButton>
       </template>
 
       <template #cell-total_cents="{ row }">
@@ -292,54 +313,40 @@ function showFilterValue(): number | null {
       </template>
 
       <template #actions="{ row }">
-        <div class="inline-flex flex-wrap justify-end gap-1">
-          <BaseButton
-            size="sm"
-            :aria-label="`Edit registration ${row.invoice_id}`"
-            @click="openEdit(row)"
-          >
-            Edit
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            :to="row.editor_path"
-            :aria-label="`Open the full editor for registration ${row.invoice_id}`"
-          >
-            Full editor
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            :aria-label="`Add a guest to registration ${row.invoice_id}`"
-            @click="openAddGuest(row)"
-          >
-            Add guest
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            :aria-label="`Add an extra to registration ${row.invoice_id}`"
-            @click="openAddExtra(row)"
-          >
-            Add extra
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            :variant="row.is_cancelled ? 'primary' : 'danger'"
-            :loading="busyId === row.id"
-            :aria-label="`${row.is_cancelled ? 'Reinstate' : 'Cancel'} registration ${row.invoice_id}`"
-            @click="setCancelled(row, !row.is_cancelled)"
-          >
-            {{ row.is_cancelled ? 'Reinstate' : 'Cancel' }}
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            variant="danger"
-            :loading="busyId === row.id"
-            :aria-label="`Delete registration ${row.invoice_id}`"
-            @click="remove(row)"
-          >
-            Delete
-          </BaseButton>
-        </div>
+        <AdminIconButton
+          icon="edit"
+          :label="`Edit registration ${row.invoice_id}`"
+          @click="openEdit(row)"
+        />
+        <AdminIconButton
+          icon="external"
+          :href="`#${row.editor_path}`"
+          :label="`Open the full editor for registration ${row.invoice_id}`"
+        />
+        <AdminIconButton
+          icon="user-plus"
+          :label="`Add a guest to registration ${row.invoice_id}`"
+          @click="openAddGuest(row)"
+        />
+        <AdminIconButton
+          icon="plus"
+          :label="`Add an extra to registration ${row.invoice_id}`"
+          @click="openAddExtra(row)"
+        />
+        <AdminIconButton
+          :icon="row.is_cancelled ? 'check' : 'x'"
+          :variant="row.is_cancelled ? 'primary' : 'danger'"
+          :disabled="busyId === row.id"
+          :label="`${row.is_cancelled ? 'Reinstate' : 'Cancel'} registration ${row.invoice_id}`"
+          @click="setCancelled(row, !row.is_cancelled)"
+        />
+        <AdminIconButton
+          icon="trash"
+          variant="danger"
+          :disabled="busyId === row.id"
+          :label="`Delete registration ${row.invoice_id}`"
+          @click="remove(row)"
+        />
       </template>
     </AdminDataTable>
 
@@ -353,62 +360,61 @@ function showFilterValue(): number | null {
       @saved="onSaved"
     >
       <template #field-user_id="{ id, value, errors, setValue }">
-        <label
-          :for="id"
-          class="block text-sm font-medium text-text"
-        >Member (required)</label>
-        <RelationSelect
+        <AdminFormField
           :id="id"
-          :model-value="typeof value === 'number' ? value : null"
-          :endpoint="`${ADMIN_API_BASE}/users/lookup`"
-          placeholder="Search members"
-          @update:model-value="(picked: number | null) => onMember(picked, setValue)"
-        />
-        <p class="mt-1 text-sm text-muted">
-          Another member takes over the registration with its guests and shirts.
-        </p>
-        <p
-          v-for="(message, index) in errors"
-          :key="index"
-          class="text-sm text-danger-fg"
+          v-slot="{ inputProps }"
+          label="Member"
+          required
+          :errors="errors"
+          hint="Another member takes over the registration with its guests and shirts."
         >
-          {{ message }}
-        </p>
+          <RelationSelect
+            v-bind="inputProps"
+            :model-value="typeof value === 'number' ? value : null"
+            :endpoint="`${ADMIN_API_BASE}/users/lookup`"
+            placeholder="Search members"
+            @update:model-value="(picked: number | null) => onMember(picked, setValue)"
+          />
+        </AdminFormField>
       </template>
 
       <template #field-car_ids="{ id, value, errors, setValue }">
-        <fieldset :aria-describedby="errors.length > 0 ? `${id}-errors` : undefined">
-          <legend class="block text-sm font-medium text-text">
-            Cars
-          </legend>
-          <p
-            v-if="carOptions.length === 0"
-            class="mt-1 text-sm text-muted"
-          >
-            This member has no cars.
-          </p>
-          <label
-            v-for="car in carOptions"
-            :key="car.id"
-            class="mt-1 flex items-center gap-2 text-sm"
-          >
-            <input
-              type="checkbox"
-              :checked="Array.isArray(value) && value.includes(car.id)"
-              @change="setValue(toggleCar(value, car.id, ($event.target as HTMLInputElement).checked))"
-            >
-            {{ car.label }}
-          </label>
-          <div :id="`${id}-errors`">
+        <div class="is-wide">
+          <fieldset :aria-describedby="errors.length > 0 ? `${id}-errors` : undefined">
+            <legend class="sr-only">
+              Cars
+            </legend>
             <p
-              v-for="(message, index) in errors"
-              :key="index"
-              class="text-sm text-danger-fg"
+              v-if="carOptions.length === 0"
+              class="text-sm text-muted"
             >
-              {{ message }}
+              This member has no cars.
             </p>
-          </div>
-        </fieldset>
+            <div class="grid gap-x-4 sm:grid-cols-2">
+              <label
+                v-for="car in carOptions"
+                :key="car.id"
+                class="a2-check"
+              >
+                <input
+                  type="checkbox"
+                  :checked="Array.isArray(value) && value.includes(car.id)"
+                  @change="setValue(toggleCar(value, car.id, ($event.target as HTMLInputElement).checked))"
+                >
+                {{ car.label }}
+              </label>
+            </div>
+            <div :id="`${id}-errors`">
+              <p
+                v-for="(message, index) in errors"
+                :key="index"
+                class="text-sm text-danger-fg"
+              >
+                {{ message }}
+              </p>
+            </div>
+          </fieldset>
+        </div>
       </template>
     </AdminFormModal>
 

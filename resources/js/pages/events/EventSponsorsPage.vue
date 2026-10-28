@@ -40,13 +40,13 @@ const tiers = computed(() => groupSponsorsByTier(sponsors.data.value?.sponsors ?
         >
           {{ tier.heading }}
         </h2>
-        <ul class="mt-6 space-y-6">
+        <ul class="mt-4 space-y-6">
           <li
             v-for="sponsor in tier.sponsors"
             :key="sponsor.id"
             class="flex flex-col gap-4 sm:flex-row sm:items-start"
           >
-            <div class="w-full shrink-0 sm:w-48">
+            <div class="w-[150px] shrink-0">
               <a
                 v-if="sponsor.url"
                 :href="sponsor.url"
@@ -59,7 +59,7 @@ const tiers = computed(() => groupSponsorsByTier(sponsors.data.value?.sponsors ?
                   resize="eventSponsor"
                   alt=""
                   :placeholder="sponsor.name"
-                  img-class="h-16 w-full object-contain"
+                  img-class="h-[60px] w-full object-contain object-left"
                 />
                 <span class="sr-only">{{ sponsor.name }} (opens in a new tab)</span>
               </a>
@@ -69,26 +69,28 @@ const tiers = computed(() => groupSponsorsByTier(sponsors.data.value?.sponsors ?
                 resize="eventSponsor"
                 alt=""
                 :placeholder="sponsor.name"
-                img-class="h-16 w-full object-contain"
+                img-class="h-[60px] w-full object-contain object-left"
               />
             </div>
             <div class="min-w-0 flex-1">
-              <h3 class="text-base font-semibold text-heading">
-                {{ sponsor.name }}
-              </h3>
+              <div class="flex flex-wrap items-baseline justify-between gap-x-4">
+                <h3 class="text-sm font-semibold text-heading">
+                  {{ sponsor.name }}
+                </h3>
+                <a
+                  v-if="sponsor.url"
+                  :href="sponsor.url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-xs font-bold no-underline hover:underline"
+                >Visit Sponsor Website <span class="sr-only">for {{ sponsor.name }} (opens in a new tab)</span></a>
+              </div>
               <p
                 v-if="sponsor.description"
                 class="mt-1"
               >
                 {{ sponsor.description }}
               </p>
-              <a
-                v-if="sponsor.url"
-                :href="sponsor.url"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="mt-2 inline-block text-sm"
-              >Visit sponsor website <span class="sr-only">for {{ sponsor.name }} (opens in a new tab)</span></a>
             </div>
           </li>
         </ul>

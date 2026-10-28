@@ -41,12 +41,11 @@ export function profilePath(user: Pick<AuthUser, 'profileUrl' | 'userId'>): stri
   return path.replace(/\/+$/, '');
 }
 
-/** Legacy full-page admin screens (not hash routes). */
+/** Admin entry (302s into the SPA admin). Judges land on the judging page there; they see no other admin page. */
 export const ADMIN_URL = '/admin';
-export const JUDGING_URL = '/admin2/judging_list';
 export const LOGOUT_ITEM_ID = 'logout';
 
-/** The "Welcome" menu: Profile, Settings, Billing, Admin (admin type), Judging (judge level and up), Logout. */
+/** The "Welcome" menu: Profile, Settings, Billing, Admin (judge level and up), Logout. */
 export function accountMenuItems(user: AuthUser): DropdownMenuItem[] {
   const profile = profilePath(user);
   const items: DropdownMenuItem[] = [
@@ -54,11 +53,8 @@ export function accountMenuItems(user: AuthUser): DropdownMenuItem[] {
     { id: 'settings', label: 'Settings', to: `${profile}/settings` },
     { id: 'billing', label: 'Billing', to: `${profile}/billing` },
   ];
-  if (user.typeId === USER_TYPE_ADMIN || user.userLevel === USER_TYPE_ADMIN) {
+  if (user.userLevel >= USER_TYPE_JUDGE || user.typeId === USER_TYPE_ADMIN) {
     items.push({ id: 'admin', label: 'Admin', href: ADMIN_URL });
-  }
-  if (user.userLevel >= USER_TYPE_JUDGE) {
-    items.push({ id: 'judging', label: 'Judging', href: JUDGING_URL });
   }
   items.push({ id: LOGOUT_ITEM_ID, label: 'Logout', separator: true });
   return items;

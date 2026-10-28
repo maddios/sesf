@@ -6,9 +6,12 @@
 import { computed, ref } from 'vue';
 import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
 import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
+import AdminIconButton from '../../../components/admin/AdminIconButton.vue';
+import AdminPageHeader from '../../../components/admin/AdminPageHeader.vue';
 import RelationSelect, { type RelationOption } from '../../../components/admin/RelationSelect.vue';
 import StatusBadge from '../../../components/admin/StatusBadge.vue';
 import BaseButton from '../../../components/ui/BaseButton.vue';
+import BaseCombobox from '../../../components/ui/BaseCombobox.vue';
 import { useAdminList } from '../../../composables/admin/useAdminList';
 import { ADMIN_API_BASE, mapAdminError } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
@@ -23,6 +26,13 @@ const list = useAdminList<Extra>({
 });
 const toast = useToast();
 const { confirm } = useConfirm();
+
+const TYPE_FILTER_OPTIONS = [{ value: '', label: 'All' }, ...EXTRA_TYPE_OPTIONS];
+const STATUS_FILTER_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: '1', label: 'Enabled' },
+  { value: '0', label: 'Disabled' },
+];
 
 const eventId = computed<number | null>(() => {
   const raw = list.state.value.filters.show_id;
@@ -59,12 +69,8 @@ function onEventFilter(option: RelationOption | null): void {
   void list.setFilter('show_id', option === null ? null : String(option.id));
 }
 
-function onTypeFilter(value: string): void {
-  void list.setFilter('type_id', value === '' ? null : value);
-}
-
-function onStatusFilter(value: string): void {
-  void list.setFilter('is_enabled', value === '' ? null : value);
+function setSelectFilter(key: 'type_id' | 'is_enabled', value: string | number | null): void {
+  void list.setFilter(key, value === null || value === '' ? null : String(value));
 }
 
 async function remove(extra: Extra): Promise<void> {
@@ -94,10 +100,19 @@ function eventFilterValue(): number | null {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <h1 class="page-title">
-      Extras
-    </h1>
+  <div>
+    <AdminPageHeader title="Extras">
+      <template #actions>
+        <BaseButton
+          variant="primary"
+          :disabled="eventId === null"
+          :title="eventId === null ? 'Choose an event first' : undefined"
+          @click="openCreate"
+        >
+          New extra
+        </BaseButton>
+      </template>
+    </AdminPageHeader>
 
     <AdminDataTable
       label="Extras"
@@ -109,6 +124,8 @@ function eventFilterValue(): number | null {
       :loading="list.loading.value"
       :error="list.error.value"
       empty-message="No extras match."
+      :active-filters="list.activeFilters.value"
+      @row-click="openEdit"
       @sort="list.setSort"
       @page="list.setPage"
       @search="list.setSearch"
@@ -116,77 +133,34 @@ function eventFilterValue(): number | null {
       @retry="list.reload"
     >
       <template #filters>
-        <div class="sm:w-64">
-          <label
-            for="extra-filter-event"
-            class="block text-sm font-medium text-text"
-          >Event</label>
-          <div class="mt-1">
-            <RelationSelect
-              id="extra-filter-event"
-              :endpoint="`${ADMIN_API_BASE}/lookups/events`"
-              :model-value="eventFilterValue()"
-              placeholder="Any event"
-              @change="onEventFilter"
-            />
-          </div>
+        <div class="w-64">
+          <label for="extra-filter-event">Event</label>
+          <RelationSelect
+            id="extra-filter-event"
+            :endpoint="`${ADMIN_API_BASE}/lookups/events`"
+            :model-value="eventFilterValue()"
+            placeholder="Any event"
+            @change="onEventFilter"
+          />
         </div>
-        <div>
-          <label
-            for="extra-filter-type"
-            class="block text-sm font-medium text-text"
-          >Type</label>
-          <select
+        <div class="w-40">
+          <label for="extra-filter-type">Type</label>
+          <BaseCombobox
             id="extra-filter-type"
-            class="form-control mt-1"
-            :value="list.state.value.filters.type_id ?? ''"
-            @change="onTypeFilter(($event.target as HTMLSelectElement).value)"
-          >
-            <option value="">
-              All
-            </option>
-            <option
-              v-for="option in EXTRA_TYPE_OPTIONS"
-              :key="option.value"
-              :value="option.value"
-            >
-              {{ option.label }}
-            </option>
-          </select>
+            :model-value="list.state.value.filters.type_id ?? ''"
+            :options="TYPE_FILTER_OPTIONS"
+            @update:model-value="(value) => setSelectFilter('type_id', value)"
+          />
         </div>
-        <div>
-          <label
-            for="extra-filter-enabled"
-            class="block text-sm font-medium text-text"
-          >Status</label>
-          <select
+        <div class="w-40">
+          <label for="extra-filter-enabled">Status</label>
+          <BaseCombobox
             id="extra-filter-enabled"
-            class="form-control mt-1"
-            :value="list.state.value.filters.is_enabled ?? ''"
-            @change="onStatusFilter(($event.target as HTMLSelectElement).value)"
-          >
-            <option value="">
-              All
-            </option>
-            <option value="1">
-              Enabled
-            </option>
-            <option value="0">
-              Disabled
-            </option>
-          </select>
+            :model-value="list.state.value.filters.is_enabled ?? ''"
+            :options="STATUS_FILTER_OPTIONS"
+            @update:model-value="(value) => setSelectFilter('is_enabled', value)"
+          />
         </div>
-      </template>
-
-      <template #toolbar-end>
-        <BaseButton
-          variant="primary"
-          :disabled="eventId === null"
-          :title="eventId === null ? 'Choose an event first' : undefined"
-          @click="openCreate"
-        >
-          New extra
-        </BaseButton>
       </template>
 
       <template #cell-name="{ row }">
@@ -200,24 +174,18 @@ function eventFilterValue(): number | null {
       </template>
 
       <template #actions="{ row }">
-        <div class="inline-flex flex-wrap justify-end gap-1">
-          <BaseButton
-            size="sm"
-            :aria-label="`Edit ${row.name}`"
-            @click="openEdit(row)"
-          >
-            Edit
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            variant="danger"
-            :loading="busyId === row.id"
-            :aria-label="`Delete ${row.name}`"
-            @click="remove(row)"
-          >
-            Delete
-          </BaseButton>
-        </div>
+        <AdminIconButton
+          icon="edit"
+          :label="`Edit ${row.name}`"
+          @click="openEdit(row)"
+        />
+        <AdminIconButton
+          icon="trash"
+          variant="danger"
+          :label="`Delete ${row.name}`"
+          :disabled="busyId === row.id"
+          @click="remove(row)"
+        />
       </template>
     </AdminDataTable>
 

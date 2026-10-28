@@ -109,8 +109,9 @@ class PortalEndpointTest extends WaiverTestCase
         $registration = $this->registration();
 
         $this->getJson('/waiver/'.$registration->show_id.'/status')->assertStatus(401);
-        $this->asMember(User::factory()->create())->getJson('/waiver/'.$registration->show_id.'/status')
-            ->assertStatus(403)->assertJson(['error' => 'not_registered']);
+        $stranger = User::factory()->create();
+        $this->asMember($stranger)->getJson('/waiver/'.$registration->show_id.'/status')
+            ->assertStatus(403)->assertJson(['error' => 'not_registered', 'signedInAs' => $stranger->email]);
         $this->asMember(User::factory()->create())->getJson('/waiver/999999/status')->assertNotFound();
     }
 

@@ -60,6 +60,11 @@ function table() {
   return screen.getByRole('table', { name: 'Cars' });
 }
 
+async function pick(user: ReturnType<typeof userEvent.setup>, comboboxName: string, optionName: string) {
+  await user.click(screen.getByRole('combobox', { name: comboboxName }));
+  await user.click(await screen.findByRole('option', { name: optionName }));
+}
+
 afterEach(() => {
   useToast().clear();
   useConfirm().settle(false);
@@ -143,8 +148,8 @@ describe('CarsPage', () => {
     const user = userEvent.setup();
     const { router } = await renderAt(Page, '/admin/cars');
     await within(table()).findByText('1969 Camaro');
-    await user.selectOptions(await screen.findByLabelText('Type'), '2');
-    await user.selectOptions(screen.getByLabelText('Body'), '2');
+    await pick(user, 'Type', 'Motorcycle');
+    await pick(user, 'Body', 'Coupe');
     await user.type(screen.getByRole('combobox', { name: 'Owner' }), 'bo');
     await user.click(await screen.findByRole('option', { name: 'Bo Gone <bo@example.test>' }));
 
@@ -162,10 +167,12 @@ describe('CarsPage', () => {
     const user = userEvent.setup();
     await renderAt(Page, '/admin/cars');
     await within(table()).findByText('1969 Camaro');
-    await user.click(screen.getByRole('button', { name: 'Add car' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Add car' });
-    await user.selectOptions(within(dialog).getByLabelText('Type (required)'), '2');
-    await user.selectOptions(within(dialog).getByLabelText('Body (required)'), '2');
+    await user.click(screen.getByRole('button', { name: 'New car' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New car' });
+    await user.click(within(dialog).getByRole('combobox', { name: /^Type/ }));
+    await user.click(await screen.findByRole('option', { name: 'Motorcycle' }));
+    await user.click(within(dialog).getByRole('combobox', { name: /^Body/ }));
+    await user.click(await screen.findByRole('option', { name: 'Coupe' }));
     await user.type(within(dialog).getByLabelText('Model'), 'R75');
     await user.click(within(dialog).getByRole('button', { name: 'Create car' }));
 

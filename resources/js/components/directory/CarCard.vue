@@ -34,12 +34,12 @@ function onImageError(): void {
           :src="imageSrc"
           resize="directoryCard"
           :alt="title"
-          img-class="aspect-[4/3] w-full object-cover"
+          img-class="aspect-[300/220] w-full object-cover"
           @error="onImageError"
         />
       </RouterLink>
-      <div class="flex flex-1 flex-col gap-1 p-3">
-        <h2 class="text-base font-semibold text-heading">
+      <div class="flex flex-1 flex-col gap-0.5 p-2.5">
+        <h2 class="text-[0.8125rem] font-bold text-heading">
           <RouterLink
             :to="carPath"
             class="text-heading no-underline hover:text-brand hover:underline"
@@ -49,13 +49,13 @@ function onImageError(): void {
         </h2>
         <p
           v-if="car.nickname && (car.year || car.model)"
-          class="text-sm text-muted"
+          class="text-xs text-muted"
         >
           {{ [car.year, car.model].filter(Boolean).join(' ') }}
         </p>
         <p
           v-if="car.owner"
-          class="mt-auto pt-1 text-sm text-muted"
+          class="mt-auto pt-1 text-xs text-muted"
         >
           Owner: {{ car.owner.fullName }}
         </p>

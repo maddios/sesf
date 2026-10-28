@@ -6,11 +6,12 @@
 import { computed, ref } from 'vue';
 import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
 import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
+import AdminIconButton from '../../../components/admin/AdminIconButton.vue';
+import AdminPageHeader from '../../../components/admin/AdminPageHeader.vue';
 import RelationSelect, { type RelationOption } from '../../../components/admin/RelationSelect.vue';
-import BaseButton from '../../../components/ui/BaseButton.vue';
+import type { Extra } from '../extras/extras';
 import { useAdminList } from '../../../composables/admin/useAdminList';
 import { ADMIN_API_BASE, mapAdminError, useAdminResource } from '../../../composables/admin/useAdminResource';
-import type { Extra } from '../extras/extras';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
 import type { AdminField, FormValues } from '../../../components/admin/types';
@@ -39,6 +40,7 @@ const eventId = computed<number | null>(() => {
 
 const editing = ref<ExtraRegistration | null>(null);
 const formOpen = ref(false);
+const busyId = ref<number | null>(null);
 
 const fields = ref<AdminField[]>(EXTRA_REGISTRATION_FIELDS);
 const extrasApi = useAdminResource<Extra>('extras');
@@ -82,21 +84,22 @@ async function remove(row: ExtraRegistration): Promise<void> {
     typedConfirmation: 'DELETE',
   });
   if (!ok) return;
+  busyId.value = row.id;
   try {
     await extraRegistrationsApi.remove(row.id);
     toast.success('Extra purchase deleted.');
     await list.reload();
   } catch (error) {
     toast.error(mapAdminError(error, 'The purchase could not be deleted.').message);
+  } finally {
+    busyId.value = null;
   }
 }
 </script>
 
 <template>
-  <div class="space-y-4">
-    <h1 class="page-title">
-      Extra registrations
-    </h1>
+  <div>
+    <AdminPageHeader title="Extra registrations" />
 
     <AdminDataTable
       label="Extra registrations"
@@ -109,6 +112,8 @@ async function remove(row: ExtraRegistration): Promise<void> {
       :error="list.error.value"
       empty-message="No extra purchases match."
       :searchable="false"
+      :active-filters="list.activeFilters.value"
+      @row-click="openEdit"
       @sort="list.setSort"
       @page="list.setPage"
       @search="list.setSearch"
@@ -116,29 +121,21 @@ async function remove(row: ExtraRegistration): Promise<void> {
       @retry="list.reload"
     >
       <template #filters>
-        <div class="sm:w-64">
-          <label
-            for="extra-registration-filter-event"
-            class="block text-sm font-medium text-text"
-          >Event</label>
-          <div class="mt-1">
-            <RelationSelect
-              id="extra-registration-filter-event"
-              :endpoint="`${ADMIN_API_BASE}/lookups/events`"
-              :model-value="eventId"
-              placeholder="Any event"
-              @change="onEventFilter"
-            />
-          </div>
+        <div class="w-64">
+          <label for="extra-registration-filter-event">Event</label>
+          <RelationSelect
+            id="extra-registration-filter-event"
+            :endpoint="`${ADMIN_API_BASE}/lookups/events`"
+            :model-value="eventId"
+            placeholder="Any event"
+            @change="onEventFilter"
+          />
         </div>
-        <div class="sm:w-40">
-          <label
-            for="extra-registration-filter-registration"
-            class="block text-sm font-medium text-text"
-          >Registration ID</label>
+        <div class="w-40">
+          <label for="extra-registration-filter-registration">Registration ID</label>
           <input
             id="extra-registration-filter-registration"
-            class="form-control mt-1 w-full"
+            class="form-control w-full"
             type="search"
             inputmode="numeric"
             :value="list.state.value.filters.registration_id ?? ''"
@@ -148,23 +145,18 @@ async function remove(row: ExtraRegistration): Promise<void> {
       </template>
 
       <template #actions="{ row }">
-        <div class="inline-flex flex-wrap justify-end gap-1">
-          <BaseButton
-            size="sm"
-            :aria-label="`Edit purchase for ${row.user_name ?? row.id}`"
-            @click="openEdit(row)"
-          >
-            Edit
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            variant="danger"
-            :aria-label="`Delete ${row.extra_name ?? 'extra'} for ${row.user_name ?? row.id}`"
-            @click="remove(row)"
-          >
-            Delete
-          </BaseButton>
-        </div>
+        <AdminIconButton
+          icon="edit"
+          :label="`Edit purchase for ${row.user_name ?? row.id}`"
+          @click="openEdit(row)"
+        />
+        <AdminIconButton
+          icon="trash"
+          variant="danger"
+          :label="`Delete ${row.extra_name ?? 'extra'} for ${row.user_name ?? row.id}`"
+          :disabled="busyId === row.id"
+          @click="remove(row)"
+        />
       </template>
     </AdminDataTable>
 

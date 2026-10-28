@@ -12,6 +12,8 @@ export interface TabNavItem {
   to: RouteLocationRaw;
   /** Active only on an exact path match. Defaults to true. */
   exact?: boolean;
+  /** Shown as a filled button inside the bar (legacy "Sponsors" btn-info tab). */
+  emphasis?: boolean;
 }
 
 defineProps<{
@@ -54,6 +56,15 @@ function onKeydown(event: KeyboardEvent): void {
   }
 }
 
+function tabClass(tab: TabNavItem): string {
+  if (tab.emphasis === true) {
+    return `my-1 ml-1 block rounded-sm bg-brand px-3.5 py-1.5 text-[0.8125rem] font-semibold text-white hover:bg-brand-dark hover:text-white ${isActive(tab) ? 'underline underline-offset-2' : 'no-underline'}`;
+  }
+  const base = 'block rounded-t-sm border px-3 py-2 text-sm no-underline';
+  return isActive(tab)
+    ? `${base} border-border border-b-panel bg-panel font-semibold text-heading`
+    : `${base} border-transparent font-medium text-muted hover:border-b-border hover:bg-subtle hover:text-text`;
+}
 </script>
 
 <template>
@@ -72,10 +83,7 @@ function onKeydown(event: KeyboardEvent): void {
       >
         <RouterLink
           :to="tab.to"
-          class="block rounded-t-sm border px-3 py-2 text-sm no-underline"
-          :class="isActive(tab)
-            ? 'border-border border-b-panel bg-panel font-semibold text-heading'
-            : 'border-transparent text-muted hover:border-b-border hover:bg-subtle hover:text-text'"
+          :class="tabClass(tab)"
           :aria-current="isActive(tab) ? 'page' : undefined"
         >
           {{ tab.label }}

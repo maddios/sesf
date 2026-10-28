@@ -19,7 +19,8 @@ export interface JudgingEntry {
   judging_type_id: number;
   judging_type: string;
   owner_name: string;
-  owner_email: string;
+  /** null for a judge before the results are visible. */
+  owner_email: string | null;
   num_questions: number;
   num_answered: number;
   score: string | null;

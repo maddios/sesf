@@ -1,0 +1,7 @@
+-- Purpose: unguessable file names for new gallery uploads. A new item is stored as {NumericPath}/{file_name}
+-- (32 random hex characters + .jpg) instead of {NumericPath}/{id}.jpg, so photos of hidden albums cannot be
+-- found by walking the sequential ids. NULL (every existing row, and rows the legacy app creates) keeps the
+-- legacy {id}.jpg path.
+-- Rollback: ALTER TABLE `gallery_item` DROP COLUMN IF EXISTS `file_name`;
+
+ALTER TABLE `gallery_item` ADD COLUMN IF NOT EXISTS `file_name` varchar(64) DEFAULT NULL AFTER `original_name`;

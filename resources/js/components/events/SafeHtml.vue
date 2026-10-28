@@ -9,7 +9,7 @@ defineProps<{ html: string }>();
 <template>
   <!-- eslint-disable vue/no-v-html -->
   <div
-    class="event-html space-y-3 text-[0.9375rem] leading-relaxed"
+    class="event-html"
     v-html="html"
   />
   <!-- eslint-enable vue/no-v-html -->

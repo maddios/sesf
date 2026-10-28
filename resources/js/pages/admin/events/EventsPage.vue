@@ -7,9 +7,12 @@
 import { computed, ref } from 'vue';
 import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
 import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
+import AdminIconButton from '../../../components/admin/AdminIconButton.vue';
+import AdminPageHeader from '../../../components/admin/AdminPageHeader.vue';
 import ImageUploadModal from '../../../components/admin/ImageUploadModal.vue';
 import StatusBadge from '../../../components/admin/StatusBadge.vue';
 import BaseButton from '../../../components/ui/BaseButton.vue';
+import BaseCombobox from '../../../components/ui/BaseCombobox.vue';
 import { useAdminList } from '../../../composables/admin/useAdminList';
 import { mapAdminError } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
@@ -37,6 +40,12 @@ const list = useAdminList<Event>({
 });
 const toast = useToast();
 const { confirm } = useConfirm();
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: '1', label: 'Active' },
+  { value: '0', label: 'Inactive' },
+];
 
 const editing = ref<Event | null>(null);
 const formOpen = ref(false);
@@ -185,10 +194,17 @@ async function remove(event: Event): Promise<void> {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <h1 class="page-title">
-      Events
-    </h1>
+  <div>
+    <AdminPageHeader title="Events">
+      <template #actions>
+        <BaseButton
+          variant="primary"
+          @click="openCreate"
+        >
+          New event
+        </BaseButton>
+      </template>
+    </AdminPageHeader>
 
     <AdminDataTable
       label="Events"
@@ -200,6 +216,8 @@ async function remove(event: Event): Promise<void> {
       :loading="list.loading.value"
       :error="list.error.value"
       empty-message="No events match."
+      :active-filters="list.activeFilters.value"
+      @row-click="openEdit"
       @sort="list.setSort"
       @page="list.setPage"
       @search="list.setSearch"
@@ -207,37 +225,15 @@ async function remove(event: Event): Promise<void> {
       @retry="list.reload"
     >
       <template #filters>
-        <div>
-          <label
-            for="event-filter-active"
-            class="block text-sm font-medium text-text"
-          >Status</label>
-          <select
+        <div class="w-40">
+          <label for="event-filter-active">Status</label>
+          <BaseCombobox
             id="event-filter-active"
-            class="form-control mt-1"
-            :value="list.state.value.filters.is_active ?? ''"
-            @change="list.setFilter('is_active', ($event.target as HTMLSelectElement).value)"
-          >
-            <option value="">
-              All
-            </option>
-            <option value="1">
-              Active
-            </option>
-            <option value="0">
-              Inactive
-            </option>
-          </select>
+            :model-value="list.state.value.filters.is_active ?? ''"
+            :options="STATUS_OPTIONS"
+            @update:model-value="(value) => list.setFilter('is_active', value === null ? '' : String(value))"
+          />
         </div>
-      </template>
-
-      <template #toolbar-end>
-        <BaseButton
-          variant="primary"
-          @click="openCreate"
-        >
-          New event
-        </BaseButton>
       </template>
 
       <template #cell-name="{ row }">
@@ -254,76 +250,58 @@ async function remove(event: Event): Promise<void> {
       </template>
 
       <template #actions="{ row }">
-        <div class="inline-flex flex-wrap justify-end gap-1">
-          <BaseButton
-            size="sm"
-            :aria-label="`Edit ${row.name}`"
-            @click="openEdit(row)"
-          >
-            Edit
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            :loading="busyId === row.id"
-            :aria-label="`${row.is_active ? 'Deactivate' : 'Activate'} ${row.name}`"
-            @click="setActive(row, !row.is_active)"
-          >
-            {{ row.is_active ? 'Deactivate' : 'Activate' }}
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            :loading="busyId === row.id"
-            :aria-label="`${row.is_judging_released ? 'Withhold' : 'Release'} judging results for ${row.name}`"
-            @click="setJudgingReleased(row, !row.is_judging_released)"
-          >
-            {{ row.is_judging_released ? 'Withhold results' : 'Release results' }}
-          </BaseButton>
-          <BaseButton
-            v-if="row.is_judging_released"
-            size="sm"
-            :loading="busyId === row.id"
-            :aria-label="`Send judging results for ${row.name}`"
-            @click="sendResults(row)"
-          >
-            Send results
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            :aria-label="`Upload image for ${row.name}`"
-            @click="openImage(row)"
-          >
-            Image
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            :aria-label="`Upload schedule PDF for ${row.name}`"
-            @click="choosePdf(row)"
-          >
-            Schedule PDF
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            :to="`/admin/expenses?show_id=${row.id}`"
-            :aria-label="`Expense tracker for ${row.name}`"
-          >
-            Expenses
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            :aria-label="`Sponsors for ${row.name}`"
-            @click="openSponsors(row)"
-          >
-            Sponsors
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            variant="danger"
-            :aria-label="`Delete ${row.name}`"
-            @click="remove(row)"
-          >
-            Delete
-          </BaseButton>
-        </div>
+        <AdminIconButton
+          icon="edit"
+          :label="`Edit ${row.name}`"
+          @click="openEdit(row)"
+        />
+        <AdminIconButton
+          icon="power"
+          :label="`${row.is_active ? 'Deactivate' : 'Activate'} ${row.name}`"
+          :disabled="busyId === row.id"
+          @click="setActive(row, !row.is_active)"
+        />
+        <AdminIconButton
+          icon="check"
+          :label="`${row.is_judging_released ? 'Withhold' : 'Release'} judging results for ${row.name}`"
+          :disabled="busyId === row.id"
+          @click="setJudgingReleased(row, !row.is_judging_released)"
+        />
+        <AdminIconButton
+          v-if="row.is_judging_released"
+          icon="mail"
+          :label="`Send judging results for ${row.name}`"
+          :disabled="busyId === row.id"
+          @click="sendResults(row)"
+        />
+        <AdminIconButton
+          icon="image"
+          :label="`Upload image for ${row.name}`"
+          @click="openImage(row)"
+        />
+        <AdminIconButton
+          icon="calendar"
+          :label="`Upload schedule PDF for ${row.name}`"
+          @click="choosePdf(row)"
+        />
+        <BaseButton
+          size="sm"
+          :to="`/admin/expenses?show_id=${row.id}`"
+          :aria-label="`Expenses for ${row.name}`"
+        >
+          Expenses
+        </BaseButton>
+        <AdminIconButton
+          icon="users"
+          :label="`Sponsors for ${row.name}`"
+          @click="openSponsors(row)"
+        />
+        <AdminIconButton
+          icon="trash"
+          variant="danger"
+          :label="`Delete ${row.name}`"
+          @click="remove(row)"
+        />
       </template>
     </AdminDataTable>
 

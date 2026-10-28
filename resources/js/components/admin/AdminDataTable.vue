@@ -5,17 +5,24 @@
  *     :error="list.error.value" :state="list.state.value" @sort="list.setSort" @page="list.setPage"
  *     @search="list.setSearch" @per-page="list.setPerPage" @retry="list.reload" />
  *
+ * - Legacy admin look: compact striped rows, gradient header with the sticky header row (the table scrolls inside
+ *   its box on desktop, so wide tables scroll sideways there with the first column pinned), sort indicators.
  * - Sortable headers are buttons; the sorted column has aria-sort. Search is debounced (Enter searches now).
- * - Slots: `cell-<key>` ({ row }) for a custom cell, `actions` ({ row }) for row actions, `filters` for the toolbar,
- *   `toolbar-end` for buttons such as "New", `empty` for the no-rows message.
+ * - Slots: `cell-<key>` ({ row }) for a custom cell, `actions` ({ row }) for row actions (AdminIconButton), `filters`
+ *   for the filter bar, `toolbar-end` for buttons such as "New", `empty` for the no-rows message.
+ * - Filters: a bar under the search on desktop; on phones a "Filters" button opens them as a bottom sheet
+ *   (`activeFilters` shows the count on the button).
+ * - `row-click` (optional): a click on a row outside its controls, e.g. to open the edit dialog as the legacy
+ *   admin did. Keyboard users use the row's buttons.
  * - Loading keeps the old rows and sets aria-busy; errors show a retry button; no rows shows the empty state.
  * - Below the md breakpoint rows render as cards (label: value), so nothing scrolls sideways on a phone.
  */
-import { computed, onBeforeUnmount, ref, useId, useSlots, watch } from 'vue';
+import { computed, getCurrentInstance, onBeforeUnmount, ref, useId, useSlots, watch } from 'vue';
 import BasePagination from '../ui/BasePagination.vue';
 import BaseSpinner from '../ui/BaseSpinner.vue';
 import BaseAlert from '../ui/BaseAlert.vue';
 import BaseButton from '../ui/BaseButton.vue';
+import AdminIcon from './AdminIcon.vue';
 import type { AdminColumn } from './types';
 import type { ListMeta } from '../../composables/admin/useAdminResource';
 import { PER_PAGE_OPTIONS, type AdminListState } from '../../composables/admin/useAdminList';
@@ -35,6 +42,8 @@ const props = withDefaults(
     searchLabel?: string;
     debounceMs?: number;
     emptyMessage?: string;
+    /** Number of filters in use, shown on the phone "Filters" button. */
+    activeFilters?: number;
   }>(),
   {
     loading: false,
@@ -44,6 +53,7 @@ const props = withDefaults(
     searchLabel: 'Search',
     debounceMs: 300,
     emptyMessage: 'No records match.',
+    activeFilters: 0,
   },
 );
 
@@ -53,12 +63,15 @@ const emit = defineEmits<{
   search: [text: string];
   perPage: [perPage: number];
   retry: [];
+  rowClick: [row: T];
 }>();
 
 const slots = useSlots();
 const searchId = useId();
 const perPageId = useId();
 const searchText = ref(props.state.search);
+const filtersOpen = ref(false);
+const filtersId = useId();
 let timer: ReturnType<typeof setTimeout> | undefined;
 
 watch(
@@ -113,36 +126,95 @@ const range = computed(() => {
 });
 
 const alignClass = { left: 'text-left', right: 'text-right', center: 'text-center' } as const;
+
+const hasFilters = computed(() => slots.filters !== undefined);
+const listens = getCurrentInstance()?.vnode.props?.onRowClick !== undefined;
+
+function onRowClick(event: MouseEvent, row: T): void {
+  if (!listens) return;
+  if ((event.target as HTMLElement).closest('a, button, input, select, textarea, label, [role="combobox"]')) return;
+  emit('rowClick', row);
+}
 </script>
 
 <template>
   <section
-    class="space-y-3"
+    class="space-y-2"
     :aria-label="label"
   >
-    <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+    <div class="admin-toolbar">
       <form
         v-if="searchable"
         role="search"
-        class="min-w-0 sm:w-72"
+        class="admin-search"
         @submit.prevent="searchNow"
       >
         <label
           :for="searchId"
-          class="block text-sm font-medium text-text"
+          class="sr-only"
         >{{ searchLabel }}</label>
+        <span
+          class="admin-search-icon"
+          aria-hidden="true"
+        ><AdminIcon name="search" /></span>
         <input
           :id="searchId"
           v-model="searchText"
           type="search"
-          class="form-control mt-1 w-full"
+          class="form-control"
           autocomplete="off"
+          :placeholder="searchLabel"
           @input="onSearchInput"
         >
       </form>
-      <slot name="filters" />
-      <div class="flex gap-2 sm:ml-auto">
+      <button
+        v-if="hasFilters"
+        type="button"
+        class="a2-btn md:hidden"
+        :aria-expanded="filtersOpen ? 'true' : 'false'"
+        :aria-controls="filtersId"
+        @click="filtersOpen = !filtersOpen"
+      >
+        <AdminIcon name="filter" />
+        Filters<template v-if="activeFilters > 0">
+          ({{ activeFilters }})
+        </template>
+      </button>
+      <div
+        v-if="$slots['toolbar-end']"
+        class="admin-toolbar-end"
+      >
         <slot name="toolbar-end" />
+      </div>
+    </div>
+
+    <div
+      v-if="hasFilters && filtersOpen"
+      class="fixed inset-0 z-40 bg-black/40 md:hidden"
+      aria-hidden="true"
+      @click="filtersOpen = false"
+    />
+    <div
+      v-if="hasFilters"
+      :id="filtersId"
+      class="admin-filters"
+      :class="filtersOpen ? 'is-open' : ''"
+      role="group"
+      :aria-label="`${label} filters`"
+      @keydown.esc="filtersOpen = false"
+    >
+      <div class="admin-filters-head md:hidden">
+        <span class="font-semibold">Filters</span>
+        <button
+          type="button"
+          class="a2-btn a2-btn-primary"
+          @click="filtersOpen = false"
+        >
+          Done
+        </button>
+      </div>
+      <div class="admin-filters-body">
+        <slot name="filters" />
       </div>
     </div>
 
@@ -166,7 +238,7 @@ const alignClass = { left: 'text-left', right: 'text-right', center: 'text-cente
     >
       <div
         v-if="loading"
-        class="absolute inset-x-0 top-0 z-10 flex justify-center pt-6"
+        class="absolute inset-x-0 top-0 z-20 flex justify-center pt-10"
       >
         <span class="rounded-sm bg-panel px-3 py-2 shadow-card">
           <BaseSpinner label="Loading" />
@@ -174,33 +246,32 @@ const alignClass = { left: 'text-left', right: 'text-right', center: 'text-cente
       </div>
 
       <!-- Desktop table -->
-      <div class="hidden overflow-x-auto rounded-sm border border-border md:block">
-        <table class="w-full border-collapse text-sm">
+      <div class="admin-table-scroll hidden md:block">
+        <table class="admin-table">
           <caption class="sr-only">
             {{ label }}
           </caption>
-          <thead class="bg-subtle">
+          <thead>
             <tr>
               <th
                 v-for="column in columns"
                 :key="column.key"
                 scope="col"
-                class="border-b border-border px-3 py-2 font-semibold text-heading"
-                :class="[alignClass[column.align ?? 'left'], column.class ?? '']"
+                :class="[alignClass[column.align ?? 'left'], column.class ?? '', state.sort === column.key ? 'is-sorted' : '']"
                 :aria-sort="ariaSort(column)"
               >
                 <button
                   v-if="column.sortable"
                   type="button"
-                  class="inline-flex items-center gap-1 rounded-sm font-semibold hover:text-brand"
+                  class="admin-sort"
                   :title="sortHint(column)"
                   @click="emit('sort', column.key)"
                 >
                   <span :class="column.srOnlyLabel ? 'sr-only' : ''">{{ column.label }}</span>
                   <span
                     aria-hidden="true"
-                    class="text-xs text-muted"
-                  >{{ state.sort === column.key ? (state.direction === 'asc' ? '▲' : '▼') : '↕' }}</span>
+                    class="admin-sort-mark"
+                  >{{ state.sort === column.key ? (state.direction === 'asc' ? '▲' : '▼') : '⇅' }}</span>
                 </button>
                 <span
                   v-else
@@ -210,7 +281,7 @@ const alignClass = { left: 'text-left', right: 'text-right', center: 'text-cente
               <th
                 v-if="hasActions"
                 scope="col"
-                class="border-b border-border px-3 py-2 text-right font-semibold text-heading"
+                class="admin-table-actions text-right"
               >
                 Actions
               </th>
@@ -220,12 +291,12 @@ const alignClass = { left: 'text-left', right: 'text-right', center: 'text-cente
             <tr
               v-for="(row, index) in rows"
               :key="keyOf(row, index)"
-              class="border-b border-border last:border-b-0 hover:bg-subtle/60"
+              :class="listens ? 'is-clickable' : ''"
+              @click="onRowClick($event, row)"
             >
               <td
                 v-for="column in columns"
                 :key="column.key"
-                class="px-3 py-2 align-middle"
                 :class="[alignClass[column.align ?? 'left'], column.class ?? '']"
               >
                 <slot
@@ -237,12 +308,14 @@ const alignClass = { left: 'text-left', right: 'text-right', center: 'text-cente
               </td>
               <td
                 v-if="hasActions"
-                class="px-3 py-2 text-right whitespace-nowrap"
+                class="admin-table-actions"
               >
-                <slot
-                  name="actions"
-                  :row="row"
-                />
+                <div class="a2-actions">
+                  <slot
+                    name="actions"
+                    :row="row"
+                  />
+                </div>
               </td>
             </tr>
           </tbody>
@@ -251,23 +324,24 @@ const alignClass = { left: 'text-left', right: 'text-right', center: 'text-cente
 
       <!-- Mobile cards -->
       <ul
-        class="space-y-3 md:hidden"
+        class="admin-cards md:hidden"
         :aria-label="label"
       >
         <li
           v-for="(row, index) in rows"
           :key="keyOf(row, index)"
-          class="rounded-sm border border-border bg-panel p-3 shadow-card"
+          class="admin-card"
         >
-          <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-            <template
-              v-for="column in mobileColumns"
+          <dl class="admin-card-fields">
+            <div
+              v-for="(column, columnIndex) in mobileColumns"
               :key="column.key"
+              :class="columnIndex === 0 ? 'admin-card-title' : 'admin-card-field'"
             >
-              <dt class="font-semibold text-muted">
+              <dt :class="columnIndex === 0 ? 'sr-only' : ''">
                 {{ column.label }}
               </dt>
-              <dd class="min-w-0 break-words">
+              <dd>
                 <slot
                   :name="`cell-${column.key}`"
                   :row="row"
@@ -275,11 +349,11 @@ const alignClass = { left: 'text-left', right: 'text-right', center: 'text-cente
                   {{ cellText(column, row) }}
                 </slot>
               </dd>
-            </template>
+            </div>
           </dl>
           <div
             v-if="hasActions"
-            class="mt-3 flex flex-wrap gap-2"
+            class="admin-card-actions a2-actions"
           >
             <slot
               name="actions"
@@ -291,7 +365,7 @@ const alignClass = { left: 'text-left', right: 'text-right', center: 'text-cente
 
       <div
         v-if="!loading && !error && rows.length === 0"
-        class="rounded-sm border border-dashed border-border px-4 py-8 text-center text-sm text-muted"
+        class="admin-empty"
       >
         <slot name="empty">
           {{ emptyMessage }}
@@ -299,21 +373,18 @@ const alignClass = { left: 'text-left', right: 'text-right', center: 'text-cente
       </div>
     </div>
 
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <p
-        class="text-sm text-muted"
-        aria-live="polite"
-      >
+    <div class="admin-pager">
+      <p aria-live="polite">
         {{ range }}
       </p>
-      <div class="flex flex-wrap items-center gap-3">
+      <div class="flex flex-wrap items-center gap-2">
         <label
           :for="perPageId"
-          class="text-sm text-muted"
+          class="font-normal"
         >Per page</label>
         <select
           :id="perPageId"
-          class="form-control py-1 text-sm"
+          class="form-control w-auto py-0"
           :value="String(state.perPage)"
           @change="emit('perPage', Number(($event.target as HTMLSelectElement).value))"
         >

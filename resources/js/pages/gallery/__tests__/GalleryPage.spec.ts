@@ -75,17 +75,32 @@ describe('GalleryPage', () => {
     expect(screen.queryByRole('button', { name: 'Load More Images' })).toBeNull();
   });
 
-  it('opens the viewer on every photo, with the full list loaded for it', async () => {
+  it('opens the viewer at once on the loaded photos without fetching the full list', async () => {
+    const { fetchMock } = await renderGalleryAt(
+      '/gallery/e36',
+      eventLevelHandlers({ 'GET /gallery/items?show_id=36&get_subcategory_items=1': ok(pageRaw(TWO_PHOTOS)) }),
+    );
+    await fireEvent.click(await screen.findByRole('button', { name: 'View photo 2: Back' }));
+    expect(screen.getByRole('dialog', { name: 'Photo 2 of 2' })).toBeTruthy();
+    expect(calledUrls(fetchMock)).not.toContain('/gallery/items?show_id=36&get_subcategory_items=1&all_items=1');
+  });
+
+  it('opens the viewer at once and swaps in the full list when more pages exist, fetching it only once', async () => {
     const { fetchMock } = await renderGalleryAt(
       '/gallery/e36',
       eventLevelHandlers({
-        'GET /gallery/items?show_id=36&get_subcategory_items=1': ok(pageRaw(TWO_PHOTOS)),
-        [ALL_ITEMS]: ok(pageRaw(TWO_PHOTOS)),
+        'GET /gallery/items?show_id=36&get_subcategory_items=1': ok(pageRaw(TWO_PHOTOS, 3, 2)),
+        [ALL_ITEMS]: ok(pageRaw([...TWO_PHOTOS, itemRaw(3, 'Third')], 3, 3)),
       }),
     );
     await fireEvent.click(await screen.findByRole('button', { name: 'View photo 2: Back' }));
-    expect(await screen.findByRole('dialog', { name: 'Photo 2 of 2' })).toBeTruthy();
-    expect(calledUrls(fetchMock)).toContain('/gallery/items?show_id=36&get_subcategory_items=1&all_items=1');
+    expect(screen.getByRole('dialog', { name: 'Photo 2 of 2' })).toBeTruthy();
+    expect(await screen.findByRole('dialog', { name: 'Photo 2 of 3' })).toBeTruthy();
+
+    await fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    await fireEvent.click(screen.getByRole('button', { name: 'View photo 1: Front' }));
+    expect(await screen.findByRole('dialog', { name: 'Photo 1 of 3' })).toBeTruthy();
+    expect(calledUrls(fetchMock).filter((url) => url.includes('all_items=1'))).toHaveLength(1);
   });
 
   it('gives an admin Create Gallery at event level', async () => {

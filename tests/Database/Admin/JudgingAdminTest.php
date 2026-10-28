@@ -155,6 +155,49 @@ final class JudgingAdminTest extends AdminTestCase
         $this->assertContains('judging.entry.remove', $actions);
     }
 
+    public function test_a_judge_cannot_change_their_own_cars_judging(): void
+    {
+        $world = JudgingWorld::create(['date_start' => now()->addDays(8), 'date_end' => now()->addDays(10), 'is_judging_released' => false]);
+        $own = JudgingWorld::entry($world->show, $world->judge, null, (int) $world->entry->car?->body_id);
+        $url = '/admin-api/judging/shows/'.$world->show->id.'/entries';
+        $this->actingAs($world->judge);
+
+        $this->postJson($url, ['registration_id' => $own->registration_id, 'car_id' => $own->car_id, 'judging_type_id' => JudgingType::Clean->value])->assertForbidden();
+        $this->assertNull($own->fresh()?->judging_type_id);
+        $own->forceFill(['judging_type_id' => JudgingType::Clean])->save();
+        $this->deleteJson($url.'/'.$own->id)->assertForbidden();
+        $this->assertSame(JudgingType::Clean, $own->fresh()?->judging_type_id);
+
+        $this->deleteJson($url.'/'.$world->entry->id)->assertNoContent();
+        $this->actingAs($world->admin)->deleteJson($url.'/'.$own->id)->assertNoContent();
+    }
+
+    public function test_before_release_a_judge_sees_no_entrant_emails_and_not_their_own_score(): void
+    {
+        $world = JudgingWorld::create(['date_start' => now()->addDays(8), 'date_end' => now()->addDays(10), 'is_judging_released' => false]);
+        $own = JudgingWorld::entry($world->show, $world->judge, JudgingType::Clean, (int) $world->entry->car?->body_id);
+        foreach ([$world->entry, $own] as $entry) {
+            Answer::factory()->create(['question_id' => $world->q1->id, 'show_registration_car_id' => $entry->id, 'user_id' => $world->otherJudge->id, 'data' => '8']);
+        }
+        $url = '/admin-api/judging/shows/'.$world->show->id.'/entries';
+        $rows = fn (User $user): array => collect((array) $this->actingAs($user)->getJson($url)->assertOk()->json('data'))->keyBy('id')->all();
+
+        $judgeView = $rows($world->judge);
+        $this->assertNull($judgeView[$own->id]['score']);
+        $this->assertSame('8', $judgeView[$world->entry->id]['score']);
+        $this->assertNull($judgeView[$own->id]['owner_email']);
+        $this->assertNull($judgeView[$world->entry->id]['owner_email']);
+
+        $adminView = $rows($world->admin);
+        $this->assertSame('8', $adminView[$own->id]['score']);
+        $this->assertSame($world->owner->email, $adminView[$world->entry->id]['owner_email']);
+
+        $world->show->forceFill(['is_judging_released' => true])->save();
+        $released = $rows($world->judge);
+        $this->assertSame('8', $released[$own->id]['score']);
+        $this->assertSame($world->owner->email, $released[$world->entry->id]['owner_email']);
+    }
+
     public function test_admin_assigns_and_removes_judge_accounts_only(): void
     {
         $candidate = User::factory()->judge()->create();
@@ -194,6 +237,22 @@ final class JudgingAdminTest extends AdminTestCase
         $this->putJson($base.'/release', ['released' => false])->assertOk();
         $this->assertFalse($this->world->show->fresh()?->is_judging_released);
         $this->assertContains('judging.release', array_column($this->auditEntries(), 'action'));
+    }
+
+    public function test_a_second_results_mail_within_a_minute_is_refused_and_queues_nothing(): void
+    {
+        Mail::fake();
+        Answer::factory()->create(['question_id' => $this->world->q1->id, 'show_registration_car_id' => $this->world->entry->id, 'user_id' => $this->world->judge->id]);
+        $base = '/admin-api/judging/shows/'.$this->world->show->id;
+        $this->actingAs($this->world->admin);
+        $this->putJson($base.'/release', ['released' => true])->assertOk();
+
+        $this->postJson($base.'/results-mail')->assertOk()->assertJsonPath('data.sent', 1);
+        $this->postJson($base.'/results-mail')
+            ->assertStatus(409)
+            ->assertJson(['message' => 'The results emails for this event were just sent. Wait a minute before sending them again.']);
+
+        Mail::assertQueuedCount(1);
     }
 
     public function test_judges_cannot_release_or_mail(): void

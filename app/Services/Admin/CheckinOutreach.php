@@ -2,6 +2,7 @@
 
 namespace App\Services\Admin;
 
+use App\Jobs\Admin\SendOutreachMail;
 use App\Mail\RegistrationPayLinkMail;
 use App\Mail\WaiverReminderMail;
 use App\Models\CarShow;
@@ -10,8 +11,10 @@ use App\Models\User;
 use App\Models\UserGuest;
 use App\Services\Waivers\WaiverSignService;
 use App\Support\Admin\DisplayName;
-use Illuminate\Support\Facades\Mail;
+use Illuminate\Mail\Mailable;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * Contact actions on one registration from the check-in list (legacy CheckinList::postWaiverReminder,
@@ -22,21 +25,21 @@ final class CheckinOutreach
     public function __construct(private readonly WaiverSignService $waivers) {}
 
     /** @throws ValidationException when the primary registrant has no email */
-    public function waiverReminder(CarShow $show, ShowRegistration $registration): void
+    public function waiverReminder(CarShow $show, ShowRegistration $registration): bool
     {
         $user = $this->primary($registration);
         $portalUrl = rtrim((string) config('app.url'), '/').'/waiver/'.$show->id;
 
-        Mail::to($this->email($user))->send(new WaiverReminderMail($portalUrl, (string) $user->first, (string) $show->name));
+        return $this->queue($this->email($user), new WaiverReminderMail($portalUrl, (string) $user->first, (string) $show->name));
     }
 
     /** @throws ValidationException when the primary registrant has no email */
-    public function payLinkEmail(CarShow $show, ShowRegistration $registration): void
+    public function payLinkEmail(CarShow $show, ShowRegistration $registration): bool
     {
         $user = $this->primary($registration);
         $profile = substr((string) $user->profileURL, 2);
 
-        Mail::to($this->email($user))->send(new RegistrationPayLinkMail(
+        return $this->queue($this->email($user), new RegistrationPayLinkMail(
             (string) $user->first,
             (string) $show->name,
             (int) $registration->invoice_id,
@@ -68,6 +71,20 @@ final class CheckinOutreach
             : DisplayName::person($registration->user);
 
         return ['url' => $waiver->signUrl(), 'personName' => $personName];
+    }
+
+    /** Queued on the database queue. A failure to queue is logged and reported as false, never a 500. */
+    private function queue(string $to, Mailable $mail): bool
+    {
+        try {
+            SendOutreachMail::dispatch($to, $mail, $mail::class);
+
+            return true;
+        } catch (Throwable $e) {
+            Log::error('Check-in email could not be queued', ['mail' => $mail::class, 'to' => $to, 'error' => $e->getMessage()]);
+
+            return false;
+        }
     }
 
     private function primary(ShowRegistration $registration): User

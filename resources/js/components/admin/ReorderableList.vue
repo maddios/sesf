@@ -6,6 +6,7 @@
  * the default slot ({ item, index }); `itemLabel` names rows for the buttons and announcements.
  */
 import { nextTick, ref, watch } from 'vue';
+import AdminIcon from './AdminIcon.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -95,14 +96,14 @@ function onDragEnd(): void {
     <ul
       ref="list"
       :aria-label="label"
-      class="divide-y divide-border rounded-sm border border-border bg-panel"
+      class="divide-y divide-[#e8e8e8] rounded-sm border border-[#d4d4d4] bg-panel text-[13px]"
     >
       <li
         v-for="(item, index) in order"
         :key="item.id"
         data-row
         :draggable="!disabled"
-        class="flex items-center gap-3 px-3 py-2"
+        class="flex items-center gap-2 px-2 py-1.5 even:bg-[#f6f7f7]"
         :class="[overIndex === index ? 'bg-brand-tint' : '', dragIndex === index ? 'opacity-50' : '']"
         @dragstart="onDragStart($event, index)"
         @dragover="onDragOver($event, index)"
@@ -111,7 +112,7 @@ function onDragEnd(): void {
       >
         <span
           aria-hidden="true"
-          class="cursor-grab select-none text-muted"
+          class="hidden cursor-grab select-none px-1 text-muted md:inline"
         >⋮⋮</span>
         <div class="min-w-0 flex-1">
           <slot
@@ -121,28 +122,28 @@ function onDragEnd(): void {
             {{ itemLabel(item) }}
           </slot>
         </div>
-        <div class="flex gap-1">
+        <div class="flex shrink-0 gap-1">
           <button
             type="button"
             data-move="up"
-            class="rounded-sm border border-default-border bg-default px-2 py-0.5 text-sm hover:bg-default-hover disabled:opacity-40"
+            class="a2-icon-btn"
             :aria-label="`Move ${itemLabel(item)} up`"
             :disabled="disabled || index === 0"
             @click="moveTo(index, index - 1, 'up')"
             @keydown="onKeydown($event, index)"
           >
-            <span aria-hidden="true">↑</span>
+            <AdminIcon name="up" />
           </button>
           <button
             type="button"
             data-move="down"
-            class="rounded-sm border border-default-border bg-default px-2 py-0.5 text-sm hover:bg-default-hover disabled:opacity-40"
+            class="a2-icon-btn"
             :aria-label="`Move ${itemLabel(item)} down`"
             :disabled="disabled || index === order.length - 1"
             @click="moveTo(index, index + 1, 'down')"
             @keydown="onKeydown($event, index)"
           >
-            <span aria-hidden="true">↓</span>
+            <AdminIcon name="down" />
           </button>
         </div>
       </li>

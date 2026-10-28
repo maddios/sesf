@@ -39,3 +39,16 @@ export function plainText(value: string): string {
   const doc = new DOMParser().parseFromString(value, 'text/html');
   return (doc.body.textContent ?? '').replace(/\s+/g, ' ').trim();
 }
+
+/** "2026-09-03 08:30:00" to "Sep 3, 2026 8:30:00 AM" (legacy Angular 'medium'); anything else is returned trimmed. */
+export function formatEventDateTime(value: string): string {
+  const text = value.trim();
+  const match = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})$/.exec(text);
+  const date = match === null ? null : new Date(`${match[1]}T${match[2]}Z`);
+  if (date === null || Number.isNaN(date.getTime())) {
+    return text;
+  }
+  const day = date.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' });
+  const time = date.toLocaleTimeString('en-US', { timeZone: 'UTC', hour: 'numeric', minute: '2-digit', second: '2-digit' });
+  return `${day} ${time}`;
+}

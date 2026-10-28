@@ -18,7 +18,7 @@ const list = computed(() => shows.data.value ?? []);
 
 <template>
   <div>
-    <h1 class="section-heading">
+    <h1 class="sr-only">
       Galleries
     </h1>
     <AsyncBlock
@@ -35,12 +35,12 @@ const list = computed(() => shows.data.value ?? []);
       </p>
       <ul
         v-else
-        class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
+        class="grid gap-3 sm:grid-cols-2"
       >
         <li
           v-for="show in list"
           :key="show.id"
-          class="overflow-hidden rounded-sm border border-border bg-panel"
+          class="overflow-hidden rounded-md bg-panel shadow-card"
         >
           <RouterLink
             :to="`/gallery/e${show.id}`"
@@ -55,14 +55,14 @@ const list = computed(() => shows.data.value ?? []);
               :placeholder="show.name"
               width="459"
               height="367"
-              img-class="aspect-[459/367] w-full object-cover"
+              img-class="h-auto w-full"
             />
           </RouterLink>
-          <div class="flex items-center justify-between gap-3 p-4">
-            <h2 class="item-title">
+          <div class="flex items-center justify-between gap-3 px-2 py-2.5">
+            <h2 class="text-xs font-bold text-heading">
               <RouterLink
                 :to="`/gallery/e${show.id}`"
-                class="text-brand no-underline hover:underline"
+                class="text-heading no-underline hover:text-brand hover:underline"
               >
                 {{ show.name }}
               </RouterLink>

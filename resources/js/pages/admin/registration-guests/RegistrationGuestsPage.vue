@@ -6,8 +6,10 @@
 import { ref } from 'vue';
 import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
 import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
+import AdminIconButton from '../../../components/admin/AdminIconButton.vue';
+import AdminPageHeader from '../../../components/admin/AdminPageHeader.vue';
 import RelationSelect from '../../../components/admin/RelationSelect.vue';
-import BaseButton from '../../../components/ui/BaseButton.vue';
+import BaseCombobox from '../../../components/ui/BaseCombobox.vue';
 import { useAdminList } from '../../../composables/admin/useAdminList';
 import { ADMIN_API_BASE, mapAdminError } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
@@ -30,6 +32,8 @@ const list = useAdminList<RegistrationGuest>({
 });
 const toast = useToast();
 const { confirm } = useConfirm();
+
+const TYPE_OPTIONS = [{ value: '', label: 'All' }, ...GUEST_TYPES];
 
 const editing = ref<RegistrationGuest | null>(null);
 const formOpen = ref(false);
@@ -82,10 +86,8 @@ function showFilterValue(): number | null {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <h1 class="page-title">
-      Registration guests
-    </h1>
+  <div>
+    <AdminPageHeader title="Registration guests" />
 
     <AdminDataTable
       label="Registration guests"
@@ -97,6 +99,8 @@ function showFilterValue(): number | null {
       :loading="list.loading.value"
       :error="list.error.value"
       empty-message="No guests match."
+      :active-filters="list.activeFilters.value"
+      @row-click="openEdit"
       @sort="list.setSort"
       @page="list.setPage"
       @search="list.setSearch"
@@ -104,65 +108,40 @@ function showFilterValue(): number | null {
       @retry="list.reload"
     >
       <template #filters>
-        <div class="sm:w-64">
-          <label
-            for="guest-filter-show"
-            class="block text-sm font-medium text-text"
-          >Event</label>
-          <div class="mt-1">
-            <RelationSelect
-              id="guest-filter-show"
-              :endpoint="`${ADMIN_API_BASE}/lookups/events`"
-              :model-value="showFilterValue()"
-              placeholder="Any event"
-              @update:model-value="onShowFilter"
-            />
-          </div>
+        <div class="w-64">
+          <label for="guest-filter-show">Event</label>
+          <RelationSelect
+            id="guest-filter-show"
+            :endpoint="`${ADMIN_API_BASE}/lookups/events`"
+            :model-value="showFilterValue()"
+            placeholder="Any event"
+            @update:model-value="onShowFilter"
+          />
         </div>
-        <div>
-          <label
-            for="guest-filter-type"
-            class="block text-sm font-medium text-text"
-          >Type</label>
-          <select
+        <div class="w-40">
+          <label for="guest-filter-type">Type</label>
+          <BaseCombobox
             id="guest-filter-type"
-            class="form-control mt-1"
-            :value="list.state.value.filters.type_id ?? ''"
-            @change="list.setFilter('type_id', ($event.target as HTMLSelectElement).value)"
-          >
-            <option value="">
-              All
-            </option>
-            <option
-              v-for="type in GUEST_TYPES"
-              :key="type.value"
-              :value="type.value"
-            >
-              {{ type.label }}
-            </option>
-          </select>
+            :model-value="list.state.value.filters.type_id ?? ''"
+            :options="TYPE_OPTIONS"
+            @update:model-value="(value) => list.setFilter('type_id', value === null ? '' : String(value))"
+          />
         </div>
       </template>
 
       <template #actions="{ row }">
-        <div class="inline-flex flex-wrap justify-end gap-1">
-          <BaseButton
-            size="sm"
-            :aria-label="`Edit guest ${row.first} ${row.last}`"
-            @click="openEdit(row)"
-          >
-            Edit
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            variant="danger"
-            :loading="busyId === row.id"
-            :aria-label="`Delete guest ${row.first} ${row.last}`"
-            @click="remove(row)"
-          >
-            Delete
-          </BaseButton>
-        </div>
+        <AdminIconButton
+          icon="edit"
+          :label="`Edit guest ${row.first} ${row.last}`"
+          @click="openEdit(row)"
+        />
+        <AdminIconButton
+          icon="trash"
+          variant="danger"
+          :disabled="busyId === row.id"
+          :label="`Delete guest ${row.first} ${row.last}`"
+          @click="remove(row)"
+        />
       </template>
     </AdminDataTable>
 

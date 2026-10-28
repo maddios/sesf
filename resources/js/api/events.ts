@@ -16,6 +16,9 @@ export interface CarShow {
   imageUrl: string;
   dateStart: string;
   dateEnd: string;
+  /** Registration window as the server sends it, "YYYY-MM-DD HH:MM:SS", or empty when not set. */
+  registrationOpens: string;
+  registrationCloses: string;
   ended: boolean;
   registrationOpen: boolean;
   /** "City, ST" of the primary location, or null when the event has none. */
@@ -160,7 +163,8 @@ export function toCarShow(raw: Raw): CarShow | null {
     return null;
   }
   const primary = isRecord(raw.primaryLocation) ? raw.primaryLocation : null;
-  const cityState = primary === null ? '' : cleanText(primary.cityState);
+  const address = primary !== null && isRecord(primary.address) ? primary.address : null;
+  const cityState = address === null ? '' : cleanText(address.cityState);
   return {
     id,
     name: cleanText(raw.name),
@@ -170,6 +174,8 @@ export function toCarShow(raw: Raw): CarShow | null {
     imageUrl: legacyImageUrl(raw.imageURL),
     dateStart: toText(raw.date_start),
     dateEnd: toText(raw.date_end),
+    registrationOpens: toText(raw.date_active),
+    registrationCloses: toText(raw.date_registration_deactivation),
     ended: toBool(raw.ended),
     registrationOpen: toBool(raw.regOpen),
     locationLabel: cityState === '' ? null : cityState,
@@ -253,7 +259,7 @@ export function toEventSponsor(raw: Raw): EventSponsor | null {
     name: cleanText(raw.name),
     url: safeExternalUrl(raw.URL),
     logoUrl: legacyImageUrl(raw.imageURL),
-    description: cleanText(raw.shortDescription ?? raw.description),
+    description: cleanText(raw.description ?? raw.shortDescription),
     typeId: toNumber(raw.type_id),
   };
 }

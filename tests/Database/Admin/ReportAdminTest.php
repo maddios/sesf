@@ -143,8 +143,8 @@ class ReportAdminTest extends AdminTestCase
         $response->assertOk();
         $this->assertStringContainsString('application/vnd.ms-excel', (string) $response->headers->get('Content-Type'));
         $body = $response->streamedContent();
-        $this->assertStringContainsString('<Data ss:Type="String">&apos;=HYPERLINK', $body);
-        $this->assertStringNotContainsString('<Data ss:Type="String">=HYPERLINK', $body);
+        $this->assertStringContainsString('<Data ss:Type="String">=HYPERLINK(&quot;http://evil.example&quot;)</Data>', $body);
+        $this->assertStringNotContainsString('&apos;=HYPERLINK', $body);
         $this->assertContains('report.export', array_column($this->auditEntries(), 'action'));
     }
 
@@ -185,13 +185,15 @@ class ReportAdminTest extends AdminTestCase
     }
 
     #[Test]
-    public function spreadsheetml_escapes_markup_and_formula_prefixes(): void
+    public function spreadsheetml_escapes_markup_and_keeps_formula_looking_text_as_strings(): void
     {
         $markup = SpreadsheetMl::cell("<b>&\x01");
 
         $this->assertStringContainsString('&lt;b&gt;&amp;', $markup);
         $this->assertStringNotContainsString("\x01", $markup);
-        $this->assertStringContainsString('&apos;@sum', SpreadsheetMl::cell('@sum'));
+        $this->assertSame('<Cell><Data ss:Type="String">-Smith</Data></Cell>', SpreadsheetMl::cell('-Smith'));
+        $this->assertSame('<Cell><Data ss:Type="String">=SUM(A1)&amp;&lt;b&gt;</Data></Cell>', SpreadsheetMl::cell('=SUM(A1)&<b>'));
+        $this->assertSame('<Cell><Data ss:Type="String">+1 555</Data></Cell>', SpreadsheetMl::cell('+1 555'));
         $this->assertSame('<Cell><Data ss:Type="Number">12.5</Data></Cell>', SpreadsheetMl::cell(12.5));
     }
 

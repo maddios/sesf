@@ -24,7 +24,8 @@ use Illuminate\Validation\ValidationException;
  * admin-api/judging: the judging list of a show (legacy admin2/judging_list). Judges see only the
  * shows they are assigned to (judge_for_show on every show route); admins see all. Adding or
  * removing a car's judging type is limited to registrations of that show (legacy addJudging and
- * removeJudging were not scoped).
+ * removeJudging were not scoped), and a judge cannot change their own car's. Before results are visible a judge
+ * sees no entrant emails and no score for their own car.
  */
 final class JudgingEntryController extends Controller
 {
@@ -56,7 +57,11 @@ final class JudgingEntryController extends Controller
             throw ValidationException::withMessages(['judging_type_id' => 'The judging type must be a number.']);
         }
 
-        $cars = $scores->forShow($this->show($show)->id, $typeId === null ? null : (int) $typeId);
+        $model = $this->show($show);
+        $cars = $scores->forShow($model->id, $typeId === null ? null : (int) $typeId);
+        /** @var User $user */
+        $user = $request->user();
+        $restricted = ! $user->isAdmin() && ! $model->judgingResultsVisible();
 
         return response()->json(['data' => array_map(fn (JudgedCar $car): array => [
             'id' => $car->id,
@@ -69,10 +74,10 @@ final class JudgingEntryController extends Controller
             'judging_type_id' => $car->judgingTypeId,
             'judging_type' => $car->judgingType,
             'owner_name' => $car->ownerName(),
-            'owner_email' => $car->ownerEmail,
+            'owner_email' => $restricted ? null : $car->ownerEmail,
             'num_questions' => $car->numQuestions,
             'num_answered' => max(0, $car->numQuestions - $car->numEmptyQuestions),
-            'score' => $car->score,
+            'score' => $restricted && $car->ownerId === (int) $user->id ? null : $car->score,
             'judging_url' => JudgingQrCodes::judgingUrl($car->id),
             'answers_url' => JudgingResults::answersUrl($car->id),
             'qr_url' => '/judging_qr_code/'.$car->token(),
@@ -122,8 +127,9 @@ final class JudgingEntryController extends Controller
             ->where('registration_id', $request->integer('registration_id'))
             ->where('car_id', $request->integer('car_id'))
             ->whereHas('registration', fn (Builder $q) => $q->where('show_id', $showId))
-            ->with('car')
+            ->with('car', 'registration')
             ->first() ?? abort(404, 'That car is not registered for this event.');
+        $this->refuseOwnCar($request, $entry);
 
         $typeId = $request->integer('judging_type_id');
         $allowed = array_column($this->allowedTypes($showId, (int) $entry->car?->body_id), 'id');
@@ -139,13 +145,15 @@ final class JudgingEntryController extends Controller
         return response()->json(['data' => ['id' => $entry->id, 'judging_type_id' => $typeId]], 201);
     }
 
-    public function destroy(int $show, int $entry): JsonResponse
+    public function destroy(Request $request, int $show, int $entry): JsonResponse
     {
         $showId = $this->show($show)->id;
         $model = ShowRegistrationCar::query()
             ->whereKey($entry)
             ->whereHas('registration', fn (Builder $q) => $q->where('show_id', $showId))
+            ->with('registration')
             ->first() ?? abort(404, 'Judging entry not found.');
+        $this->refuseOwnCar($request, $model);
 
         $model->judging_type_id = null;
         $model->save();
@@ -168,6 +176,16 @@ final class JudgingEntryController extends Controller
             ->get(['judging_type.id', 'judging_type.name'])
             ->map(fn (object $row): array => ['id' => (int) $row->id, 'name' => (string) $row->name])
             ->all();
+    }
+
+    /** A judge never changes the judging of their own car (as the judge-car gate). */
+    private function refuseOwnCar(Request $request, ShowRegistrationCar $entry): void
+    {
+        /** @var User $user */
+        $user = $request->user();
+        if (! $user->isAdmin() && (int) $entry->registration?->user_id === (int) $user->id) {
+            abort(403, 'You cannot change the judging of your own car.');
+        }
     }
 
     private function show(int $id): CarShow

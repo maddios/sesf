@@ -7,8 +7,9 @@ use Illuminate\Http\UploadedFile;
 
 /**
  * Judging photos on disk (legacy CarJudging::saveJudgingFiles / deleteJudgingFiles / glob):
- * {image_root}/judging/{registrationCarId}/{questionId}/{time}_{uniqid}.jpg, served from
- * /images/judging/... Every upload is re-encoded by ImageStore (EXIF and metadata stripped, no shell).
+ * {image_root}/judging/{registrationCarId}/{questionId}/{time}_{name}.jpg, served from
+ * /images/judging/... New uploads use 128 random bits as {name} (legacy used uniqid(), which is
+ * guessable); the time prefix keeps the listing in upload order. Every upload is re-encoded by ImageStore (EXIF and metadata stripped, no shell).
  * No database row is written; the answer row for the question is what links photos to a sheet.
  */
 final class JudgingPhotos
@@ -32,7 +33,7 @@ final class JudgingPhotos
     /** Stores the upload and returns its file name. */
     public function store(UploadedFile $file, int $registrationCarId, int $questionId): string
     {
-        $name = time().'_'.uniqid().'.jpg';
+        $name = time().'_'.bin2hex(random_bytes(16)).'.jpg';
         $this->images->storeAs($file, $this->directory($registrationCarId, $questionId), $name);
 
         return $name;

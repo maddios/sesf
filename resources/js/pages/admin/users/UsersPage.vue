@@ -1,16 +1,20 @@
 <script setup lang="ts">
 /**
  * Members admin (see docs/admin-conventions.md). Lists active members by default; the status filter shows disabled
- * or all. "Add member" creates an account with a password. Per row: edit, register for an event, log in as the member
- * (audited; a banner shows the way back), set the password, send a password reset mail, disable or restore. Another
- * administrator's password cannot be set or reset (the server answers 403), so those buttons are hidden. Disabled members cannot be logged in as, and admin accounts cannot be
- * impersonated (the server answers 403 and the page shows that message).
+ * or all. "Add member" creates an account with a password. Row click opens the edit dialog. Per row: register for an
+ * event, log in as the member (audited; a banner shows the way back), set the password, send a password reset mail,
+ * disable or restore. Another administrator's password cannot be set or reset (the server answers 403), so those
+ * buttons are hidden. Disabled members cannot be logged in as, and admin accounts cannot be impersonated (the server
+ * answers 403 and the page shows that message).
  */
 import { ref } from 'vue';
 import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
 import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
+import AdminIconButton from '../../../components/admin/AdminIconButton.vue';
+import AdminPageHeader from '../../../components/admin/AdminPageHeader.vue';
 import StatusBadge from '../../../components/admin/StatusBadge.vue';
 import BaseButton from '../../../components/ui/BaseButton.vue';
+import BaseCombobox from '../../../components/ui/BaseCombobox.vue';
 import { useAdminList } from '../../../composables/admin/useAdminList';
 import { mapAdminError } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
@@ -55,6 +59,8 @@ const STATUS_OPTIONS = [
   { value: 'disabled', label: 'Disabled' },
   { value: 'all', label: 'All' },
 ];
+
+const TYPE_FILTER_OPTIONS = [{ value: '', label: 'Any' }, ...USER_TYPE_OPTIONS];
 
 function openCreate(): void {
   editing.value = null;
@@ -157,13 +163,28 @@ async function restore(member: AdminUser): Promise<void> {
     await list.reload();
   }
 }
+
+function onStatusFilter(value: string | number | null): void {
+  void list.setFilter('status', value === null ? 'active' : String(value));
+}
+
+function onTypeFilter(value: string | number | null): void {
+  void list.setFilter('type_id', value === null ? '' : String(value));
+}
 </script>
 
 <template>
-  <div class="space-y-4">
-    <h1 class="page-title">
-      Members
-    </h1>
+  <div>
+    <AdminPageHeader title="Members">
+      <template #actions>
+        <BaseButton
+          variant="primary"
+          @click="openCreate"
+        >
+          Add member
+        </BaseButton>
+      </template>
+    </AdminPageHeader>
 
     <AdminDataTable
       label="Members"
@@ -175,6 +196,8 @@ async function restore(member: AdminUser): Promise<void> {
       :loading="list.loading.value"
       :error="list.error.value"
       empty-message="No members match."
+      :active-filters="list.activeFilters.value"
+      @row-click="openEdit"
       @sort="list.setSort"
       @page="list.setPage"
       @search="list.setSearch"
@@ -182,67 +205,33 @@ async function restore(member: AdminUser): Promise<void> {
       @retry="list.reload"
     >
       <template #filters>
-        <div>
-          <label
-            for="user-filter-status"
-            class="block text-sm font-medium text-text"
-          >Status</label>
-          <select
+        <div class="w-40">
+          <label for="user-filter-status">Status</label>
+          <BaseCombobox
             id="user-filter-status"
-            class="form-control mt-1"
-            :value="list.state.value.filters.status ?? 'active'"
-            @change="list.setFilter('status', ($event.target as HTMLSelectElement).value)"
-          >
-            <option
-              v-for="option in STATUS_OPTIONS"
-              :key="option.value"
-              :value="option.value"
-            >
-              {{ option.label }}
-            </option>
-          </select>
+            :model-value="list.state.value.filters.status ?? 'active'"
+            :options="STATUS_OPTIONS"
+            @update:model-value="onStatusFilter"
+          />
         </div>
-        <div>
-          <label
-            for="user-filter-type"
-            class="block text-sm font-medium text-text"
-          >Account type</label>
-          <select
+        <div class="w-48">
+          <label for="user-filter-type">Account type</label>
+          <BaseCombobox
             id="user-filter-type"
-            class="form-control mt-1"
-            :value="list.state.value.filters.type_id ?? ''"
-            @change="list.setFilter('type_id', ($event.target as HTMLSelectElement).value)"
-          >
-            <option value="">
-              Any
-            </option>
-            <option
-              v-for="option in USER_TYPE_OPTIONS"
-              :key="option.value"
-              :value="option.value"
-            >
-              {{ option.label }}
-            </option>
-          </select>
+            :model-value="list.state.value.filters.type_id ?? ''"
+            :options="TYPE_FILTER_OPTIONS"
+            @update:model-value="onTypeFilter"
+          />
         </div>
-      </template>
-
-      <template #toolbar-end>
-        <BaseButton
-          variant="primary"
-          @click="openCreate"
-        >
-          Add member
-        </BaseButton>
       </template>
 
       <template #cell-profile_url="{ row }">
-        <a
+        <AdminIconButton
+          icon="external"
           :href="row.profile_url"
           target="_blank"
-          rel="noopener"
-          class="text-link underline"
-        >Profile<span class="sr-only"> of {{ row.full_name }} (opens in a new tab)</span></a>
+          :label="`Profile of ${row.full_name} (opens in a new tab)`"
+        />
       </template>
 
       <template #cell-is_disabled="{ row }">
@@ -253,68 +242,52 @@ async function restore(member: AdminUser): Promise<void> {
       </template>
 
       <template #actions="{ row }">
-        <div class="inline-flex flex-wrap justify-end gap-1">
-          <BaseButton
-            size="sm"
-            :aria-label="`Edit ${row.full_name}`"
-            @click="openEdit(row)"
-          >
-            Edit
-          </BaseButton>
-          <BaseButton
-            v-if="!row.is_disabled"
-            size="sm"
-            :aria-label="`Register ${row.full_name} for an event`"
-            @click="openRegister(row)"
-          >
-            Register
-          </BaseButton>
-          <BaseButton
-            v-if="!row.is_disabled"
-            size="sm"
-            :loading="busyId === row.id"
-            :aria-label="`Log in as ${row.full_name}`"
-            @click="logInAs(row)"
-          >
-            Log in as
-          </BaseButton>
-          <BaseButton
-            v-if="managesSignIn(row)"
-            size="sm"
-            :aria-label="`Set password for ${row.full_name}`"
-            @click="openPassword(row)"
-          >
-            Set password
-          </BaseButton>
-          <BaseButton
-            v-if="!row.is_disabled && managesSignIn(row)"
-            size="sm"
-            :loading="busyId === row.id"
-            :aria-label="`Send password reset to ${row.full_name}`"
-            @click="sendReset(row)"
-          >
-            Reset password
-          </BaseButton>
-          <BaseButton
-            v-if="row.is_disabled"
-            size="sm"
-            :loading="busyId === row.id"
-            :aria-label="`Restore ${row.full_name}`"
-            @click="restore(row)"
-          >
-            Restore
-          </BaseButton>
-          <BaseButton
-            v-else
-            size="sm"
-            variant="danger"
-            :loading="busyId === row.id"
-            :aria-label="`Disable ${row.full_name}`"
-            @click="disable(row)"
-          >
-            Disable
-          </BaseButton>
-        </div>
+        <AdminIconButton
+          icon="edit"
+          :label="`Edit ${row.full_name}`"
+          @click="openEdit(row)"
+        />
+        <AdminIconButton
+          v-if="!row.is_disabled"
+          icon="calendar"
+          :label="`Register ${row.full_name} for an event`"
+          @click="openRegister(row)"
+        />
+        <AdminIconButton
+          v-if="!row.is_disabled"
+          icon="login"
+          :label="`Log in as ${row.full_name}`"
+          :disabled="busyId === row.id"
+          @click="logInAs(row)"
+        />
+        <AdminIconButton
+          v-if="managesSignIn(row)"
+          icon="key"
+          :label="`Set password for ${row.full_name}`"
+          @click="openPassword(row)"
+        />
+        <AdminIconButton
+          v-if="!row.is_disabled && managesSignIn(row)"
+          icon="mail"
+          :label="`Send password reset to ${row.full_name}`"
+          :disabled="busyId === row.id"
+          @click="sendReset(row)"
+        />
+        <AdminIconButton
+          v-if="row.is_disabled"
+          icon="eye"
+          :label="`Restore ${row.full_name}`"
+          :disabled="busyId === row.id"
+          @click="restore(row)"
+        />
+        <AdminIconButton
+          v-else
+          icon="eye-off"
+          variant="danger"
+          :label="`Disable ${row.full_name}`"
+          :disabled="busyId === row.id"
+          @click="disable(row)"
+        />
       </template>
     </AdminDataTable>
 

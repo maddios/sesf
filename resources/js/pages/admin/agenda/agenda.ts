@@ -40,7 +40,7 @@ export const AGENDA_TYPES = [
 ];
 
 export const AGENDA_FIELDS: AdminField[] = [
-  { name: 'name', label: 'Name', required: true, maxlength: 255 },
+  { name: 'name', label: 'Name', required: true, maxlength: 255, wide: true },
   {
     name: 'type_id',
     label: 'Type',

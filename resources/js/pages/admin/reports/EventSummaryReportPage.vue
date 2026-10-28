@@ -6,10 +6,9 @@
 import { onMounted, ref, watch } from 'vue';
 import { api } from '../../../api/client';
 import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
-import RelationSelect from '../../../components/admin/RelationSelect.vue';
-import BaseButton from '../../../components/ui/BaseButton.vue';
+import EventFilter from '../../../components/admin/EventFilter.vue';
 import { useAdminList } from '../../../composables/admin/useAdminList';
-import { ADMIN_API_BASE, mapAdminError, type ListResponse } from '../../../composables/admin/useAdminResource';
+import { mapAdminError, type ListResponse } from '../../../composables/admin/useAdminResource';
 import { useToast } from '../../../composables/admin/useToast';
 import { adminUrl, defaultEventId, fetchList, type EventRegistrationRow, type EventSummaryTotals } from './reports';
 import type { ListQuery } from '../../../composables/admin/useAdminResource';
@@ -116,73 +115,69 @@ function cityLine(row: EventRegistrationRow): string {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <h1 class="page-title">
+  <div class="a2-page">
+    <h1 class="sr-only">
       Event summary
     </h1>
 
-    <div class="flex flex-wrap items-end gap-3">
-      <div class="sm:w-96">
-        <label
-          for="summary-event"
-          class="block text-sm font-medium text-text"
-        >Event</label>
-        <div class="mt-1">
-          <RelationSelect
-            id="summary-event"
-            :endpoint="`${ADMIN_API_BASE}/lookups/events`"
-            :model-value="showId"
-            placeholder="Choose an event"
-            @update:model-value="onEvent"
-          />
-        </div>
-      </div>
-      <BaseButton
+    <EventFilter
+      :model-value="showId"
+      @update:model-value="onEvent"
+    >
+      <a
         v-if="showId !== null"
+        class="a2-btn"
         :href="exportHref()"
-        aria-label="Export event summary to Excel"
       >
-        Export
-      </BaseButton>
-    </div>
+        Export event summary to Excel
+      </a>
+    </EventFilter>
 
     <p
       v-if="showId === null"
-      class="text-muted"
+      class="a2-well"
     >
       Choose an event to see its summary.
     </p>
 
     <template v-else>
-      <table
+      <h2 class="a2-legend">
+        Result
+      </h2>
+      <div
         v-if="totals"
-        class="w-full text-sm"
-        aria-label="Event totals"
+        class="a2-scroll"
       >
-        <thead>
-          <tr>
-            <th
-              v-for="column in TOTALS"
-              :key="column.key"
-              scope="col"
-              :title="column.title"
-              class="text-left"
-            >
-              {{ column.label }}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td
-              v-for="column in TOTALS"
-              :key="column.key"
-            >
-              {{ totals[column.key] }}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+        <table
+          class="a2-table"
+          aria-label="Event totals"
+        >
+          <thead>
+            <tr>
+              <th
+                v-for="(column, index) in TOTALS"
+                :key="column.key"
+                scope="col"
+                :title="column.title"
+                :class="index === 0 ? 'a2-sticky-col' : ''"
+              >
+                {{ column.label }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td
+                v-for="(column, index) in TOTALS"
+                :key="column.key"
+                :class="index === 0 ? 'a2-sticky-col' : ''"
+              >
+                {{ totals[column.key] }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <AdminDataTable
         label="Event registrations"
@@ -201,12 +196,13 @@ function cityLine(row: EventRegistrationRow): string {
         @retry="list.reload"
       >
         <template #toolbar-end>
-          <BaseButton
-            variant="link"
+          <button
+            type="button"
+            class="a2-btn"
             @click="toggleShowAll"
           >
             {{ showAll ? 'Show pages' : 'Show all rows' }}
-          </BaseButton>
+          </button>
         </template>
         <template #cell-address="{ row }">
           {{ row.address1 }}

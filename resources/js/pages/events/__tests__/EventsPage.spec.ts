@@ -41,6 +41,21 @@ describe('EventsPage', () => {
     expect(screen.getAllByRole('link', { name: /event info for/i })).toHaveLength(2);
   });
 
+  it('shows the registration window like legacy, omitting unset dates', async () => {
+    await renderList({
+      [CURRENT]: () => jsonResponse(200, [{ ...OPEN_SHOW, date_active: null, date_registration_deactivation: null }]),
+      [PAST]: () => jsonResponse(200, [CAR_SHOW_RAW]),
+    });
+    const past = screen.getByRole('region', { name: 'Past Shows' });
+    expect(await within(past).findByText('Registration opens')).toBeTruthy();
+    expect(within(past).getByText('Jan 15, 2026 9:30:00 AM')).toBeTruthy();
+    expect(within(past).getByText('Closes')).toBeTruthy();
+    expect(within(past).getByText('Apr 20, 2026 11:59:59 PM')).toBeTruthy();
+    const current = screen.getByRole('region', { name: 'Current Shows' });
+    await within(current).findByRole('heading', { level: 3, name: 'Southeast Sharkfest 2027' });
+    expect(within(current).queryByText('Registration opens')).toBeNull();
+  });
+
   it('shows empty messages when there are no shows', async () => {
     await renderList({ [CURRENT]: () => jsonResponse(200, []), [PAST]: () => jsonResponse(200, []) });
     expect(await screen.findByText('No current shows right now. Check back soon.')).toBeTruthy();

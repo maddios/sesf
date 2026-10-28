@@ -64,7 +64,7 @@ watch(
       tabindex="-1"
       class="mx-auto mt-4 w-full max-w-site flex-1 md:w-[calc(100%-2rem)]"
     >
-      <div class="min-h-80 bg-panel px-4 py-6 shadow-panel sm:rounded-md md:p-panel">
+      <div class="min-h-80 bg-panel px-4 py-6 text-content text-title shadow-panel sm:rounded-panel md:px-panel md:pt-[30px] md:pb-panel">
         <slot />
       </div>
     </main>

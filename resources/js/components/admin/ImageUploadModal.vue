@@ -89,6 +89,7 @@ async function submit(): Promise<void> {
 
 <template>
   <BaseModal
+    sheet
     :open="open"
     :title="title"
     :close-on-backdrop="!busy"

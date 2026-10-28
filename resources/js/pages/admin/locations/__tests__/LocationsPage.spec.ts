@@ -65,7 +65,7 @@ describe('LocationsPage', () => {
   it('lists the event venues in position order with addresses, and passes axe', async () => {
     const { seen } = stubLocations();
     const { container } = await renderAt(Page, '/admin/locations?f.show_id=4');
-    const list = await screen.findByRole('list', { name: 'Locations for Spring Show (2026)' }).catch(() => screen.findByRole('list', { name: 'Locations' }));
+    const list = await screen.findByRole('list', { name: 'Locations' });
     expect(await within(list).findByText('Main lot')).toBeTruthy();
     expect(within(list).getByText('12 Main St, Raleigh, NC 27601')).toBeTruthy();
     expect(within(list).getByText('Primary')).toBeTruthy();

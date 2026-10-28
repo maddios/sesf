@@ -4,10 +4,9 @@
  */
 import { onMounted, ref, watch } from 'vue';
 import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
-import RelationSelect from '../../../components/admin/RelationSelect.vue';
-import BaseButton from '../../../components/ui/BaseButton.vue';
+import EventFilter from '../../../components/admin/EventFilter.vue';
 import { useAdminList } from '../../../composables/admin/useAdminList';
-import { ADMIN_API_BASE, mapAdminError, type ListResponse } from '../../../composables/admin/useAdminResource';
+import { mapAdminError, type ListResponse } from '../../../composables/admin/useAdminResource';
 import { useToast } from '../../../composables/admin/useToast';
 import { adminUrl, defaultEventId, fetchList, type ExtraRow } from './reports';
 
@@ -49,59 +48,51 @@ function exportHref(): string {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <h1 class="page-title">
+  <div class="a2-page">
+    <h1 class="sr-only">
       Extras summary
     </h1>
 
-    <div class="flex flex-wrap items-end gap-3">
-      <div class="sm:w-96">
-        <label
-          for="extras-event"
-          class="block text-sm font-medium text-text"
-        >Event</label>
-        <div class="mt-1">
-          <RelationSelect
-            id="extras-event"
-            :endpoint="`${ADMIN_API_BASE}/lookups/events`"
-            :model-value="showId"
-            placeholder="Choose an event"
-            @update:model-value="onEvent"
-          />
-        </div>
-      </div>
-      <BaseButton
+    <EventFilter
+      :model-value="showId"
+      @update:model-value="onEvent"
+    >
+      <a
         v-if="showId !== null"
+        class="a2-btn"
         :href="exportHref()"
-        aria-label="Export extras summary to Excel"
       >
-        Export .xls
-      </BaseButton>
-    </div>
+        Export extras summary to Excel
+      </a>
+    </EventFilter>
 
     <p
       v-if="showId === null"
-      class="text-muted"
+      class="a2-well"
     >
       Choose an event to see its extras.
     </p>
 
-    <AdminDataTable
-      v-else
-      label="Extras"
-      search-label="Search extras"
-      :columns="COLUMNS"
-      :rows="list.rows.value"
-      :meta="list.meta.value"
-      :state="list.state.value"
-      :loading="list.loading.value"
-      :error="list.error.value"
-      empty-message="This event has no extras."
-      @sort="list.setSort"
-      @page="list.setPage"
-      @search="list.setSearch"
-      @per-page="list.setPerPage"
-      @retry="list.reload"
-    />
+    <template v-else>
+      <h2 class="a2-legend">
+        Result
+      </h2>
+      <AdminDataTable
+        label="Extras"
+        search-label="Search extras"
+        :columns="COLUMNS"
+        :rows="list.rows.value"
+        :meta="list.meta.value"
+        :state="list.state.value"
+        :loading="list.loading.value"
+        :error="list.error.value"
+        empty-message="This event has no extras."
+        @sort="list.setSort"
+        @page="list.setPage"
+        @search="list.setSearch"
+        @per-page="list.setPerPage"
+        @retry="list.reload"
+      />
+    </template>
   </div>
 </template>

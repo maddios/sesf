@@ -49,6 +49,8 @@ const SIZES: Record<ButtonSize, string> = {
 };
 
 const classes = computed(() => [
+  // ui-btn hooks let an area (e.g. the admin, body.admin-ui) restyle buttons without touching each page.
+  `ui-btn ui-btn--${props.variant} ui-btn--${props.size}`,
   'inline-flex items-center justify-center gap-2 rounded-sm font-medium leading-5 no-underline transition-colors',
   'disabled:cursor-not-allowed disabled:opacity-60',
   VARIANTS[props.variant],

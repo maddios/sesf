@@ -152,7 +152,7 @@ class UserAdminTest extends AdminTestCase
     {
         $member = User::factory()->create();
 
-        $this->actingAs($this->admin())->putJson(self::BASE.'/'.$member->id, $this->editable(['type_id' => UserType::Judge->value]))
+        $this->actingAs($this->admin())->putJson(self::BASE.'/'.$member->id, $this->editable(['email' => $member->email, 'type_id' => UserType::Judge->value]))
             ->assertOk()
             ->assertJsonPath('data.type_id', UserType::Judge->value);
 
@@ -269,6 +269,24 @@ class UserAdminTest extends AdminTestCase
         $this->assertSame('other-admin@example.test', $other->refresh()->email);
         Mail::assertNothingSent();
         $admin->putJson(self::BASE.'/'.$other->id, $this->editable(['email' => 'other-admin@example.test', 'first' => 'Renamed']))->assertOk();
+    }
+
+    #[Test]
+    public function the_email_cannot_change_in_the_same_save_as_the_account_type(): void
+    {
+        $member = User::factory()->create(['email' => 'member@example.test']);
+        $other = User::factory()->admin()->create(['email' => 'other-admin@example.test']);
+        $admin = $this->actingAs($this->admin());
+
+        $admin->putJson(self::BASE.'/'.$member->id, $this->editable(['email' => 'new@example.test', 'type_id' => UserType::Judge->value]))->assertForbidden();
+        $admin->putJson(self::BASE.'/'.$other->id, $this->editable(['email' => 'takeover@example.test', 'type_id' => UserType::Regular->value]))->assertForbidden();
+
+        $this->assertSame('member@example.test', $member->refresh()->email);
+        $this->assertSame(UserType::Regular, $member->type_id);
+        $this->assertSame('other-admin@example.test', $other->refresh()->email);
+        $this->assertTrue($other->isAdmin());
+
+        $admin->putJson(self::BASE.'/'.$other->id, $this->editable(['email' => 'other-admin@example.test', 'type_id' => UserType::Regular->value]))->assertOk();
     }
 
     #[Test]

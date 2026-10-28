@@ -5,6 +5,7 @@
  */
 import { computed, onMounted, ref } from 'vue';
 import { RouterLink } from 'vue-router';
+import AdminPageHeader from '../../components/admin/AdminPageHeader.vue';
 import BaseAlert from '../../components/ui/BaseAlert.vue';
 import BaseButton from '../../components/ui/BaseButton.vue';
 import BaseSpinner from '../../components/ui/BaseSpinner.vue';
@@ -25,7 +26,7 @@ const data = ref<DashboardData | null>(null);
 const loading = ref(true);
 const error = ref<string | null>(null);
 
-const shortcuts = computed(() => navGroups(auth.userLevel).flatMap((block) => block.entries));
+const groups = computed(() => navGroups(auth.userLevel));
 
 const eventStats = computed(() => {
   const counts = data.value?.event_counts;
@@ -36,6 +37,17 @@ const eventStats = computed(() => {
         { label: 'Unpaid', value: counts.unpaid },
         { label: 'Checked in', value: counts.checked_in },
         { label: 'Cars entered', value: counts.cars },
+      ];
+});
+
+const totalStats = computed(() => {
+  const totals = data.value?.totals;
+  return totals === undefined
+    ? []
+    : [
+        { label: 'Members', value: totals.members },
+        { label: 'Events', value: totals.events },
+        { label: 'Enabled sponsors', value: totals.sponsors_enabled },
       ];
 });
 
@@ -55,10 +67,8 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="space-y-6">
-    <h1 class="page-title">
-      Dashboard
-    </h1>
+  <div class="a2-page space-y-4">
+    <AdminPageHeader title="Dashboard" />
 
     <BaseSpinner
       v-if="loading && data === null"
@@ -82,38 +92,38 @@ onMounted(load);
       <section aria-labelledby="dash-event">
         <h2
           id="dash-event"
-          class="section-heading"
+          class="a2-legend a2-legend--sub"
         >
           Current event
         </h2>
         <p
           v-if="data.event === null"
-          class="mt-3 text-sm text-muted"
+          class="a2-muted"
         >
           No events yet.
         </p>
         <div
           v-else
-          class="mt-3 space-y-3"
+          class="space-y-2"
         >
           <p class="flex flex-wrap items-center gap-2">
-            <span class="font-semibold text-heading">{{ data.event.name }}</span>
-            <span class="text-sm text-muted">{{ data.event.date_start }}<template v-if="data.event.date_end && data.event.date_end !== data.event.date_start"> – {{ data.event.date_end }}</template></span>
+            <span class="font-semibold">{{ data.event.name }}</span>
+            <span class="a2-small">{{ data.event.date_start }}<template v-if="data.event.date_end && data.event.date_end !== data.event.date_start"> – {{ data.event.date_end }}</template></span>
             <StatusBadge
               :label="data.event.reg_open ? 'Registration open' : 'Registration closed'"
               :variant="data.event.reg_open ? 'success' : 'neutral'"
             />
           </p>
-          <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <dl class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             <div
               v-for="stat in eventStats"
               :key="stat.label"
-              class="rounded-sm border border-border p-3"
+              class="min-w-36 border border-[#d4d4d4] bg-white"
             >
-              <dt class="text-xs font-semibold uppercase text-muted">
+              <dt class="border-b border-[#d4d4d4] bg-[linear-gradient(#f3f4f4,#e2e4e5)] px-2 py-1 text-xs font-semibold text-[#444]">
                 {{ stat.label }}
               </dt>
-              <dd class="text-2xl font-semibold text-heading">
+              <dd class="px-2 py-1 text-2xl font-semibold leading-tight text-[#333]">
                 {{ stat.value }}
               </dd>
             </div>
@@ -124,33 +134,21 @@ onMounted(load);
       <section aria-labelledby="dash-totals">
         <h2
           id="dash-totals"
-          class="section-heading"
+          class="a2-legend a2-legend--sub"
         >
           Totals
         </h2>
-        <dl class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div class="rounded-sm border border-border p-3">
-            <dt class="text-xs font-semibold uppercase text-muted">
-              Members
+        <dl class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <div
+            v-for="stat in totalStats"
+            :key="stat.label"
+            class="min-w-36 border border-[#d4d4d4] bg-white"
+          >
+            <dt class="border-b border-[#d4d4d4] bg-[linear-gradient(#f3f4f4,#e2e4e5)] px-2 py-1 text-xs font-semibold text-[#444]">
+              {{ stat.label }}
             </dt>
-            <dd class="text-2xl font-semibold text-heading">
-              {{ data.totals.members }}
-            </dd>
-          </div>
-          <div class="rounded-sm border border-border p-3">
-            <dt class="text-xs font-semibold uppercase text-muted">
-              Events
-            </dt>
-            <dd class="text-2xl font-semibold text-heading">
-              {{ data.totals.events }}
-            </dd>
-          </div>
-          <div class="rounded-sm border border-border p-3">
-            <dt class="text-xs font-semibold uppercase text-muted">
-              Enabled sponsors
-            </dt>
-            <dd class="text-2xl font-semibold text-heading">
-              {{ data.totals.sponsors_enabled }}
+            <dd class="px-2 py-1 text-2xl font-semibold leading-tight text-[#333]">
+              {{ stat.value }}
             </dd>
           </div>
         </dl>
@@ -158,28 +156,40 @@ onMounted(load);
     </template>
 
     <section
-      v-if="shortcuts.length > 0"
+      v-if="groups.length > 0"
       aria-labelledby="dash-shortcuts"
     >
       <h2
         id="dash-shortcuts"
-        class="section-heading"
+        class="a2-legend a2-legend--sub"
       >
         Shortcuts
       </h2>
-      <ul class="mt-3 flex flex-wrap gap-2">
-        <li
-          v-for="entry in shortcuts"
-          :key="entry.key"
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <section
+          v-for="block in groups"
+          :key="block.group"
+          class="border border-[#d4d4d4] bg-white"
+          :aria-label="block.group"
         >
-          <RouterLink
-            :to="`/admin/${entry.path}`"
-            class="inline-flex rounded-sm border border-default-border bg-default px-3 py-1.5 text-sm text-text no-underline hover:bg-default-hover"
-          >
-            {{ entry.label }}
-          </RouterLink>
-        </li>
-      </ul>
+          <h3 class="border-b border-[#d4d4d4] bg-[linear-gradient(#f3f4f4,#e2e4e5)] px-2 py-1 text-xs font-semibold uppercase text-[#444]">
+            {{ block.group }}
+          </h3>
+          <ul class="divide-y divide-[#e5e5e5]">
+            <li
+              v-for="entry in block.entries"
+              :key="entry.key"
+            >
+              <RouterLink
+                :to="`/admin/${entry.path}`"
+                class="block px-2 py-1 text-sm text-[#005580] no-underline hover:bg-[#f5f5f5] hover:underline"
+              >
+                {{ entry.label }}
+              </RouterLink>
+            </li>
+          </ul>
+        </section>
+      </div>
     </section>
   </div>
 </template>

@@ -40,6 +40,16 @@ final class ImageUploadException extends RuntimeException
         return new self('The image could not be read. Please try a different file.');
     }
 
+    public static function albumFull(int $limit): self
+    {
+        return new self("This album is full ({$limit} photos).");
+    }
+
+    public static function memberLimitReached(int $limit): self
+    {
+        return new self("You have reached the upload limit for this event ({$limit} photos).");
+    }
+
     public static function saveFailed(): self
     {
         return new self('The image could not be saved. Please try again.');

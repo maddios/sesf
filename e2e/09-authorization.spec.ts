@@ -76,4 +76,20 @@ test.describe('authorization', () => {
       await context.close();
     }
   });
+
+  test('the waiver portal says "not registered" instead of failing, and lists waivers for a registered member', async ({ page, allowConsole }) => {
+    const s = seed();
+    allowConsole(/status of 403/);
+    await login(page, s.users.ben.email);
+
+    await page.goto(`/waiver/${s.events.current.id}`);
+    await expect(page.getByRole('alert')).toHaveText('You are not registered for this event.');
+    await expect(page.getByText(`Signed in as ${s.users.ben.email}`)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
+
+    await page.goto(`/waiver/${s.events.past.id}`);
+    await expect(page.getByText('Waiver status')).toBeVisible();
+    await expect(page.getByRole('alert')).toBeHidden();
+    await expect(page.getByText(/Ben Second/)).toBeVisible();
+  });
 });

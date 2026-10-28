@@ -11,6 +11,7 @@ use App\Models\ShowRegistration;
 use App\Models\User;
 use App\Models\UserGuest;
 use App\Services\Registration\Writer\AdminAmounts;
+use App\Services\Registration\Writer\RegistrationChanged;
 use App\Services\Registration\Writer\RegistrationData;
 use App\Services\Registration\Writer\RegistrationProjector;
 use App\Services\Registration\Writer\RegistrationRejected;
@@ -173,9 +174,18 @@ class RegistrationWriter
     /**
      * Sets the admin fields before the amounts are persisted. On an ENDED show amount_owed is not
      * recomputed, so it moves by the change in received and discount (as RegistrationPricing::owedCents).
+     *
+     * @throws RegistrationChanged when received or discount no longer match what the admin's form was loaded with
      */
     private function applyAdminAmounts(CarShow $show, ShowRegistration $registration, AdminAmounts $amounts): void
     {
+        if ($registration->exists && (
+            RegistrationPricing::signedCents((string) $registration->getOriginal('amount_received')) !== $amounts->expectedReceivedCents
+            || RegistrationPricing::signedCents((string) $registration->getOriginal('discount')) !== $amounts->expectedDiscountCents
+        )) {
+            throw new RegistrationChanged;
+        }
+
         $registration->forceFill([
             'invoice_id' => $amounts->invoiceId,
             'amount_received' => RegistrationPricing::decimal($amounts->receivedCents),

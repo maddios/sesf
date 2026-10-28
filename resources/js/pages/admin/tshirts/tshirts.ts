@@ -102,3 +102,22 @@ export function handOutStatus(row: ShirtRegistrationRow): { label: 'All handed o
   const total = row.lines.length;
   return { label: row.left_to_hand_out < total && row.left_to_hand_out > 0 ? 'Partial' : 'Pending', left: row.left_to_hand_out };
 }
+
+/** Shirt lines grouped by type and hand-out state, as the legacy T-shirts cell shows them ("2x Mens M"). */
+export function groupedLines(lines: ShirtLine[]): Array<{ key: string; label: string; handedOut: boolean }> {
+  const groups = new Map<string, { typeId: number; name: string; handedOut: boolean; count: number }>();
+  for (const line of lines) {
+    const key = `${line.type_id}:${line.handed_out ? 1 : 0}`;
+    const group = groups.get(key) ?? { typeId: line.type_id, name: line.type_name, handedOut: line.handed_out, count: 0 };
+    group.count++;
+    groups.set(key, group);
+  }
+  return [...groups.entries()]
+    .sort(([, a], [, b]) => a.typeId - b.typeId)
+    .map(([key, group]) => ({ key, label: group.count > 1 ? `${group.count}x ${group.name}` : group.name, handedOut: group.handedOut }));
+}
+
+/** Types the tally chips show: any stock, order, hand-out or sale. */
+export function tallyTypes(types: ShirtTypeRow[]): ShirtTypeRow[] {
+  return types.filter((type) => type.stock + type.ordered + type.handed_out + type.adhoc_sold > 0);
+}

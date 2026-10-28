@@ -15,8 +15,10 @@ use DOMProcessingInstruction;
  * - Elements not in ALLOWED_ELEMENTS are removed with their content when they are in DROP_ELEMENTS
  *   (scripts, frames, embedded objects, forms, SVG/MathML), otherwise only the tag is removed and the
  *   children are kept.
- * - Attributes are kept only when listed for that element. Event handler attributes (on*), style and
- *   anything else not listed are removed.
+ * - Attributes are kept only when listed for that element. Event handler attributes (on*) and anything
+ *   else not listed are removed. class keeps only the legacy Bootstrap layout tokens in ALLOWED_CLASSES, style
+ *   keeps only the declarations in ALLOWED_STYLES with plain length or keyword values, align keeps
+ *   left/center/right/justify. Legacy content relies on these for centring, image sizes and its buttons.
  * - href allows http, https, mailto, tel and relative URLs. src allows http, https and relative URLs
  *   (data: URIs are refused). Scheme checks ignore case and control or whitespace characters, so
  *   "java\tscript:" is caught.
@@ -30,42 +32,69 @@ final class HtmlSanitizer
      * @var array<string, list<string>> element name => attributes allowed on it
      */
     private const ALLOWED_ELEMENTS = [
-        'a' => ['href', 'title'],
+        'a' => ['href', 'title', 'class', 'style'],
         'abbr' => ['title'],
         'b' => [],
+        'big' => [],
         'blockquote' => [],
         'br' => [],
         'caption' => [],
+        'center' => [],
         'code' => [],
-        'div' => [],
+        'div' => ['class', 'style', 'align'],
         'em' => [],
-        'h1' => [],
-        'h2' => [],
-        'h3' => [],
-        'h4' => [],
-        'h5' => [],
-        'h6' => [],
+        'h1' => ['class', 'style', 'align'],
+        'h2' => ['class', 'style', 'align'],
+        'h3' => ['class', 'style', 'align'],
+        'h4' => ['class', 'style', 'align'],
+        'h5' => ['class', 'style', 'align'],
+        'h6' => ['class', 'style', 'align'],
         'hr' => [],
         'i' => [],
-        'img' => ['src', 'alt', 'title', 'width', 'height'],
+        'img' => ['src', 'alt', 'title', 'width', 'height', 'class', 'style', 'align'],
         'li' => [],
         'ol' => [],
-        'p' => [],
+        'p' => ['class', 'style', 'align'],
         'pre' => [],
         'small' => [],
-        'span' => [],
+        'span' => ['class', 'style'],
         'strong' => [],
         'sub' => [],
         'sup' => [],
-        'table' => [],
+        'table' => ['class', 'style', 'align'],
         'tbody' => [],
-        'td' => ['colspan', 'rowspan'],
+        'td' => ['colspan', 'rowspan', 'class', 'style', 'align'],
         'tfoot' => [],
-        'th' => ['colspan', 'rowspan'],
+        'th' => ['colspan', 'rowspan', 'class', 'style', 'align'],
         'thead' => [],
         'tr' => [],
         'u' => [],
         'ul' => [],
+    ];
+
+    /**
+     * Legacy Bootstrap classes the content uses for buttons, alignment and floats.
+     */
+    private const ALLOWED_CLASSES = '/^(btn|btn-(default|primary|info|success|warning|danger|link|large|lg|small|sm|mini|xs|block)|text-(left|center|right|justify)|pull-(left|right)|img-responsive|img-rounded|img-polaroid|lead)$/';
+
+    private const LENGTH = '(auto|0|\\d{1,4}(\\.\\d{1,2})?(px|%|em|rem))';
+
+    /**
+     * @var array<string, string> CSS property => pattern its whole value must match
+     */
+    private const ALLOWED_STYLES = [
+        'text-align' => '/^(left|right|center|justify)$/',
+        'float' => '/^(left|right|none)$/',
+        'width' => '/^'.self::LENGTH.'$/',
+        'height' => '/^'.self::LENGTH.'$/',
+        'max-width' => '/^'.self::LENGTH.'$/',
+        'margin' => '/^'.self::LENGTH.'( '.self::LENGTH.'){0,3}$/',
+        'margin-top' => '/^'.self::LENGTH.'$/',
+        'margin-right' => '/^'.self::LENGTH.'$/',
+        'margin-bottom' => '/^'.self::LENGTH.'$/',
+        'margin-left' => '/^'.self::LENGTH.'$/',
+        'font-weight' => '/^(normal|bold|[1-9]00)$/',
+        'font-style' => '/^(normal|italic)$/',
     ];
 
     /**
@@ -179,8 +208,51 @@ final class HtmlSanitizer
 
             if (in_array($attributeName, ['colspan', 'rowspan', 'width', 'height'], true) && preg_match('/^\d{1,4}$/', $attribute->value) !== 1) {
                 $element->removeAttributeNode($attribute);
+
+                continue;
+            }
+
+            $filtered = match ($attributeName) {
+                'class' => $this->filterClasses($attribute->value),
+                'style' => $this->filterStyle($attribute->value),
+                'align' => preg_match('/^(left|center|right|justify)$/i', trim($attribute->value)) === 1 ? strtolower(trim($attribute->value)) : '',
+                default => null,
+            };
+
+            if ($filtered === '') {
+                $element->removeAttributeNode($attribute);
+            } elseif ($filtered !== null) {
+                $element->setAttribute($attributeName, $filtered);
             }
         }
+    }
+
+    private function filterClasses(string $value): string
+    {
+        $tokens = preg_split('/\s+/', strtolower(trim($value))) ?: [];
+
+        return implode(' ', array_filter($tokens, fn (string $token): bool => preg_match(self::ALLOWED_CLASSES, $token) === 1));
+    }
+
+    private function filterStyle(string $value): string
+    {
+        $kept = [];
+
+        foreach (explode(';', $value) as $declaration) {
+            $parts = explode(':', $declaration, 2);
+            if (count($parts) !== 2) {
+                continue;
+            }
+
+            $property = strtolower(trim($parts[0]));
+            $propertyValue = strtolower((string) preg_replace('/\s+/', ' ', trim($parts[1])));
+
+            if (isset(self::ALLOWED_STYLES[$property]) && preg_match(self::ALLOWED_STYLES[$property], $propertyValue) === 1) {
+                $kept[] = $property.': '.$propertyValue;
+            }
+        }
+
+        return implode('; ', $kept);
     }
 
     /**

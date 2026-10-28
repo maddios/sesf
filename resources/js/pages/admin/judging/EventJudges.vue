@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** Judges assigned to one event (admin only). Only judge accounts that are not yet assigned can be added. */
-import { ref, watch } from 'vue';
-import BaseButton from '../../../components/ui/BaseButton.vue';
+import { computed, ref, watch } from 'vue';
+import BaseCombobox from '../../../components/ui/BaseCombobox.vue';
 import { mapAdminError } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
@@ -16,6 +16,7 @@ const { confirm } = useConfirm();
 const judges = ref<JudgingUser[]>([]);
 const eligible = ref<JudgingUser[]>([]);
 const selectedUserId = ref('');
+const judgeOptions = computed(() => eligible.value.map((judge) => ({ value: String(judge.user_id), label: judge.name, description: judge.email })));
 const error = ref('');
 const addError = ref('');
 
@@ -75,7 +76,7 @@ async function remove(judge: JudgingUser): Promise<void> {
   <section aria-labelledby="event-judges-heading">
     <h2
       id="event-judges-heading"
-      class="text-lg font-semibold text-heading"
+      class="sr-only"
     >
       Event judges
     </h2>
@@ -83,13 +84,13 @@ async function remove(judge: JudgingUser): Promise<void> {
     <p
       v-if="error"
       role="alert"
-      class="mt-2 text-danger"
+      class="a2-alert a2-alert-error mt-2"
     >
       {{ error }}
     </p>
     <p
       v-else-if="judges.length === 0"
-      class="mt-2 text-muted"
+      class="a2-muted"
     >
       No judges are assigned to this event yet.
     </p>
@@ -104,15 +105,14 @@ async function remove(judge: JudgingUser): Promise<void> {
       >
         <span class="font-medium text-heading">{{ judge.name }}</span>
         <span class="text-muted">{{ judge.email }}</span>
-        <BaseButton
-          size="sm"
-          variant="danger"
-          class="ml-auto"
+        <button
+          type="button"
+          class="a2-btn a2-btn-small ml-auto"
           :aria-label="`Remove ${judge.name} as judge`"
           @click="remove(judge)"
         >
           Remove
-        </BaseButton>
+        </button>
       </li>
     </ul>
 
@@ -123,33 +123,24 @@ async function remove(judge: JudgingUser): Promise<void> {
       <div class="min-w-64 flex-1 sm:max-w-md">
         <label
           for="event-judge-select"
-          class="block text-sm font-medium text-text"
+          class="a2-search-label"
         >Judge account</label>
-        <select
+        <BaseCombobox
           id="event-judge-select"
-          v-model="selectedUserId"
-          class="form-control mt-1"
+          :model-value="selectedUserId === '' ? null : selectedUserId"
+          :options="judgeOptions"
+          placeholder="Choose a judge"
           :disabled="eligible.length === 0"
-        >
-          <option value="">
-            Choose a judge
-          </option>
-          <option
-            v-for="judge in eligible"
-            :key="judge.user_id"
-            :value="String(judge.user_id)"
-          >
-            {{ judge.name }} ({{ judge.email }})
-          </option>
-        </select>
+          @update:model-value="(value) => (selectedUserId = value === null ? '' : String(value))"
+        />
       </div>
-      <BaseButton
+      <button
+        class="a2-btn a2-btn-info"
         type="submit"
-        variant="primary"
         :disabled="selectedUserId === ''"
       >
         Add judge
-      </BaseButton>
+      </button>
       <p
         v-if="addError"
         role="alert"

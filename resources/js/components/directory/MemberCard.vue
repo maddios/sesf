@@ -35,7 +35,7 @@ function onImageError(): void {
           :src="imageSrc"
           resize="directoryCard"
           :alt="member.fullName"
-          img-class="aspect-square w-full object-cover"
+          img-class="aspect-[300/220] w-full object-cover"
           @error="onImageError"
         />
       </RouterLink>
@@ -44,11 +44,11 @@ function onImageError(): void {
         :src="imageSrc"
         resize="directoryCard"
         :alt="member.fullName"
-        img-class="aspect-square w-full object-cover"
+        img-class="aspect-[300/220] w-full object-cover"
         @error="onImageError"
       />
-      <div class="flex flex-1 flex-col gap-1 p-3">
-        <h2 class="text-base font-semibold text-heading">
+      <div class="flex flex-1 flex-col gap-0.5 p-2.5">
+        <h2 class="text-[0.8125rem] font-bold text-heading">
           <RouterLink
             v-if="member.profilePath"
             :to="member.profilePath"
@@ -62,7 +62,7 @@ function onImageError(): void {
         </h2>
         <p
           v-if="member.cityState"
-          class="text-sm text-muted"
+          class="text-xs text-muted"
         >
           {{ member.cityState }}
         </p>

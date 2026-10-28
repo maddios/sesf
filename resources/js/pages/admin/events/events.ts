@@ -118,18 +118,18 @@ export function eventSponsorsApi(eventId: number) {
 
 /** Form fields. Widths mirror car_show (the server validates them too). Clone source is a create-only field. */
 export const EVENT_FIELDS: AdminField[] = [
-  { name: 'name', label: 'Name', required: true, maxlength: 60 },
+  { name: 'name', label: 'Name', required: true, maxlength: 60, section: 'Basics' },
   { name: 'short_name', label: 'Short name', required: true, maxlength: 20, hint: 'Unique. Used in links and reports.' },
-  { name: 'date_start', label: 'Start date', type: 'date' },
+  { name: 'date_start', label: 'Start date', type: 'date', section: 'Dates' },
   { name: 'date_end', label: 'End date', type: 'date' },
   { name: 'date_active', label: 'Registration opens', type: 'datetime', hint: 'Shown in server time.' },
   { name: 'date_registration_deactivation', label: 'Registration closes', type: 'datetime' },
-  { name: 'price_car', label: 'Car entry fee', type: 'money' },
+  { name: 'price_car', label: 'Car entry fee', type: 'money', section: 'Registration & pricing' },
   { name: 'price_adult', label: 'Adult guest fee', type: 'money' },
   { name: 'price_child', label: 'Child guest fee', type: 'money' },
-  { name: 'short_description', label: 'Short description', type: 'textarea', rows: 2, maxlength: 1024 },
-  { name: 'description', label: 'Description', type: 'textarea', rows: 5, maxlength: 1000 },
   { name: 'waiver_id', label: 'Waiver', maxlength: 32, hint: 'Any value turns the online waiver on for this event; blank turns it off.' },
+  { name: 'short_description', label: 'Short description', type: 'textarea', rows: 2, maxlength: 1024, section: 'Texts' },
+  { name: 'description', label: 'Description', type: 'textarea', rows: 5, maxlength: 1000 },
   { name: 'is_schedule_pdf', label: 'Schedule is a PDF', type: 'checkbox', hint: 'Uploading a schedule PDF turns this on.' },
   { name: 'schedule', label: 'Schedule', type: 'textarea', rows: 6 },
 ];
@@ -141,18 +141,19 @@ export function cloneField(sources: CloneSource[]): AdminField {
     label: 'Clone eligible bodies & judging setup from',
     type: 'select',
     required: sources.length > 0,
+    wide: true,
     hint: 'Copies the car bodies and judging setup of the chosen event.',
     options: [{ value: '', label: sources.length > 0 ? 'Choose an event' : 'No earlier events' }, ...sources.map((s) => ({ value: String(s.id), label: s.label }))],
   };
 }
 
 export const EVENT_COLUMNS: AdminColumn<Event>[] = [
-  { key: 'id', label: 'ID', sortable: true, align: 'right' },
+  { key: 'id', label: 'ID', sortable: true, align: 'right', hideOnMobile: true },
   { key: 'name', label: 'Name', sortable: true },
-  { key: 'short_name', label: 'Short name', sortable: true },
+  { key: 'short_name', label: 'Short name', sortable: true, hideOnMobile: true },
   { key: 'date_start', label: 'Starts', sortable: true },
   { key: 'is_active', label: 'Status', sortable: true },
-  { key: 'registrations_count', label: 'Registrations', align: 'right', format: (row) => String(row.registrations_count) },
+  { key: 'registrations_count', label: 'Registrations', align: 'right', format: (row) => String(row.registrations_count), hideOnMobile: true },
 ];
 
 export function toForm(event: Event | null): FormValues {

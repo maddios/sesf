@@ -30,6 +30,7 @@ export function useGalleryPage(eventId: Ref<number>, galleryId: Ref<number | und
   const loadingMore = ref(false);
   const member = shallowRef<CheckedInState>({ checkedIn: false, memberGalleryId: null });
   let run = 0;
+  let allItemsRequest: Promise<GalleryItem[]> | null = null;
 
   const hasMore = computed(() => perPage.value > 0 && skip.value + perPage.value < count.value);
 
@@ -42,6 +43,7 @@ export function useGalleryPage(eventId: Ref<number>, galleryId: Ref<number | und
     const current = run;
     status.value = 'loading';
     skip.value = 0;
+    allItemsRequest = null;
     try {
       const [crumbs, list, info, page] = await Promise.all([
         fetchBreadcrumb(eventId.value, galleryId.value),
@@ -82,14 +84,19 @@ export function useGalleryPage(eventId: Ref<number>, galleryId: Ref<number | und
     }
   }
 
-  /** Every item in page order for the photo viewer; falls back to the loaded items. */
-  async function allItems(): Promise<GalleryItem[]> {
-    try {
-      const page = await fetchGalleryItems(itemsQuery({ allItems: true }));
-      return page.items.length > 0 ? page.items : items.value;
-    } catch {
-      return items.value;
-    }
+  /**
+   * Every item in page order for the photo viewer, fetched at most once per load; the loaded items when every page
+   * is already in, or when the request fails.
+   */
+  function allItems(): Promise<GalleryItem[]> {
+    if (!hasMore.value) return Promise.resolve(items.value);
+    allItemsRequest ??= fetchGalleryItems(itemsQuery({ allItems: true }))
+      .then((page) => (page.items.length > 0 ? page.items : items.value))
+      .catch(() => {
+        allItemsRequest = null;
+        return items.value;
+      });
+    return allItemsRequest;
   }
 
   return { status, breadcrumb, subGalleries, gallery, items, count, perPage, hasMore, loadingMore, member, load, loadMember, loadMore, allItems };

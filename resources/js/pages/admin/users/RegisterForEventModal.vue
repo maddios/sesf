@@ -29,7 +29,7 @@ const memberId = computed(() => props.member?.id ?? chosenMemberId.value);
 const FIELDS = computed<AdminField[]>(() => [
   ...(props.member === null ? [{ name: 'user_id', label: 'Member', required: true }] : []),
   { name: 'show_id', label: 'Event', required: true },
-  { name: 'car_ids', label: 'Cars entered', hint: 'The member’s cars that go into this event.' },
+  { name: 'car_ids', label: 'Cars entered', hint: 'The member’s cars that go into this event.', wide: true },
 ]);
 
 const initial = computed<FormValues>(() => ({ user_id: null, show_id: null, car_ids: [] }));

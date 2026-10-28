@@ -79,9 +79,10 @@ describe('SponsorsPage', () => {
     const { router } = await renderAt(Page, '/admin/sponsors?f.is_enabled=0');
     await within(table()).findByText('Acme Tools');
     expect(seen.find((r) => r.path === '/admin-api/sponsors')?.params.get('filter[is_enabled]')).toBe('0');
-    expect((screen.getByLabelText('Status') as HTMLSelectElement).value).toBe('0');
+    expect((screen.getByRole('combobox', { name: 'Status' }) as HTMLInputElement).value).toBe('Disabled');
 
-    await user.selectOptions(screen.getByLabelText('Status'), '1');
+    await user.click(screen.getByRole('combobox', { name: 'Status' }));
+    await user.click(await screen.findByRole('option', { name: 'Enabled' }));
     expect(router.currentRoute.value.query['f.is_enabled']).toBe('1');
     await user.type(screen.getByRole('searchbox', { name: 'Search sponsors' }), 'acme{Enter}');
     await waitFor(() => expect(router.currentRoute.value.query.search).toBe('acme'));

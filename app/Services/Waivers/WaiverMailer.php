@@ -37,45 +37,56 @@ class WaiverMailer
         $result = ['sent' => 0, 'skipped' => 0, 'failed' => 0];
 
         foreach ($people as $person) {
-            if ($person instanceof UserGuest) {
-                $registration = ShowRegistration::query()->find($person->registration_id);
-                $email = trim((string) $person->email);
-                $first = (string) $person->first;
-                $guest = $person;
-            } else {
-                $registration = $person;
-                $user = User::query()->find($person->user_id);
-                $email = trim((string) $user?->email);
-                $first = (string) $user?->first;
-                $guest = null;
-            }
-
-            $show = $registration !== null ? CarShow::query()->find($registration->show_id) : null;
-            if ($registration === null || $registration->is_cancelled || $show === null || $email === '') {
-                $result['skipped']++;
-
-                continue;
-            }
-
-            $waiver = $this->waivers->ensurePending($registration, $guest);
-            $lock = 'waiver-request|'.$waiver->id;
-            if ($waiver->has_signed || ! Cache::add($lock, true, $this->dedupeSeconds())) {
-                $result['skipped']++;
-
-                continue;
-            }
-
             try {
-                Mail::to($email)->send(new WaiverRequestMail($waiver->signUrl(), $first, (string) $show->name));
-                $result['sent']++;
-            } catch (Throwable $e) {
-                Cache::forget($lock);
-                Log::error('Waiver request email failed', ['waiver_row' => $waiver->id, 'error' => $e->getMessage()]);
+                $result[$this->sendRequest($person) ? 'sent' : 'skipped']++;
+            } catch (Throwable) {
                 $result['failed']++;
             }
         }
 
         return $result;
+    }
+
+    /**
+     * Sends one sign request. Returns false when the person is skipped; a mail failure is logged and
+     * rethrown (the dedupe lock is released, so a retry sends).
+     */
+    public function sendRequest(ShowRegistration|UserGuest $person): bool
+    {
+        if ($person instanceof UserGuest) {
+            $registration = ShowRegistration::query()->find($person->registration_id);
+            $email = trim((string) $person->email);
+            $first = (string) $person->first;
+            $guest = $person;
+        } else {
+            $registration = $person;
+            $user = User::query()->find($person->user_id);
+            $email = trim((string) $user?->email);
+            $first = (string) $user?->first;
+            $guest = null;
+        }
+
+        $show = $registration !== null ? CarShow::query()->find($registration->show_id) : null;
+        if ($registration === null || $registration->is_cancelled || $show === null || $email === '') {
+            return false;
+        }
+
+        $waiver = $this->waivers->ensurePending($registration, $guest);
+        $lock = 'waiver-request|'.$waiver->id;
+        if ($waiver->has_signed || ! Cache::add($lock, true, $this->dedupeSeconds())) {
+            return false;
+        }
+
+        try {
+            Mail::to($email)->send(new WaiverRequestMail($waiver->signUrl(), $first, (string) $show->name));
+        } catch (Throwable $e) {
+            Cache::forget($lock);
+            Log::error('Waiver request email failed', ['waiver_row' => $waiver->id, 'error' => $e->getMessage()]);
+
+            throw $e;
+        }
+
+        return true;
     }
 
     /**
@@ -97,6 +108,16 @@ class WaiverMailer
      */
     public function sendReminder(int $registrationId, CarShow $show): bool
     {
+        try {
+            return $this->remind($registrationId, $show);
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    /** As sendReminder, but a mail failure is logged and rethrown (the dedupe lock is released). */
+    public function remind(int $registrationId, CarShow $show): bool
+    {
         $row = $this->incompleteParties((int) $show->id, $registrationId)[0] ?? null;
         $lock = 'waiver-reminder|'.$registrationId;
         if ($row === null || ! Cache::add($lock, true, $this->dedupeSeconds())) {
@@ -106,14 +127,14 @@ class WaiverMailer
         $portalUrl = rtrim((string) config('app.url'), '/').'/waiver/'.(int) $show->id;
         try {
             Mail::to(trim((string) $row->email))->send(new WaiverReminderMail($portalUrl, (string) $row->first, (string) $show->name));
-
-            return true;
         } catch (Throwable $e) {
             Cache::forget($lock);
             Log::error('Waiver reminder email failed', ['registration' => $registrationId, 'error' => $e->getMessage()]);
 
-            return false;
+            throw $e;
         }
+
+        return true;
     }
 
     /**

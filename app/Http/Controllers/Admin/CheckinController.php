@@ -25,6 +25,8 @@ final class CheckinController extends Controller
 {
     private const RESOURCE = 'registration';
 
+    private const NOT_QUEUED = 'The email could not be queued; it was not sent. Try again or contact the member directly.';
+
     public function __construct(
         private readonly CheckinService $checkin,
         private readonly CheckinOutreach $outreach,
@@ -62,11 +64,11 @@ final class CheckinController extends Controller
     public function waiverReminder(int $registration): JsonResponse
     {
         $model = $this->findActive($registration);
-        $this->outreach->waiverReminder($this->showOf($model), $model);
+        $queued = $this->outreach->waiverReminder($this->showOf($model), $model);
 
         AuditLog::record('registration.waiver_reminder', self::RESOURCE, [$model->id]);
 
-        return response()->json(['ok' => true, 'queued' => true]);
+        return response()->json(['ok' => true, 'queued' => $queued] + ($queued ? [] : ['message' => self::NOT_QUEUED]));
     }
 
     public function waiverSignUrl(Request $request, int $registration): JsonResponse
@@ -85,11 +87,11 @@ final class CheckinController extends Controller
     public function payLinkEmail(int $registration): JsonResponse
     {
         $model = $this->findActive($registration);
-        $this->outreach->payLinkEmail($this->showOf($model), $model);
+        $queued = $this->outreach->payLinkEmail($this->showOf($model), $model);
 
         AuditLog::record('registration.pay_link_email', self::RESOURCE, [$model->id]);
 
-        return response()->json(['ok' => true, 'queued' => true]);
+        return response()->json(['ok' => true, 'queued' => $queued] + ($queued ? [] : ['message' => self::NOT_QUEUED]));
     }
 
     public function options(int $show): JsonResponse
@@ -113,10 +115,15 @@ final class CheckinController extends Controller
 
         AuditLog::record('registration.create', self::RESOURCE, [$registration->id], [], ['user_id' => (int) $member->id]);
 
-        $this->outreach->waiverReminder($found, $this->findActive($registration->id));
-        $this->outreach->payLinkEmail($found, $this->findActive($registration->id));
+        $created = $this->findActive($registration->id);
+        $reminderQueued = $this->outreach->waiverReminder($found, $created);
+        $payLinkQueued = $this->outreach->payLinkEmail($found, $created);
+        $queued = $reminderQueued && $payLinkQueued;
 
-        return (new CheckinRegistrationResource($this->findActive($registration->id)))->response()->setStatusCode(201);
+        return (new CheckinRegistrationResource($created))
+            ->additional(['queued' => $queued] + ($queued ? [] : ['message' => self::NOT_QUEUED]))
+            ->response()
+            ->setStatusCode(201);
     }
 
     private function fresh(int $id): CheckinRegistrationResource

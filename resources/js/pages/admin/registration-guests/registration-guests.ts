@@ -53,12 +53,12 @@ export const GUEST_EDIT_FIELDS: AdminField[] = [
 
 export const GUEST_COLUMNS: AdminColumn<RegistrationGuest>[] = [
   { key: 'last', label: 'Name', sortable: true, format: (row) => `${row.last}, ${row.first}` },
-  { key: 'email', label: 'Email' },
+  { key: 'email', label: 'Email', hideOnMobile: true },
   { key: 'type', label: 'Type' },
-  { key: 'show_name', label: 'Event' },
-  { key: 'member_name', label: 'Registered by' },
+  { key: 'show_name', label: 'Event', hideOnMobile: true },
+  { key: 'member_name', label: 'Registered by', hideOnMobile: true },
   { key: 'registration_id', label: 'Registration ID', sortable: true, align: 'right' },
-  { key: 'created_at', label: 'Date added', sortable: true, format: (row) => (row.created_at ?? '').slice(0, 10) },
+  { key: 'created_at', label: 'Date added', sortable: true, hideOnMobile: true, format: (row) => (row.created_at ?? '').slice(0, 10) },
 ];
 
 export function toForm(guest: RegistrationGuest | null): FormValues {

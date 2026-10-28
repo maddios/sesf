@@ -7,6 +7,7 @@ services:
     user: "1000:1000"
     environment:
       COMPOSER_HOME: /tmp/composer
+      PHP_CLI_SERVER_WORKERS: "8"
     volumes:
       - .:/app
       # Dev file store: the already-copied production-like store, mounted
@@ -52,11 +53,11 @@ services:
         target: /app/storage/waivers
         bind: {create_host_path: false}
     ports:
-      - "8000:8000"
+      - "${APP_HOST_PORT:-8000}:8000"
     command: php artisan serve --host=0.0.0.0 --port=8000
 
-  # Queue consumer for the database queue (QUEUE_CONNECTION=database). Same image and checkout as app; the waiver
-  # store is mounted because queued waiver PDFs are written there. Restarts on failure.
+  # The only consumer of the database queue (QUEUE_CONNECTION=database). Same image and checkout as app; the waiver
+  # stores are mounted because queued waiver PDFs are read from and written there. Restarts on failure.
   worker:
     image: sesf-php:dev
     working_dir: /app
@@ -68,12 +69,16 @@ services:
     volumes:
       - .:/app
       - type: bind
+        source: ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/public/waivers
+        target: /app/storage/legacy-waivers
+        bind: {create_host_path: false}
+      - type: bind
         source: ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/storage/waivers
         target: /app/storage/waivers
         bind: {create_host_path: false}
     command: php artisan queue:work --tries=3 --sleep=3 --max-time=3600
 
-  # Laravel scheduler (routes/console.php). Runs the legacy ProcessDbQueue cron equivalent every minute.
+  # Laravel scheduler (routes/console.php): runs scheduled commands only; it never consumes the queue (see worker).
   scheduler:
     image: sesf-php:dev
     working_dir: /app

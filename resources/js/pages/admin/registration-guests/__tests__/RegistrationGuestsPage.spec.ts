@@ -74,7 +74,8 @@ describe('RegistrationGuestsPage', () => {
     await renderAt(Page, '/admin/registration-guests');
     await user.click(await within(table()).findByRole('button', { name: 'Edit guest Grace Hopper' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit Grace Hopper' });
-    await user.selectOptions(within(dialog).getByLabelText('Type (required)'), '2');
+    await user.click(within(dialog).getByRole('combobox', { name: /^Type/ }));
+    await user.click(await screen.findByRole('option', { name: 'Child (Under 13)' }));
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
@@ -86,6 +87,14 @@ describe('RegistrationGuestsPage', () => {
       registration_id: 1,
     });
     expect(screen.getByRole('status', { name: 'Notifications' }).textContent).toContain('Guest “Grace Hopper” saved.');
+  });
+
+  it('opens the edit dialog when the row is clicked', async () => {
+    stubGuests();
+    const user = userEvent.setup();
+    await renderAt(Page, '/admin/registration-guests');
+    await user.click(await within(table()).findByText('Hopper, Grace'));
+    expect(await screen.findByRole('dialog', { name: 'Edit Grace Hopper' })).toBeTruthy();
   });
 
   it('moves a guest to another registration and shows registration id and date added', async () => {

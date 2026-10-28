@@ -175,6 +175,9 @@ export function useAdminList<T>(options: UseAdminListOptions<T>) {
     return update({ filters, page: 1 });
   }
 
+  /** Filters in use (for the "Filters (n)" button on phones). */
+  const activeFilters = computed(() => Object.keys(state.value.filters).length);
+
   watch(
     () => JSON.stringify(toListQuery(state.value)),
     () => void load(),
@@ -185,7 +188,7 @@ export function useAdminList<T>(options: UseAdminListOptions<T>) {
     disposed = true;
   });
 
-  return { rows, meta, loading, error, state, reload: load, setPage, setPerPage, setSort, setSearch, setFilter };
+  return { rows, meta, loading, error, state, activeFilters, reload: load, setPage, setPerPage, setSort, setSearch, setFilter };
 }
 
 export type AdminList<T> = ReturnType<typeof useAdminList<T>>;

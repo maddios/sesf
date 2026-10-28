@@ -41,7 +41,7 @@ const tabs = computed<TabNavItem[]>(() => {
   if (current.registrationOpen) {
     items.push({ label: 'Register', to: `${current.path}/register` });
   }
-  items.push({ label: 'Sponsors', to: { name: 'event-sponsors', params } });
+  items.push({ label: 'Sponsors', to: { name: 'event-sponsors', params }, emphasis: true });
   return items;
 });
 

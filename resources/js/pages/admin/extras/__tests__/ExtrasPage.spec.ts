@@ -76,7 +76,8 @@ describe('ExtrasPage', () => {
     await within(table()).findByText('Dinner');
     expect(seen.find((r) => r.path === '/admin-api/extras')?.params.get('filter[type_id]')).toBe('2');
 
-    await user.selectOptions(screen.getByLabelText('Status'), '0');
+    await user.click(screen.getByRole('combobox', { name: 'Status' }));
+    await user.click(await screen.findByRole('option', { name: 'Disabled' }));
     await waitFor(() => expect(router.currentRoute.value.query['f.is_enabled']).toBe('0'));
     await user.type(screen.getByRole('combobox', { name: 'Event' }), 'spr');
     await user.click(await screen.findByRole('option', { name: 'Spring Show (2026)' }));

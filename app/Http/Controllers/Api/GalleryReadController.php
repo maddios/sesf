@@ -47,8 +47,8 @@ final class GalleryReadController extends Controller
 
     /**
      * GET gallery/car-show-list. Active shows, newest first. Non-admins see only shows with an
-     * enabled gallery. Each show lists the galleries this viewer may see (legacy listed all,
-     * disabled ones included).
+     * enabled gallery. Each show lists the galleries this viewer may see, a hidden gallery's descendants
+     * excluded (legacy listed all, disabled ones included).
      */
     public function carShowList(Request $request): JsonResponse
     {
@@ -60,6 +60,13 @@ final class GalleryReadController extends Controller
             ->when(! $access->isAdmin(), fn (Builder $query) => $query->whereHas('galleries', fn (Builder $gallery) => $gallery->enabled()))
             ->orderByDesc('date_start')
             ->get();
+
+        if (! $access->isAdmin()) {
+            foreach ($shows as $show) {
+                $visible = array_flip($access->visibleGalleryIds((int) $show->id));
+                $show->setRelation('galleries', $show->galleries->filter(fn (Gallery $gallery): bool => isset($visible[(int) $gallery->id]))->values());
+            }
+        }
 
         return response()->json(GalleryShowResource::collection($shows)->resolve($request));
     }

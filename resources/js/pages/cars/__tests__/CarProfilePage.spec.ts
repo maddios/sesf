@@ -26,8 +26,8 @@ describe('CarProfilePage', () => {
     expect(await screen.findByRole('heading', { level: 1, name: '1987 M635CSi' })).toBeTruthy();
     expect(fn.mock.calls[0]?.[0]).toBe('/car/profile?car_id=78');
     expect(document.title).toBe('1987 M635CSi | Southeast Sharkfest');
-    expect(screen.getByText(/Body: Coupe/)).toBeTruthy();
-    expect(screen.getByText(/Type: Sport/)).toBeTruthy();
+    expect(screen.getByText('Body').nextElementSibling?.textContent?.trim()).toBe('Coupe');
+    expect(screen.getByText('Type').nextElementSibling?.textContent?.trim()).toBe('Sport');
     expect(screen.getByRole('link', { name: 'Shawn B' }).getAttribute('href')).toBe('/ShawnB/u12');
     expect(screen.getByRole('link', { name: 'Southeast Sharkfest 2026' }).getAttribute('href')).toBe('/SoutheastSharkfest2026/e36');
     expect(screen.getByText('(Apr 2026)')).toBeTruthy();
@@ -45,7 +45,7 @@ describe('CarProfilePage', () => {
     expect(screen.getByRole('link', { name: 'Edit car' }).getAttribute('href')).toBe('/car/78/settings');
     const judging = screen.getByRole('link', { name: 'Judging results for Southeast Sharkfest 2026' });
     expect(judging.getAttribute('href')).toBe('#/SoutheastSharkfest2026/judging');
-    expect(screen.getByText(/Body: Coupe/)).toBeTruthy();
+    expect(screen.getByText('Body').nextElementSibling?.textContent?.trim()).toBe('Coupe');
   });
 
   it('does not render an unsafe judging link', async () => {
@@ -63,8 +63,8 @@ describe('CarProfilePage', () => {
     carApi({ ...CAR_PROFILE_PUBLIC, shows: [], body: { name: '' }, type: { type: '' }, user: null });
     await mountWithRouter(CarProfilePage, { path: '/car/78', props: { carId: 78 } });
     expect(await screen.findByText('This car has not attended a show yet.')).toBeTruthy();
-    expect(screen.queryByText(/Owner:/)).toBeNull();
-    expect(screen.queryByText(/Body:/)).toBeNull();
+    expect(screen.queryByText('Owner')).toBeNull();
+    expect(screen.queryByText('Body')).toBeNull();
   });
 
   it('shows the not-found state for an unknown car', async () => {

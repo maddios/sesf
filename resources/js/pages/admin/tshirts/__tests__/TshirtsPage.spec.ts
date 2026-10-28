@@ -64,29 +64,52 @@ afterEach(() => {
 });
 
 describe('TshirtsPage', () => {
-  it('shows stock, hand-outs and sales for the event and passes axe', async () => {
+  it('shows the tally, the registrations and the sales for the event, and passes axe', async () => {
     const { seen } = stubShirts();
     const { container } = await renderAt(Page, '/admin/tshirts?show_id=4');
 
-    const stock = await screen.findByRole('table', { name: 'Stock by shirt type' });
-    expect(within(stock).getByRole('rowheader', { name: /Mens Medium/ })).toBeTruthy();
-    expect(within(stock).getByText('7')).toBeTruthy();
-    expect(within(screen.getByRole('table', { name: 'Registrations with shirts' })).getByText('Partial')).toBeTruthy();
+    const chips = await screen.findByRole('list', { name: 'Shirts available' });
+    expect(within(chips).getByText('Mens Medium: 7 available')).toBeTruthy();
+    const table = screen.getByRole('table', { name: 'Registrations with shirts' });
+    expect(within(table).getByText('Partial')).toBeTruthy();
+    expect(within(table).getByText('1 left to hand out')).toBeTruthy();
+    // Fully handed out registrations are hidden by default, as in the legacy page.
+    expect(within(table).queryByText('Grace Hopper')).toBeNull();
+    expect(screen.getByText('Showing:').parentElement?.textContent).toContain('1');
+    expect(within(screen.getByRole('table', { name: 'Ad-hoc sales' })).getByText('Mens Medium')).toBeTruthy();
     expect(seen.find((r) => r.path === '/admin-api/shirts/inventory')!.params.get('show_id')).toBe('4');
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it('records a hand-out and re-reads the counts', async () => {
+  it('hands a shirt out from the registrant dialog and re-reads the counts', async () => {
     const { seen } = stubShirts(inventory(), (request) => {
       if (request.method === 'POST' && request.path === '/admin-api/shirts/91/handed-out') return jsonResponse(200, { data: { id: 91, registration_id: 21, handed_out: true } });
       return undefined;
     });
     const user = userEvent.setup();
     await renderAt(Page, '/admin/tshirts?show_id=4');
-    await user.click(await screen.findByRole('button', { name: 'Mens Medium: not handed out' }));
+    await user.click(await screen.findByRole('button', { name: 'Shirts for #7 Ada Lovelace' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Shirts for registrant' });
+    expect((within(dialog).getByRole('checkbox', { name: 'Handed out: Mens Small' }) as HTMLInputElement).checked).toBe(true);
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Handed out: Mens Medium' }));
 
     await waitFor(() => expect(seen.find((r) => r.method === 'POST' && r.path.endsWith('/handed-out'))?.body).toEqual({ handed_out: true }));
     await waitFor(() => expect(seen.filter((r) => r.path === '/admin-api/shirts/inventory').length).toBeGreaterThan(1));
+  });
+
+  it('keeps the switch as stored and shows the reason when a hand-out fails', async () => {
+    stubShirts(inventory(), (request) => {
+      if (request.method === 'POST' && request.path.endsWith('/handed-out')) return jsonResponse(409, { message: 'Shirt already handed out.' });
+      return undefined;
+    });
+    const user = userEvent.setup();
+    await renderAt(Page, '/admin/tshirts?show_id=4');
+    await user.click(await screen.findByRole('button', { name: 'Shirts for #7 Ada Lovelace' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Shirts for registrant' });
+    const box = within(dialog).getByRole('checkbox', { name: 'Handed out: Mens Medium' }) as HTMLInputElement;
+    await user.click(box);
+    expect(await within(dialog).findByText('Shirt already handed out.')).toBeTruthy();
+    expect(box.checked).toBe(false);
   });
 
   it('saves only the stock counts that changed', async () => {
@@ -96,8 +119,10 @@ describe('TshirtsPage', () => {
     });
     const user = userEvent.setup();
     await renderAt(Page, '/admin/tshirts?show_id=4');
-    await user.click(await screen.findByRole('button', { name: 'More Mens Medium on hand' }));
-    await user.click(screen.getByRole('button', { name: 'Save inventory' }));
+    await user.click(await screen.findByRole('button', { name: 'Set shirt inventory' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Shirt inventory for this event' });
+    await user.click(within(dialog).getByRole('button', { name: 'More Mens Medium on hand' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save inventory' }));
 
     await waitFor(() => expect(seen.find((r) => r.method === 'PUT')?.body).toEqual({ stock: { 2: 11 } }));
   });
@@ -109,13 +134,9 @@ describe('TshirtsPage', () => {
     });
     const user = userEvent.setup();
     await renderAt(Page, '/admin/tshirts?show_id=4');
+    await user.click(await screen.findByRole('button', { name: 'Sell shirt' }));
     const add = await screen.findByRole('button', { name: 'Add one Mens Medium to the sale' });
-    await user.click(add);
-    await user.click(add);
-    await user.click(add);
-    await user.click(add);
-    await user.click(add);
-    await user.click(add);
+    for (let i = 0; i < 6; i++) await user.click(add);
     expect(screen.getByLabelText('Mens Medium in sale').textContent).toBe('5');
 
     await user.click(screen.getByRole('button', { name: 'Record sale (5)' }));
@@ -131,6 +152,7 @@ describe('TshirtsPage', () => {
     });
     const user = userEvent.setup();
     await renderAt(Page, '/admin/tshirts?show_id=4');
+    await user.click(await screen.findByRole('button', { name: 'Sell shirt' }));
     await user.click(await screen.findByRole('button', { name: 'Add one Mens Medium to the sale' }));
     await user.click(screen.getByRole('button', { name: 'Record sale (1)' }));
 
@@ -164,25 +186,35 @@ describe('TshirtsPage', () => {
     expect(screen.getByText(/2 short/)).toBeTruthy();
   });
 
-  it('hides the registrations whose shirts are all handed out when asked', async () => {
+  it('shows the fully handed out registrations when the filter is turned off', async () => {
     stubShirts();
     const user = userEvent.setup();
     await renderAt(Page, '/admin/tshirts?show_id=4');
     const table = await screen.findByRole('table', { name: 'Registrations with shirts' });
-    expect(within(table).getByText('Grace Hopper')).toBeTruthy();
-
-    await user.click(screen.getByLabelText('Hide complete'));
     expect(within(table).queryByText('Grace Hopper')).toBeNull();
+
+    await user.click(screen.getByLabelText('Hide fully handed out'));
+    expect(within(table).getByText('Grace Hopper')).toBeTruthy();
+    await user.type(screen.getByLabelText('Narrow by name or registration number'), '#9');
+    expect(within(table).queryByText('Ada Lovelace')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Clear search' }));
     expect(within(table).getByText('Ada Lovelace')).toBeTruthy();
   });
 
-  it('prints the sheet with the browser print dialog', async () => {
+  it('links the printable checklist (new tab) and prints the sheet', async () => {
     stubShirts();
     const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
     const user = userEvent.setup();
     await renderAt(Page, '/admin/tshirts?show_id=4');
-    await user.click(await screen.findByRole('button', { name: 'Printable shirt checklist' }));
+    expect((await screen.findByRole('link', { name: 'Printable shirt checklist' })).getAttribute('href')).toBe('#/admin/tshirts?show_id=4&print=1');
+  
+    const printed = await renderAt(Page, '/admin/tshirts?show_id=4&print=1');
+    const sheet = await screen.findByRole('region', { name: 'Printable shirt checklist' });
+    expect(within(sheet).getByText('T-shirt pickup — Spring Show')).toBeTruthy();
+    expect(within(sheet).getByText('Inventory totals')).toBeTruthy();
+    await user.click(within(sheet).getByRole('button', { name: 'Print' }));
     expect(print).toHaveBeenCalledOnce();
+    printed.unmount();
   });
 
   it('asks for an event first', async () => {

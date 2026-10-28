@@ -7,11 +7,15 @@
 import { onMounted, ref } from 'vue';
 import { api } from '../../../api/client';
 import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
+import AdminFormField from '../../../components/admin/AdminFormField.vue';
 import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
+import AdminIconButton from '../../../components/admin/AdminIconButton.vue';
+import AdminPageHeader from '../../../components/admin/AdminPageHeader.vue';
 import ImageUploadModal from '../../../components/admin/ImageUploadModal.vue';
 import RelationSelect from '../../../components/admin/RelationSelect.vue';
 import StatusBadge from '../../../components/admin/StatusBadge.vue';
 import BaseButton from '../../../components/ui/BaseButton.vue';
+import BaseCombobox from '../../../components/ui/BaseCombobox.vue';
 import SafeImage from '../../../components/ui/SafeImage.vue';
 import { useAdminList } from '../../../composables/admin/useAdminList';
 import { ADMIN_API_BASE, mapAdminError } from '../../../composables/admin/useAdminResource';
@@ -27,6 +31,12 @@ const list = useAdminList<Car>({
 });
 const toast = useToast();
 const { confirm } = useConfirm();
+
+const CONFIRMED_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: '1', label: 'Confirmed' },
+  { value: '0', label: 'Unconfirmed' },
+];
 
 const options = ref<CarOptions>({ types: [], bodies: [] });
 const optionsError = ref<string | null>(null);
@@ -112,8 +122,8 @@ async function remove(car: Car): Promise<void> {
   }
 }
 
-function onIdFilter(key: 'show_id' | 'user_id', value: number | null): void {
-  void list.setFilter(key, value === null ? null : String(value));
+function setFilter(key: 'is_confirmed' | 'show_id' | 'type_id' | 'body_id' | 'user_id', value: string | number | null): void {
+  void list.setFilter(key, value === null || value === '' ? null : String(value));
 }
 
 function idFilterValue(key: 'show_id' | 'user_id'): number | null {
@@ -123,10 +133,17 @@ function idFilterValue(key: 'show_id' | 'user_id'): number | null {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <h1 class="page-title">
-      Cars
-    </h1>
+  <div>
+    <AdminPageHeader title="Cars">
+      <template #actions>
+        <BaseButton
+          variant="primary"
+          @click="openCreate"
+        >
+          New car
+        </BaseButton>
+      </template>
+    </AdminPageHeader>
     <p
       v-if="optionsError"
       class="text-sm text-danger"
@@ -144,6 +161,8 @@ function idFilterValue(key: 'show_id' | 'user_id'): number | null {
       :loading="list.loading.value"
       :error="list.error.value"
       empty-message="No cars match."
+      :active-filters="list.activeFilters.value"
+      @row-click="openEdit"
       @sort="list.setSort"
       @page="list.setPage"
       @search="list.setSearch"
@@ -151,113 +170,53 @@ function idFilterValue(key: 'show_id' | 'user_id'): number | null {
       @retry="list.reload"
     >
       <template #filters>
-        <div>
-          <label
-            for="car-filter-confirmed"
-            class="block text-sm font-medium text-text"
-          >Confirmation</label>
-          <select
+        <div class="w-40">
+          <label for="car-filter-confirmed">Confirmation</label>
+          <BaseCombobox
             id="car-filter-confirmed"
-            class="form-control mt-1"
-            :value="list.state.value.filters.is_confirmed ?? ''"
-            @change="list.setFilter('is_confirmed', ($event.target as HTMLSelectElement).value)"
-          >
-            <option value="">
-              All
-            </option>
-            <option value="1">
-              Confirmed
-            </option>
-            <option value="0">
-              Unconfirmed
-            </option>
-          </select>
+            :model-value="list.state.value.filters.is_confirmed ?? ''"
+            :options="CONFIRMED_OPTIONS"
+            @update:model-value="(value) => setFilter('is_confirmed', value)"
+          />
         </div>
-        <div class="sm:w-64">
-          <label
-            for="car-filter-show"
-            class="block text-sm font-medium text-text"
-          >Event</label>
-          <div class="mt-1">
-            <RelationSelect
-              id="car-filter-show"
-              :endpoint="`${ADMIN_API_BASE}/lookups/events`"
-              :model-value="idFilterValue('show_id')"
-              placeholder="Any event"
-              @update:model-value="(value: number | null) => onIdFilter('show_id', value)"
-            />
-          </div>
+        <div class="w-64">
+          <label for="car-filter-show">Event</label>
+          <RelationSelect
+            id="car-filter-show"
+            :endpoint="`${ADMIN_API_BASE}/lookups/events`"
+            :model-value="idFilterValue('show_id')"
+            placeholder="Any event"
+            @update:model-value="(value) => setFilter('show_id', value)"
+          />
         </div>
-        <div>
-          <label
-            for="car-filter-type"
-            class="block text-sm font-medium text-text"
-          >Type</label>
-          <select
+        <div class="w-40">
+          <label for="car-filter-type">Type</label>
+          <BaseCombobox
             id="car-filter-type"
-            class="form-control mt-1"
-            :value="list.state.value.filters.type_id ?? ''"
-            @change="list.setFilter('type_id', ($event.target as HTMLSelectElement).value)"
-          >
-            <option value="">
-              Any
-            </option>
-            <option
-              v-for="option in options.types"
-              :key="option.id"
-              :value="String(option.id)"
-            >
-              {{ option.label }}
-            </option>
-          </select>
+            :model-value="list.state.value.filters.type_id ?? ''"
+            :options="[{ value: '', label: 'Any' }, ...options.types.map((option) => ({ value: String(option.id), label: option.label }))]"
+            @update:model-value="(value) => setFilter('type_id', value)"
+          />
         </div>
-        <div>
-          <label
-            for="car-filter-body"
-            class="block text-sm font-medium text-text"
-          >Body</label>
-          <select
+        <div class="w-40">
+          <label for="car-filter-body">Body</label>
+          <BaseCombobox
             id="car-filter-body"
-            class="form-control mt-1"
-            :value="list.state.value.filters.body_id ?? ''"
-            @change="list.setFilter('body_id', ($event.target as HTMLSelectElement).value)"
-          >
-            <option value="">
-              Any
-            </option>
-            <option
-              v-for="option in options.bodies"
-              :key="option.id"
-              :value="String(option.id)"
-            >
-              {{ option.label }}
-            </option>
-          </select>
+            :model-value="list.state.value.filters.body_id ?? ''"
+            :options="[{ value: '', label: 'Any' }, ...options.bodies.map((option) => ({ value: String(option.id), label: option.label }))]"
+            @update:model-value="(value) => setFilter('body_id', value)"
+          />
         </div>
-        <div class="sm:w-64">
-          <label
-            for="car-filter-owner"
-            class="block text-sm font-medium text-text"
-          >Owner</label>
-          <div class="mt-1">
-            <RelationSelect
-              id="car-filter-owner"
-              :endpoint="`${ADMIN_API_BASE}/users/lookup`"
-              :model-value="idFilterValue('user_id')"
-              placeholder="Any owner"
-              @update:model-value="(value: number | null) => onIdFilter('user_id', value)"
-            />
-          </div>
+        <div class="w-64">
+          <label for="car-filter-owner">Owner</label>
+          <RelationSelect
+            id="car-filter-owner"
+            :endpoint="`${ADMIN_API_BASE}/users/lookup`"
+            :model-value="idFilterValue('user_id')"
+            placeholder="Any owner"
+            @update:model-value="(value) => setFilter('user_id', value)"
+          />
         </div>
-      </template>
-
-      <template #toolbar-end>
-        <BaseButton
-          variant="primary"
-          @click="openCreate"
-        >
-          Add car
-        </BaseButton>
       </template>
 
       <template #cell-profile="{ row }">
@@ -287,69 +246,57 @@ function idFilterValue(key: 'show_id' | 'user_id'): number | null {
       </template>
 
       <template #actions="{ row }">
-        <div class="inline-flex flex-wrap justify-end gap-1">
-          <BaseButton
-            size="sm"
-            :aria-label="`Edit car ${row.id}`"
-            @click="openEdit(row)"
-          >
-            Edit
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            :loading="busyId === row.id"
-            :aria-label="`${row.is_confirmed ? 'Unconfirm' : 'Confirm'} car ${row.id}`"
-            @click="setConfirmed(row, !row.is_confirmed)"
-          >
-            {{ row.is_confirmed ? 'Unconfirm' : 'Confirm' }}
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            :aria-label="`Photo for car ${row.id}`"
-            @click="openImage(row)"
-          >
-            Photo
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            variant="danger"
-            :disabled="row.in_use"
-            :title="row.in_use ? 'Entered in a show: it cannot be deleted.' : undefined"
-            :aria-label="`Delete car ${row.id}`"
-            @click="remove(row)"
-          >
-            Delete
-          </BaseButton>
-        </div>
+        <AdminIconButton
+          icon="edit"
+          :label="`Edit car ${row.id}`"
+          @click="openEdit(row)"
+        />
+        <AdminIconButton
+          :icon="row.is_confirmed ? 'x' : 'check'"
+          :label="`${row.is_confirmed ? 'Unconfirm' : 'Confirm'} car ${row.id}`"
+          :disabled="busyId === row.id"
+          @click="setConfirmed(row, !row.is_confirmed)"
+        />
+        <AdminIconButton
+          icon="image"
+          :label="`Photo for car ${row.id}`"
+          @click="openImage(row)"
+        />
+        <AdminIconButton
+          icon="trash"
+          variant="danger"
+          :label="`Delete car ${row.id}`"
+          :disabled="row.in_use"
+          @click="remove(row)"
+        />
       </template>
     </AdminDataTable>
 
     <AdminFormModal
       v-model:open="formOpen"
-      :title="editing === null ? 'Add car' : `Edit car ${editing.id}`"
+      :title="editing === null ? 'New car' : `Edit car ${editing.id}`"
       :fields="carFields(options)"
       :initial="toForm(editing)"
       :submit="save"
       :submit-label="editing === null ? 'Create car' : 'Save changes'"
       @saved="onSaved"
     >
-      <template #field-user_id="{ id, value, setValue }">
-        <label
-          :for="id"
-          class="block text-sm font-medium text-text"
-        >Owner</label>
-        <div class="mt-1">
+      <template #field-user_id="{ id, value, setValue, field }">
+        <AdminFormField
+          :id="id"
+          v-slot="{ inputProps }"
+          :label="field.label"
+          :hint="field.hint"
+          :wide="field.wide"
+        >
           <RelationSelect
-            :id="id"
+            v-bind="inputProps"
             :model-value="typeof value === 'number' ? value : null"
             :endpoint="`${ADMIN_API_BASE}/users/lookup`"
             placeholder="Search members"
             @update:model-value="(id: number | null) => setValue(id)"
           />
-        </div>
-        <p class="mt-1 text-sm text-muted">
-          Leave empty for a sold car.
-        </p>
+        </AdminFormField>
       </template>
     </AdminFormModal>
 

@@ -5,7 +5,7 @@
  */
 import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
 import RelationSelect from '../../../components/admin/RelationSelect.vue';
-import BaseButton from '../../../components/ui/BaseButton.vue';
+import BaseCombobox from '../../../components/ui/BaseCombobox.vue';
 import { useAdminList, toListQuery } from '../../../composables/admin/useAdminList';
 import { ADMIN_API_BASE } from '../../../composables/admin/useAdminResource';
 import { adminUrl, fetchList, PREFERENCE_OPTIONS, YES_NO_OPTIONS, type MemberRow } from './reports';
@@ -32,8 +32,8 @@ function filterValue(key: string): string {
   return list.state.value.filters[key] ?? '';
 }
 
-function onFilter(key: string, value: string | null): void {
-  void list.setFilter(key, value === '' || value === null ? null : value);
+function onFilter(key: string, value: string | number | null): void {
+  void list.setFilter(key, value === '' || value === null ? null : String(value));
 }
 
 function showFilterValue(): number | null {
@@ -47,50 +47,37 @@ function exportHref(): string {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <h1 class="page-title">
+  <div class="a2-page">
+    <h1 class="sr-only">
       Members report
     </h1>
 
+    <h2 class="a2-legend">
+      Filter
+    </h2>
     <form
-      class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+      class="flex flex-wrap items-end gap-3"
       aria-label="Member filters"
       @submit.prevent
     >
-      <div>
-        <label
-          for="members-filter-show"
-          class="block text-sm font-medium text-text"
-        >Event</label>
-        <div class="mt-1">
-          <RelationSelect
-            id="members-filter-show"
-            :endpoint="`${ADMIN_API_BASE}/lookups/events`"
-            :model-value="showFilterValue()"
-            placeholder="Any event"
-            @update:model-value="(value) => onFilter('show_id', value === null ? null : String(value))"
-          />
-        </div>
+      <div class="w-64">
+        <label for="members-filter-show">Event</label>
+        <RelationSelect
+          id="members-filter-show"
+          :endpoint="`${ADMIN_API_BASE}/lookups/events`"
+          :model-value="showFilterValue()"
+          placeholder="Any event"
+          @update:model-value="(value) => onFilter('show_id', value)"
+        />
       </div>
-      <div>
-        <label
-          for="members-filter-paid"
-          class="block text-sm font-medium text-text"
-        >Paid</label>
-        <select
+      <div class="w-40">
+        <label for="members-filter-paid">Paid</label>
+        <BaseCombobox
           id="members-filter-paid"
-          class="form-control mt-1"
-          :value="filterValue('is_paid')"
-          @change="onFilter('is_paid', ($event.target as HTMLSelectElement).value)"
-        >
-          <option
-            v-for="option in YES_NO_OPTIONS"
-            :key="option.value"
-            :value="option.value"
-          >
-            {{ option.label }}
-          </option>
-        </select>
+          :model-value="filterValue('is_paid')"
+          :options="YES_NO_OPTIONS"
+          @update:model-value="(value) => onFilter('is_paid', value)"
+        />
       </div>
       <fieldset class="contents">
         <legend class="sr-only">
@@ -99,30 +86,23 @@ function exportHref(): string {
         <div
           v-for="pref in PREFERENCES"
           :key="pref.key"
+          class="w-64"
         >
-          <label
-            :for="`members-filter-${pref.key}`"
-            class="block text-sm font-medium text-text"
-          >{{ pref.label }}</label>
-          <select
+          <label :for="`members-filter-${pref.key}`">{{ pref.label }}</label>
+          <BaseCombobox
             :id="`members-filter-${pref.key}`"
-            class="form-control mt-1"
-            :value="filterValue(pref.key)"
-            @change="onFilter(pref.key, ($event.target as HTMLSelectElement).value)"
-          >
-            <option
-              v-for="option in PREFERENCE_OPTIONS"
-              :key="option.value"
-              :value="option.value"
-            >
-              {{ option.label }}
-            </option>
-          </select>
+            :model-value="filterValue(pref.key)"
+            :options="PREFERENCE_OPTIONS"
+            @update:model-value="(value) => onFilter(pref.key, value)"
+          />
         </div>
       </fieldset>
     </form>
 
-    <p class="text-sm">
+    <h2 class="a2-legend">
+      Result
+    </h2>
+    <p>
       <b>Num Users: {{ list.meta.value.total }}</b>
     </p>
 
@@ -143,12 +123,12 @@ function exportHref(): string {
       @retry="list.reload"
     >
       <template #toolbar-end>
-        <BaseButton
+        <a
+          class="a2-btn"
           :href="exportHref()"
-          aria-label="Export members to Excel"
         >
-          Export .xls
-        </BaseButton>
+          Export members to Excel
+        </a>
       </template>
     </AdminDataTable>
   </div>

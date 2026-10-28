@@ -10,7 +10,7 @@ import { ApiError } from '../../../api/client';
 const fields: AdminField[] = [
   { name: 'name', label: 'Name', required: true, maxlength: 10 },
   { name: 'notes', label: 'Notes', type: 'textarea', hint: 'Staff only' },
-  { name: 'tier', label: 'Tier', type: 'select', options: [{ value: 'gold', label: 'Gold' }] },
+  { name: 'tier', label: 'Tier', type: 'select', section: 'Extra', options: [{ value: 'gold', label: 'Gold' }] },
   { name: 'count', label: 'Count', type: 'number' },
   { name: 'price', label: 'Price', type: 'money' },
   { name: 'day', label: 'Day', type: 'date' },
@@ -52,7 +52,8 @@ describe('AdminFormModal', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Edit thing' });
     expect((within(dialog).getByLabelText('Name (required)') as HTMLInputElement).value).toBe('Acme');
     expect(within(dialog).getByLabelText('Notes').tagName).toBe('TEXTAREA');
-    expect(within(dialog).getByLabelText('Tier').tagName).toBe('SELECT');
+    expect(within(dialog).getByRole('combobox', { name: 'Tier' })).toBeTruthy();
+    expect(within(dialog).getByRole('heading', { name: 'Extra' })).toBeTruthy();
     expect((within(dialog).getByLabelText('Count') as HTMLInputElement).type).toBe('number');
     expect(within(dialog).getByLabelText('Price')).toBeTruthy();
     expect((within(dialog).getByLabelText('Day') as HTMLInputElement).type).toBe('date');
@@ -71,7 +72,8 @@ describe('AdminFormModal', () => {
     await user.clear(name);
     await user.type(name, 'Bolt');
     await user.type(screen.getByLabelText('Count'), '7');
-    await user.selectOptions(screen.getByLabelText('Tier'), 'gold');
+    await user.click(screen.getByRole('combobox', { name: 'Tier' }));
+    await user.click(await screen.findByRole('option', { name: 'Gold' }));
     await user.click(screen.getByRole('switch', { name: 'Enabled' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
 

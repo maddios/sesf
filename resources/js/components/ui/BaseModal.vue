@@ -10,12 +10,18 @@ const props = withDefaults(
   defineProps<{
     open: boolean;
     title: string;
-    size?: 'sm' | 'md' | 'lg';
+    size?: 'sm' | 'md' | 'lg' | 'xl';
     closeLabel?: string;
     /** Clicking the backdrop dismisses the dialog. */
     closeOnBackdrop?: boolean;
+    /**
+     * Phone-friendly sheet: below 768px the dialog is a full-width bottom sheet capped at the viewport height; the
+     * body scrolls and the footer stays visible with stacked full-width buttons. From 768px it is a centred dialog
+     * whose body scrolls inside the viewport.
+     */
+    sheet?: boolean;
   }>(),
-  { size: 'md', closeLabel: 'Close dialog', closeOnBackdrop: true },
+  { size: 'md', closeLabel: 'Close dialog', closeOnBackdrop: true, sheet: false },
 );
 
 const emit = defineEmits<{ 'update:open': [open: boolean]; close: [] }>();
@@ -36,7 +42,7 @@ const FOCUSABLE = [
   '[contenteditable="true"]',
 ].join(',');
 
-const SIZES = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-3xl' } as const;
+const SIZES = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-3xl', xl: 'max-w-site' } as const;
 
 function focusables(): HTMLElement[] {
   return Array.from(dialog.value?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []).filter(
@@ -132,7 +138,8 @@ onBeforeUnmount(() => {
   <Teleport to="body">
     <div
       v-if="open"
-      class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:items-center"
+      class="fixed inset-0 z-50 flex justify-center"
+      :class="sheet ? 'items-end md:items-center md:p-4' : 'items-start overflow-y-auto p-4 sm:items-center'"
     >
       <div
         class="fixed inset-0 bg-black/50"
@@ -146,11 +153,14 @@ onBeforeUnmount(() => {
         aria-modal="true"
         :aria-labelledby="titleId"
         tabindex="-1"
-        class="relative w-full rounded-md bg-panel shadow-overlay"
-        :class="SIZES[size]"
+        class="relative w-full bg-panel shadow-overlay"
+        :class="[SIZES[size], sheet ? 'flex max-h-[100dvh] flex-col rounded-t-xl md:max-h-[calc(100dvh-2rem)] md:rounded-md' : 'rounded-md']"
         @keydown="onKeydown"
       >
-        <div class="flex items-center justify-between gap-4 border-b border-border px-5 py-3">
+        <div
+          class="flex items-center justify-between gap-4 border-b border-border px-5 py-3"
+          :class="sheet ? 'shrink-0 px-4 md:px-5' : ''"
+        >
           <h2
             :id="titleId"
             class="text-lg font-semibold text-heading"
@@ -166,12 +176,16 @@ onBeforeUnmount(() => {
             <span aria-hidden="true">&times;</span>
           </button>
         </div>
-        <div class="px-5 py-4">
+        <div
+          class="px-5 py-4"
+          :class="sheet ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 md:px-5' : ''"
+        >
           <slot />
         </div>
         <div
           v-if="$slots.footer"
-          class="flex flex-wrap justify-end gap-2 border-t border-border px-5 py-3"
+          class="flex gap-2 border-t border-border px-5 py-3"
+          :class="sheet ? 'shrink-0 flex-col-reverse px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:flex-row md:flex-wrap md:justify-end md:px-5 [&>*]:w-full md:[&>*]:w-auto' : 'flex-wrap justify-end'"
         >
           <slot name="footer" />
         </div>

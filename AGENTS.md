@@ -69,6 +69,6 @@ These paths are git-ignored. Do not commit files into them.
   `.env` needs `QUEUE_CONNECTION=database` and `DB_QUEUE_TABLE=queue_jobs` (both in `.env.example`).
 - The queue does NOT use the legacy `jobs` table: the old app still runs against this database and drains `jobs` with its
   own cron worker. Apply `database/sql/001_queue_tables.sql` by hand first; it creates `queue_jobs` and `failed_jobs`.
-- Start the consumers with `docker compose up -d worker scheduler`. `worker` is `queue:work` (continuous); `scheduler` runs
-  `schedule:work`, which drains the queue every minute as the legacy ProcessDbQueue cron did.
+- Start them with `docker compose up -d worker scheduler`. `worker` (`queue:work`, continuous) is the only queue consumer;
+  `scheduler` runs `schedule:work` for scheduled commands (e.g. `legacy-images:prune` daily) and never consumes the queue.
 - Logs: `docker compose logs -f worker`. Tests use `QUEUE_CONNECTION=sync` (phpunit.xml) and never need a worker.

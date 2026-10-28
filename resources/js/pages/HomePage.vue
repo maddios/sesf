@@ -97,12 +97,12 @@ const homeVideoSrc = `https://www.youtube-nocookie.com/embed/${HOME_VIDEO_ID}?re
         </p>
         <article
           v-else
-          class="grid gap-5 sm:grid-cols-[minmax(0,200px)_1fr]"
+          class="grid gap-5 sm:grid-cols-[minmax(0,240px)_1fr]"
           aria-labelledby="home-event-title"
         >
           <RouterLink
             :to="latestEvent.path"
-            class="hidden aspect-[240/221] w-full self-start no-underline sm:block"
+            class="mx-auto grid min-h-36 w-full max-w-60 self-start no-underline"
             tabindex="-1"
             aria-hidden="true"
           >
@@ -111,9 +111,9 @@ const homeVideoSrc = `https://www.youtube-nocookie.com/embed/${HOME_VIDEO_ID}?re
               resize="eventCard"
               alt=""
               :placeholder="latestEvent.name"
-              width="200"
-              height="184"
-              img-class="h-full w-full rounded-sm border border-border object-cover"
+              width="240"
+              height="240"
+              img-class="h-auto w-full rounded-sm"
             />
           </RouterLink>
           <div class="min-w-0">
@@ -132,7 +132,7 @@ const homeVideoSrc = `https://www.youtube-nocookie.com/embed/${HOME_VIDEO_ID}?re
                 class="ml-2 inline-block rounded-sm bg-subtle px-2 py-0.5 align-middle text-xs font-semibold text-muted"
               >(Ended)</span>
             </h3>
-            <p class="mt-3 text-[0.9375rem]">
+            <p class="mt-3">
               {{ latestEvent.shortDescription }}
             </p>
             <p class="mt-3">
@@ -148,11 +148,11 @@ const homeVideoSrc = `https://www.youtube-nocookie.com/embed/${HOME_VIDEO_ID}?re
               <h4 class="text-h4 font-semibold uppercase tracking-wide text-muted">
                 Sponsored by
               </h4>
-              <ul class="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <ul class="mt-2 flex flex-wrap items-center gap-3">
                 <li
                   v-for="sponsor in latestEvent.primarySponsors"
                   :key="sponsor.id"
-                  class="h-16"
+                  class="h-[55px] w-[calc(50%-0.375rem)] max-w-[200px]"
                 >
                   <component
                     :is="sponsor.url ? 'a' : 'span'"
@@ -219,12 +219,12 @@ const homeVideoSrc = `https://www.youtube-nocookie.com/embed/${HOME_VIDEO_ID}?re
         </p>
         <ul
           v-else
-          class="grid grid-cols-2 gap-3"
+          class="flex flex-col items-center gap-3"
         >
           <li
             v-for="sponsor in sponsorList"
             :key="sponsor.id"
-            class="h-20"
+            class="h-[65px] w-[250px] max-w-full"
           >
             <component
               :is="sponsor.url ? 'a' : 'span'"
@@ -279,7 +279,7 @@ const homeVideoSrc = `https://www.youtube-nocookie.com/embed/${HOME_VIDEO_ID}?re
         >
           Donate
         </h2>
-        <p class="text-[0.9375rem] font-semibold">
+        <p class="font-semibold">
           We do everything we can to keep our overhead and registration costs as low as possible every year.
           If you have been to a SESF event, hopefully you can attest to the value of our program.
           The donations we receive every year provide us with additional support that goes a LONG way.

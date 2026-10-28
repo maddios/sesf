@@ -115,7 +115,8 @@ describe('ExtraRegistrationsPage', () => {
     await user.click(await within(await screen.findByRole('table', { name: 'Extra registrations' })).findByRole('button', { name: 'Edit purchase for Ada Lovelace' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit purchase' });
     expect(seen.find((r) => r.path === '/admin-api/extras')?.params.get('filter[show_id]')).toBe('4');
-    await user.selectOptions(within(dialog).getByLabelText('Extra (required)'), '6');
+    await user.click(within(dialog).getByRole('combobox', { name: /^Extra/ }));
+    await user.click(await screen.findByRole('option', { name: 'Breakfast' }));
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(seen.find((r) => r.method === 'PUT')?.body).toEqual({ num_extras: 2, show_extra_id: 6 }));
   });

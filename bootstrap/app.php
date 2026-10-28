@@ -6,6 +6,7 @@ use App\Http\Middleware\BlockImpersonated;
 use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsureJudgeForShow;
 use App\Http\Middleware\EnsureJudgeOrAdmin;
+use App\Http\Middleware\FrameOptions;
 use App\Support\TrustedHosts;
 use App\Support\TrustedProxies;
 use Illuminate\Foundation\Application;
@@ -39,6 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             AuthenticateSession::class,
             AuditImpersonatedWrites::class,
+            FrameOptions::class,
         ]);
 
         // PayPal posts IPNs server to server without a CSRF token; the message is verified by

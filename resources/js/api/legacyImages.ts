@@ -25,6 +25,7 @@ export const LEGACY_IMAGE_SIZES = {
   agendaSponsor: fit(0, 60),
   memberPhoto: fit(228, 0),
   memberCar: fit(300, 220),
+  attendedShow: fit(100, 100),
   directoryCard: fit(300, 220),
   garageCar: fit(362, 272),
   carProfile: fit(652, 407),

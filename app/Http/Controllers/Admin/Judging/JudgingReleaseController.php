@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Judging\ReleaseJudgingRequest;
 use App\Models\CarShow;
 use App\Services\Judging\JudgingResults;
+use App\Services\Judging\ResultsMailRecentlySent;
 use App\Support\Admin\AuditLog;
 use Illuminate\Http\JsonResponse;
 
@@ -31,7 +32,11 @@ final class JudgingReleaseController extends Controller
             return response()->json(['message' => 'Judging results can only be sent after they are released.'], 409);
         }
 
-        $sent = $results->mailOwners($model);
+        try {
+            $sent = $results->mailOwners($model);
+        } catch (ResultsMailRecentlySent $e) {
+            return response()->json(['message' => $e->getMessage()], 409);
+        }
         AuditLog::record('judging.results_mail', 'car_show', [$model->id], [], ['sent' => $sent]);
 
         return response()->json(['data' => ['sent' => $sent]]);

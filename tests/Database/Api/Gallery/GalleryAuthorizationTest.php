@@ -135,6 +135,34 @@ class GalleryAuthorizationTest extends TestCase
     }
 
     #[Test]
+    public function hiding_a_parent_hides_its_enabled_descendants_everywhere(): void
+    {
+        $child = Gallery::factory()->child($this->disabled)->create(['user_id' => $this->admin->id]);
+        $grandchild = Gallery::factory()->child($child)->create(['user_id' => $this->admin->id]);
+        $item = $this->itemIn($grandchild);
+        $visibleItem = $this->itemIn($this->enabled);
+
+        foreach (['guest', 'member'] as $actor) {
+            foreach ([$child, $grandchild] as $gallery) {
+                $this->actAs($actor)->getJson('/gallery/info?gallery_id='.$gallery->id)->assertStatus(403);
+                $this->actAs($actor)->getJson('/gallery/items?gallery_id='.$gallery->id)->assertStatus(403);
+                $this->actAs($actor)->getJson('/gallery/list?show_id='.$this->show->id.'&gallery_id='.$gallery->id)->assertStatus(403);
+            }
+            $rollup = $this->actAs($actor)->getJson('/gallery/items?show_id='.$this->show->id.'&get_subcategory_items=1&all_items=1')->assertOk()->json();
+            $ids = array_column($rollup['items'] ?? $rollup, 'id');
+            $this->assertContains($visibleItem->id, $ids, "actor {$actor}");
+            $this->assertNotContains($item->id, $ids, "actor {$actor}");
+
+            $entry = collect((array) $this->actAs($actor)->getJson('/gallery/car-show-list')->assertOk()->json())->firstWhere('id', $this->show->id);
+            $this->assertSame([$this->enabled->id], array_column($entry['galleries'] ?? [], 'id'), "actor {$actor}");
+        }
+
+        foreach (['owner', 'admin'] as $actor) {
+            $this->actAs($actor)->getJson('/gallery/items?gallery_id='.$grandchild->id)->assertOk();
+        }
+    }
+
+    #[Test]
     public function breadcrumb_lists_the_car_show_and_the_ancestors_root_first(): void
     {
         $middle = Gallery::factory()->child($this->enabled)->create(['user_id' => $this->owner->id]);

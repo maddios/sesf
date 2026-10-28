@@ -1,27 +1,32 @@
 <script setup lang="ts">
 /**
- * T-shirts for one event (legacy TshirtList): stock per type with the available tallies and the shortfall warning,
- * hand-outs per registration line with a status column, walk-up sales, and the printable pickup sheet (the page's print
- * stylesheet shows the sheet in legacy layout). The event is in the hash query (?show_id=). Stock and sales are checked
- * by the server under a lock; the counts are re-read after each change.
+ * T-shirts for one event, laid out like the legacy /admin2 tshirt_list: event filter, the "In-stock remaining" well
+ * (tally chips, shortfall warning, Set shirt inventory), the registrations table (cards on phones; tap a card or
+ * Shirts to hand shirts out), the printable checklist (?print=1, opened in a new tab) and ad-hoc sales. The event is
+ * in the hash query (?show_id=). Stock and sales are checked by the server under a lock; counts are re-read after
+ * each change.
  */
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import RelationSelect from '../../../components/admin/RelationSelect.vue';
-import BaseButton from '../../../components/ui/BaseButton.vue';
-import { ADMIN_API_BASE, mapAdminError } from '../../../composables/admin/useAdminResource';
+import EventFilter from '../../../components/admin/EventFilter.vue';
+import { mapAdminError } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
+import TshirtHandoffDialog from './components/TshirtHandoffDialog.vue';
+import TshirtInventoryDialog from './components/TshirtInventoryDialog.vue';
+import TshirtPrintSheet from './components/TshirtPrintSheet.vue';
+import TshirtSaleDialog from './components/TshirtSaleDialog.vue';
 import {
-  formatCents,
+  groupedLines,
   handOutStatus,
   matchesRegistration,
-  saleLines,
   shirtsApi,
   shortfalls,
+  tallyTypes,
   type AdhocSaleRow,
   type ShirtInventory,
   type ShirtLine,
+  type ShirtRegistrationRow,
   type ShirtTypeRow,
 } from './tshirts';
 
@@ -33,47 +38,61 @@ const { confirm } = useConfirm();
 const inventory = ref<ShirtInventory | null>(null);
 const loading = ref(false);
 const loadError = ref<string | null>(null);
-const busyLineId = ref<number | null>(null);
 const search = ref('');
-const hideComplete = ref(false);
-const stockDraft = ref<Record<number, number>>({});
-const saleCounts = ref<Record<number, number>>({});
+const hideComplete = ref(true);
 const saving = ref(false);
+const openRegistrationId = ref<number | null>(null);
+const busyLineId = ref<number | null>(null);
+const handoffError = ref<string | null>(null);
+const inventoryOpen = ref(false);
+const saleOpen = ref(false);
+const saleError = ref<string | null>(null);
+const searchInput = ref<HTMLInputElement | null>(null);
 
 const showId = computed<number | null>(() => {
   const raw = Array.isArray(route.query.show_id) ? route.query.show_id[0] : route.query.show_id;
   return typeof raw === 'string' && /^\d+$/.test(raw) ? Number(raw) : null;
 });
+const printing = computed(() => route.query.print === '1');
+const printHref = computed(() => `#/admin/tshirts?show_id=${showId.value}&print=1`);
+const backHref = computed(() => `#/admin/tshirts?show_id=${showId.value}`);
 
 const types = computed<ShirtTypeRow[]>(() => inventory.value?.types ?? []);
-const stockChanged = computed(() => types.value.filter((type) => stockDraft.value[type.id] !== type.stock));
-const saleTotal = computed(() => Object.values(saleCounts.value).reduce((sum, count) => sum + count, 0));
+const chips = computed(() => tallyTypes(types.value));
 const registrations = computed(() => inventory.value?.registrations ?? []);
 const visibleRegistrations = computed(() =>
   registrations.value.filter((row) => matchesRegistration(row, search.value) && !(hideComplete.value && row.all_handed_out)),
 );
-const handedTotal = computed(() => types.value.reduce((sum, type) => sum + type.handed_out, 0));
-const lineTotal = computed(() => registrations.value.reduce((sum, row) => sum + row.lines.length, 0));
+const openRegistration = computed(() => registrations.value.find((row) => row.id === openRegistrationId.value) ?? null);
 const shortage = computed(() => shortfalls(types.value));
-const shortageTotals = computed(() => ({
-  committed: shortage.value.reduce((sum, item) => sum + item.committed, 0),
-  stock: shortage.value.reduce((sum, item) => sum + item.stock, 0),
-  short: shortage.value.reduce((sum, item) => sum + item.short, 0),
-}));
+const shortageSummary = computed(() => {
+  const list = shortage.value;
+  if (list.length === 1) {
+    const [one] = list;
+    return { name: one!.name, committed: one!.committed, stock: one!.stock, short: one!.short };
+  }
+  return {
+    name: 'Total:',
+    committed: list.reduce((sum, item) => sum + item.committed, 0),
+    stock: list.reduce((sum, item) => sum + item.stock, 0),
+    short: list.reduce((sum, item) => sum + item.short, 0),
+  };
+});
 
 function chipClass(type: ShirtTypeRow): string {
-  if (type.remaining < 0) return 'bg-danger-bg text-danger-fg';
-  if (type.remaining === 0) return 'bg-warning-bg text-warning-fg';
-  return 'bg-success-bg text-success-fg';
+  if (type.remaining < 0) return 'a2-label-important';
+  if (type.remaining === 0) return 'a2-label-warning';
+  return 'a2-label-success';
 }
 
 function chipTitle(type: ShirtTypeRow): string {
   return `On hand: ${type.stock}, handed out: ${type.handed_out}, ad-hoc sold: ${type.adhoc_sold} (available: ${type.remaining})`;
 }
 
-function resetDrafts(data: ShirtInventory): void {
-  stockDraft.value = Object.fromEntries(data.types.map((type) => [type.id, type.stock]));
-  saleCounts.value = Object.fromEntries(data.types.map((type) => [type.id, 0]));
+function statusClass(row: ShirtRegistrationRow): string {
+  const label = handOutStatus(row).label;
+  if (label === 'All handed out') return 'a2-label-success';
+  return label === 'Partial' ? 'a2-label-partial' : 'a2-label-pending';
 }
 
 async function load(): Promise<void> {
@@ -84,9 +103,7 @@ async function load(): Promise<void> {
   loading.value = true;
   loadError.value = null;
   try {
-    const data = await shirtsApi.inventory(showId.value);
-    inventory.value = data;
-    resetDrafts(data);
+    inventory.value = await shirtsApi.inventory(showId.value);
   } catch (error) {
     loadError.value = mapAdminError(error, 'The T-shirt list could not be loaded.').message;
   } finally {
@@ -98,18 +115,36 @@ function onShowChange(value: number | null): void {
   void router.replace({ query: { ...route.query, show_id: value === null ? undefined : String(value) } });
 }
 
-function stepStock(typeId: number, delta: number): void {
-  stockDraft.value = { ...stockDraft.value, [typeId]: Math.max(0, (stockDraft.value[typeId] ?? 0) + delta) };
+function openShirts(row: ShirtRegistrationRow): void {
+  handoffError.value = null;
+  openRegistrationId.value = row.id;
 }
 
-async function saveStock(): Promise<void> {
+/** A click anywhere on the row or card opens the shirts dialog (legacy phone behaviour); the Shirts button is the keyboard path. */
+function onRowClick(event: MouseEvent, row: ShirtRegistrationRow): void {
+  if ((event.target as HTMLElement).closest('button, a, input')) return;
+  openShirts(row);
+}
+
+async function toggleLine(line: ShirtLine, handedOut: boolean): Promise<void> {
+  busyLineId.value = line.id;
+  handoffError.value = null;
+  try {
+    await shirtsApi.setHandedOut(line, handedOut);
+    await load();
+  } catch (error) {
+    handoffError.value = mapAdminError(error, 'Could not update shirt').message;
+  } finally {
+    busyLineId.value = null;
+  }
+}
+
+async function saveStock(stock: Record<number, number>): Promise<void> {
   if (showId.value === null) return;
-  const changed = Object.fromEntries(stockChanged.value.map((type) => [type.id, stockDraft.value[type.id] ?? 0]));
   saving.value = true;
   try {
-    const data = await shirtsApi.setStock(showId.value, changed);
-    inventory.value = data;
-    resetDrafts(data);
+    inventory.value = await shirtsApi.setStock(showId.value, stock);
+    inventoryOpen.value = false;
     toast.success('Stock saved.');
   } catch (error) {
     toast.error(mapAdminError(error, 'The stock could not be saved.').message);
@@ -118,38 +153,22 @@ async function saveStock(): Promise<void> {
   }
 }
 
-async function toggleLine(line: ShirtLine): Promise<void> {
-  busyLineId.value = line.id;
-  try {
-    await shirtsApi.setHandedOut(line, !line.handed_out);
-    await load();
-  } catch (error) {
-    toast.error(mapAdminError(error, 'The hand-out could not be recorded.').message);
-  } finally {
-    busyLineId.value = null;
-  }
+function openSale(): void {
+  saleError.value = null;
+  saleOpen.value = true;
 }
 
-function availableFor(type: ShirtTypeRow): number {
-  return Math.max(0, type.available_for_adhoc);
-}
-
-function stepSale(type: ShirtTypeRow, delta: number): void {
-  const next = (saleCounts.value[type.id] ?? 0) + delta;
-  saleCounts.value = { ...saleCounts.value, [type.id]: Math.min(availableFor(type), Math.max(0, next)) };
-}
-
-async function recordSale(): Promise<void> {
-  if (showId.value === null || saleTotal.value === 0) return;
+async function recordSale(typeIds: number[]): Promise<void> {
+  if (showId.value === null || typeIds.length === 0) return;
   saving.value = true;
+  saleError.value = null;
   try {
-    const data = await shirtsApi.recordSale(showId.value, saleLines(saleCounts.value));
-    inventory.value = data;
-    resetDrafts(data);
+    inventory.value = await shirtsApi.recordSale(showId.value, typeIds);
+    saleOpen.value = false;
     toast.success('Sale recorded.');
   } catch (error) {
     const mapped = mapAdminError(error, 'The sale could not be recorded.');
-    toast.error(mapped.fieldErrors.type_ids?.[0] ?? mapped.message);
+    saleError.value = mapped.fieldErrors.type_ids?.[0] ?? mapped.message;
   } finally {
     saving.value = false;
   }
@@ -172,8 +191,13 @@ async function deleteSale(sale: AdhocSaleRow): Promise<void> {
   }
 }
 
-function printSheet(): void {
-  window.print();
+function saleText(sale: AdhocSaleRow): string {
+  return sale.items.map((item) => (item.count > 1 ? `${item.count}x ${item.type_name}` : item.type_name)).join(', ');
+}
+
+function clearSearch(): void {
+  search.value = '';
+  searchInput.value?.focus();
 }
 
 watch(showId, () => void load());
@@ -181,113 +205,76 @@ onMounted(() => void load());
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div class="flex flex-wrap items-end justify-between gap-3 print:hidden">
-      <h1 class="page-title">
-        T-shirts
-      </h1>
-      <BaseButton
-        size="lg"
-        class="min-h-12"
-        :disabled="inventory === null"
-        @click="printSheet"
+  <div class="a2-page">
+    <h1 class="sr-only">
+      T-shirts
+    </h1>
+
+    <TshirtPrintSheet
+      v-if="printing && inventory"
+      :inventory="inventory"
+      :back-to="backHref"
+    />
+
+    <template v-if="!printing">
+      <EventFilter
+        :model-value="showId"
+        @update:model-value="onShowChange"
+      />
+
+      <p
+        v-if="showId === null"
+        class="a2-well"
       >
-        Printable shirt checklist
-      </BaseButton>
-    </div>
-
-    <div class="grid gap-3 sm:grid-cols-2 print:hidden">
-      <div>
-        <label
-          for="tshirt-show"
-          class="block text-sm font-medium text-text"
-        >Event</label>
-        <div class="mt-1">
-          <RelationSelect
-            id="tshirt-show"
-            :endpoint="`${ADMIN_API_BASE}/lookups/events`"
-            :model-value="showId"
-            placeholder="Choose an event"
-            @update:model-value="onShowChange"
-          />
-        </div>
-      </div>
-      <div>
-        <label
-          for="tshirt-search"
-          class="block text-sm font-medium text-text"
-        >Narrow by name or registration number</label>
-        <input
-          id="tshirt-search"
-          v-model="search"
-          type="search"
-          autocomplete="off"
-          placeholder="Name or reg # (e.g. 42 or #42)…"
-          class="mt-1 min-h-12 w-full rounded-md border border-border bg-surface px-3 text-base"
-        >
-      </div>
-    </div>
-
-    <p
-      v-if="showId === null"
-      class="rounded-md border border-border bg-subtle p-4 text-sm print:hidden"
-    >
-      Choose an event to see its T-shirts.
-    </p>
-    <p
-      v-else-if="loadError"
-      role="alert"
-      class="rounded-md border border-danger-border bg-danger-bg p-4 text-sm"
-    >
-      {{ loadError }}
-    </p>
-    <p
-      v-else-if="loading && inventory === null"
-      class="text-sm text-muted"
-    >
-      Loading…
-    </p>
-
-    <template v-if="inventory">
-      <section
-        aria-labelledby="tshirt-tally-heading"
-        class="space-y-3 print:hidden"
+        Choose an event to see its T-shirts.
+      </p>
+      <p
+        v-else-if="loadError"
+        role="alert"
+        class="a2-alert a2-alert-error"
       >
-        <h2
-          id="tshirt-tally-heading"
-          class="text-lg font-semibold"
+        {{ loadError }}
+      </p>
+      <p
+        v-else-if="loading && inventory === null"
+        class="a2-muted"
+      >
+        Loading…
+      </p>
+
+      <template v-if="inventory">
+        <section
+          class="a2-well"
+          aria-labelledby="tshirt-tally-heading"
         >
-          Available now
-        </h2>
-        <p class="text-sm text-muted">
-          On-hand count minus handed out (orders are separate; shortfalls show below).
-        </p>
-        <ul class="flex flex-wrap gap-2">
-          <li
-            v-for="type in types"
-            :key="type.id"
-            class="rounded-full px-3 py-1 text-sm"
-            :class="chipClass(type)"
-            :title="chipTitle(type)"
+          <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <h2
+              id="tshirt-tally-heading"
+              class="font-bold"
+            >
+              In-stock remaining
+            </h2>
+            <span class="a2-muted a2-small min-w-0 flex-1 basis-48">on-hand count minus handed out (orders are separate; shortfalls show below)</span>
+            <button
+              type="button"
+              class="a2-btn a2-btn-info"
+              @click="inventoryOpen = true"
+            >
+              Set shirt inventory
+            </button>
+          </div>
+          <details
+            v-if="shortage.length > 0"
+            class="a2-alert a2-alert-error mt-2.5 mb-0"
           >
-            {{ type.name }}: {{ type.remaining }} available
-          </li>
-        </ul>
-        <div
-          v-if="shortage.length > 0"
-          role="alert"
-          class="rounded-md border border-danger-border bg-danger-bg p-4 text-sm"
-        >
-          <p v-if="shortage.length === 1">
-            <strong>Inventory shortfall</strong> — <strong>{{ shortage[0].name }}</strong>: {{ shortage[0].committed }} ordered/sold,
-            {{ shortage[0].stock }} available ({{ shortage[0].short }} short)
-          </p>
-          <template v-else>
-            <p>
-              <strong>Inventory shortfall</strong> — <strong>Total:</strong> {{ shortageTotals.committed }} ordered/sold,
-              {{ shortageTotals.stock }} available ({{ shortageTotals.short }} short)
-            </p>
-            <ul class="mt-2 list-disc pl-5">
+            <summary class="cursor-pointer">
+              <strong>Inventory shortfall</strong> — <strong>{{ shortageSummary.name }}</strong>
+              {{ shortageSummary.committed }} ordered/sold, {{ shortageSummary.stock }} available ({{ shortageSummary.short }} short)
+            </summary>
+            <ul
+              v-if="shortage.length > 1"
+              class="mt-2 ml-4.5 list-disc"
+            >
               <li
                 v-for="item in shortage"
                 :key="item.name"
@@ -295,513 +282,254 @@ onMounted(() => void load());
                 <strong>{{ item.name }}</strong>: {{ item.committed }} ordered/sold, {{ item.stock }} available ({{ item.short }} short)
               </li>
             </ul>
-          </template>
-        </div>
-      </section>
-
-      <section
-        aria-labelledby="tshirt-stock-heading"
-        class="space-y-3 print:hidden"
-      >
-        <h2
-          id="tshirt-stock-heading"
-          class="text-lg font-semibold"
-        >
-          Shirt inventory for this event
-        </h2>
-        <p class="text-sm text-muted">
-          Enter how many of each shirt you have on hand. Ordered totals are shown for reference and shortfall warnings.
-        </p>
-        <div class="overflow-x-auto">
-          <table
-            class="w-full min-w-[32rem] text-sm"
-            aria-label="Stock by shirt type"
+          </details>
+          <p
+            v-if="chips.length === 0"
+            class="a2-muted mt-2"
           >
-            <thead>
-              <tr class="border-b border-border text-left">
-                <th
-                  scope="col"
-                  class="py-2 pr-3"
-                >
-                  Shirt
-                </th>
-                <th
-                  scope="col"
-                  class="py-2 pr-3 text-right"
-                >
-                  On hand
-                </th>
-                <th
-                  scope="col"
-                  class="py-2 pr-3 text-right"
-                >
-                  Ordered
-                </th>
-                <th
-                  scope="col"
-                  class="py-2 pr-3 text-right"
-                >
-                  Handed out
-                </th>
-                <th
-                  scope="col"
-                  class="py-2 pr-3 text-right"
-                >
-                  Ad-hoc sold
-                </th>
-                <th
-                  scope="col"
-                  class="py-2 text-right"
-                >
-                  Available
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="type in types"
-                :key="type.id"
-                class="border-b border-border"
-              >
-                <th
-                  scope="row"
-                  class="py-2 pr-3 text-left font-medium"
-                >
-                  {{ type.name }}
-                  <span
-                    v-if="type.price_cents !== null"
-                    class="block text-xs text-muted"
-                  >{{ formatCents(type.price_cents) }}</span>
-                </th>
-                <td class="py-2 pr-3">
-                  <div class="flex items-center justify-end gap-1">
-                    <BaseButton
-                      size="lg"
-                      class="min-h-12 min-w-12"
-                      :aria-label="`Fewer ${type.name} on hand`"
-                      :disabled="(stockDraft[type.id] ?? 0) === 0"
-                      @click="stepStock(type.id, -1)"
-                    >
-                      −
-                    </BaseButton>
-                    <input
-                      v-model.number="stockDraft[type.id]"
-                      type="number"
-                      min="0"
-                      max="65535"
-                      :aria-label="`${type.name} on hand`"
-                      class="min-h-12 w-20 rounded-md border border-border bg-surface px-2 text-right text-base"
-                    >
-                    <BaseButton
-                      size="lg"
-                      class="min-h-12 min-w-12"
-                      :aria-label="`More ${type.name} on hand`"
-                      @click="stepStock(type.id, 1)"
-                    >
-                      +
-                    </BaseButton>
-                  </div>
-                </td>
-                <td class="py-2 pr-3 text-right">
-                  {{ type.ordered }}
-                </td>
-                <td class="py-2 pr-3 text-right">
-                  {{ type.handed_out }}
-                </td>
-                <td class="py-2 pr-3 text-right">
-                  {{ type.adhoc_sold }}
-                </td>
-                <td
-                  class="py-2 text-right font-semibold"
-                  :class="type.remaining < 0 ? 'text-danger-fg' : ''"
-                >
-                  {{ type.remaining }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="flex justify-end">
-          <BaseButton
-            variant="primary"
-            size="lg"
-            class="min-h-12"
-            :loading="saving"
-            :disabled="stockChanged.length === 0"
-            @click="saveStock"
-          >
-            Save inventory
-          </BaseButton>
-        </div>
-      </section>
-
-      <section
-        aria-labelledby="tshirt-hand-heading"
-        class="space-y-3 print:hidden"
-      >
-        <h2
-          id="tshirt-hand-heading"
-          class="text-lg font-semibold"
-        >
-          Hand-outs
-          <span class="text-sm font-normal text-muted">{{ handedTotal }} of {{ lineTotal }} handed out</span>
-        </h2>
-        <label class="flex min-h-12 items-center gap-2 text-base">
-          <input
-            v-model="hideComplete"
-            type="checkbox"
-            class="h-6 w-6"
-          >
-          Hide complete
-        </label>
-        <p
-          v-if="visibleRegistrations.length === 0"
-          class="rounded-md border border-border bg-subtle p-4 text-sm"
-        >
-          No shirts match.
-        </p>
-        <div
-          v-else
-          class="overflow-x-auto"
-        >
-          <table
-            class="w-full min-w-[40rem] text-sm"
-            aria-label="Registrations with shirts"
-          >
-            <thead>
-              <tr class="border-b border-border text-left">
-                <th
-                  scope="col"
-                  class="py-2 pr-3"
-                >
-                  Reg #
-                </th>
-                <th
-                  scope="col"
-                  class="py-2 pr-3"
-                >
-                  Name
-                </th>
-                <th
-                  scope="col"
-                  class="py-2 pr-3"
-                >
-                  T-shirts
-                </th>
-                <th
-                  scope="col"
-                  class="py-2"
-                >
-                  Status
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="row in visibleRegistrations"
-                :key="row.id"
-                class="border-b border-border align-top"
-                :class="row.all_handed_out ? 'text-muted' : ''"
-                :data-registration-id="row.id"
-              >
-                <td class="py-2 pr-3">
-                  {{ row.invoice_id }}
-                </td>
-                <td
-                  class="py-2 pr-3"
-                  :class="row.all_handed_out ? 'line-through' : ''"
-                >
-                  {{ row.primary_name }}
-                </td>
-                <td class="py-2 pr-3">
-                  <ul class="grid gap-2 sm:grid-cols-2">
-                    <li
-                      v-for="line in row.lines"
-                      :key="line.id"
-                    >
-                      <BaseButton
-                        block
-                        size="lg"
-                        class="min-h-12"
-                        :variant="line.handed_out ? 'primary' : 'default'"
-                        :aria-pressed="line.handed_out ? 'true' : 'false'"
-                        :loading="busyLineId === line.id"
-                        @click="toggleLine(line)"
-                      >
-                        {{ line.type_name }}: {{ line.handed_out ? 'handed out' : 'not handed out' }}
-                      </BaseButton>
-                    </li>
-                  </ul>
-                </td>
-                <td class="py-2">
-                  <span
-                    class="rounded-full px-2 py-0.5"
-                    :class="handOutStatus(row).label === 'All handed out' ? 'bg-success-bg text-success-fg' : 'bg-warning-bg text-warning-fg'"
-                  >{{ handOutStatus(row).label }}</span>
-                  <span
-                    v-if="handOutStatus(row).label === 'Partial'"
-                    class="block text-muted"
-                  >{{ handOutStatus(row).left }} left to hand out</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section
-        aria-labelledby="tshirt-sale-heading"
-        class="space-y-3 rounded-md border border-border bg-surface p-4 print:hidden"
-      >
-        <h2
-          id="tshirt-sale-heading"
-          class="text-lg font-semibold"
-        >
-          Sell ad-hoc shirt
-        </h2>
-        <p class="text-sm text-muted">
-          Choose shirts from the remaining event inventory. This records inventory only and does not collect payment.
-        </p>
-        <ul class="grid gap-3 sm:grid-cols-2">
-          <li
-            v-for="type in types"
-            :key="type.id"
-            class="flex items-center justify-between gap-2"
-          >
-            <span>
-              {{ type.name }}
-              <span class="block text-xs text-muted">{{ availableFor(type) }} available</span>
-            </span>
-            <div class="flex items-center gap-1">
-              <BaseButton
-                size="lg"
-                class="min-h-12 min-w-12"
-                :aria-label="`Remove one ${type.name} from the sale`"
-                :disabled="(saleCounts[type.id] ?? 0) === 0"
-                @click="stepSale(type, -1)"
-              >
-                −
-              </BaseButton>
-              <span
-                class="min-w-10 text-center text-lg font-semibold"
-                :aria-label="`${type.name} in sale`"
-              >{{ saleCounts[type.id] ?? 0 }}</span>
-              <BaseButton
-                size="lg"
-                class="min-h-12 min-w-12"
-                :aria-label="`Add one ${type.name} to the sale`"
-                :disabled="(saleCounts[type.id] ?? 0) >= availableFor(type)"
-                @click="stepSale(type, 1)"
-              >
-                +
-              </BaseButton>
-            </div>
-          </li>
-        </ul>
-        <div class="flex justify-end">
-          <BaseButton
-            variant="primary"
-            size="lg"
-            class="min-h-12"
-            :loading="saving"
-            :disabled="saleTotal === 0"
-            @click="recordSale"
-          >
-            Record sale ({{ saleTotal }})
-          </BaseButton>
-        </div>
-      </section>
-
-      <section
-        aria-labelledby="tshirt-sales-heading"
-        class="space-y-3 print:hidden"
-      >
-        <h2
-          id="tshirt-sales-heading"
-          class="text-lg font-semibold"
-        >
-          Ad-hoc shirt sales
-        </h2>
-        <p
-          v-if="inventory.adhoc_sales.length === 0"
-          class="text-sm text-muted"
-        >
-          No ad-hoc sales yet.
-        </p>
-        <div
-          v-else
-          class="overflow-x-auto"
-        >
-          <table
-            class="w-full min-w-[32rem] text-sm"
-            aria-label="Ad-hoc sales"
-          >
-            <thead>
-              <tr class="border-b border-border text-left">
-                <th
-                  scope="col"
-                  class="py-2 pr-3"
-                >
-                  Sold
-                </th>
-                <th
-                  scope="col"
-                  class="py-2 pr-3"
-                >
-                  Shirts
-                </th>
-                <th
-                  scope="col"
-                  class="py-2 pr-3"
-                >
-                  Sold by
-                </th>
-                <th
-                  scope="col"
-                  class="py-2"
-                >
-                  Action
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="sale in inventory.adhoc_sales"
-                :key="sale.id"
-                class="border-b border-border"
-              >
-                <td class="py-2 pr-3">
-                  {{ sale.created_at ? new Date(sale.created_at).toLocaleString() : '' }}
-                </td>
-                <td class="py-2 pr-3">
-                  {{ sale.items.map((item) => (item.count > 1 ? `${item.count}x ${item.type_name}` : item.type_name)).join(', ') }}
-                </td>
-                <td class="py-2 pr-3">
-                  {{ sale.sold_by }}
-                </td>
-                <td class="py-2">
-                  <BaseButton
-                    size="lg"
-                    class="min-h-12"
-                    :aria-label="`Delete sale ${sale.id}`"
-                    @click="deleteSale(sale)"
-                  >
-                    Delete
-                  </BaseButton>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section
-        class="hidden print:block"
-        aria-label="Printable shirt checklist"
-      >
-        <h1 class="text-xl font-bold">
-          T-shirt pickup — {{ inventory.show.name }}
-        </h1>
-        <p class="mt-1 text-sm">
-          Shirts left to right. <strong>Bold, filled box</strong> = already handed out in the app; empty ☐ = mark on paper when picked up.
-          <strong>Struck name</strong> = all shirts handed out. · {{ registrations.length }} registration{{ registrations.length === 1 ? '' : 's' }}
-        </p>
-        <div
-          v-for="row in registrations"
-          :key="row.id"
-          class="mt-3 break-inside-avoid border-t border-border pt-2"
-        >
-          <p>
-            <span class="font-semibold">#{{ row.invoice_id }}</span>
-            <span :class="row.all_handed_out ? 'line-through' : ''"> {{ row.primary_name }}</span>
+            No shirt types to display yet. Set inventory or open registrations with shirt orders.
           </p>
-          <ul class="mt-1 flex flex-wrap gap-4">
+          <ul
+            v-else
+            class="mt-2 flex flex-wrap gap-x-1.5 gap-y-1.5"
+            aria-label="Shirts available"
+          >
             <li
-              v-for="line in row.lines"
-              :key="line.id"
-              :class="line.handed_out ? 'font-bold' : ''"
+              v-for="type in chips"
+              :key="type.id"
+              class="a2-label"
+              :class="chipClass(type)"
+              :title="chipTitle(type)"
             >
-              {{ line.handed_out ? '☑' : '☐' }} {{ line.type_name }}
+              {{ type.name }}: {{ type.remaining }} available
             </li>
           </ul>
+        </section>
+
+        <div class="a2-toolbar">
+          <label class="a2-check">
+            <input
+              v-model="hideComplete"
+              type="checkbox"
+            >
+            Hide fully handed out
+          </label>
+          <span
+            class="a2-toolbar-count"
+            aria-live="polite"
+          ><b>Showing:</b> {{ visibleRegistrations.length }}</span>
         </div>
-        <h2 class="mt-6 font-semibold">
-          Inventory totals
-        </h2>
-        <p class="text-sm">
-          One ☐ per shirt on hand; filled ☑ = already handed out or ad-hoc sold in the app. “Available” is on-hand inventory minus handed out and
-          ad-hoc sold shirts.
-        </p>
-        <table class="mt-2 w-full border-collapse text-sm">
+
+        <div class="a2-search">
+          <label
+            for="tshirt-search"
+            class="a2-search-label"
+          >Narrow by name or registration number</label>
+          <div class="a2-search-field">
+            <input
+              id="tshirt-search"
+              ref="searchInput"
+              v-model="search"
+              type="search"
+              autocomplete="off"
+              placeholder="Name or reg # (e.g. 42 or #42)…"
+              class="a2-input"
+            >
+            <button
+              v-if="search.trim() !== ''"
+              type="button"
+              class="a2-search-clear"
+              aria-label="Clear search"
+              title="Clear search"
+              @click="clearSearch"
+            >
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+        </div>
+
+        <table
+          class="a2-table a2-cards a2-cards--pair"
+          aria-label="Registrations with shirts"
+        >
           <thead>
-            <tr class="border-b text-left">
-              <th class="py-1 pr-2">
-                Shirt
+            <tr>
+              <th scope="col">
+                Reg #
               </th>
-              <th class="py-1 pr-2 text-right">
-                On hand
+              <th scope="col">
+                Name
               </th>
-              <th class="py-1 pr-2 text-right">
-                Ordered
+              <th scope="col">
+                T-shirts
               </th>
-              <th class="py-1 pr-2 text-right">
-                Ad-hoc sold
+              <th scope="col">
+                Status
               </th>
-              <th class="py-1 pr-2">
-                On-hand units
-              </th>
-              <th class="py-1 text-right">
-                Available
+              <th scope="col">
+                Action
               </th>
             </tr>
           </thead>
           <tbody>
             <tr
-              v-for="type in types"
-              :key="type.id"
-              class="border-b align-top"
+              v-for="row in visibleRegistrations"
+              :key="row.id"
+              :class="row.all_handed_out ? 'a2-row-done' : ''"
+              :data-registration-id="row.id"
+              data-tap
+              @click="onRowClick($event, row)"
             >
-              <td class="py-1 pr-2">
-                {{ type.name }}
+              <td data-label="Reg #">
+                {{ row.invoice_id }}
               </td>
-              <td class="py-1 pr-2 text-right">
-                {{ type.stock }}
+              <td
+                data-label="Name"
+                class="a2-cell-title"
+              >
+                {{ row.primary_name }}
               </td>
-              <td class="py-1 pr-2 text-right">
-                {{ type.ordered }}
+              <td
+                data-label="T-shirts"
+                class="a2-cell-sep"
+              >
+                <template
+                  v-for="(group, index) in groupedLines(row.lines)"
+                  :key="group.key"
+                >
+                  <span v-if="index > 0">, </span><span :class="group.handedOut ? 'font-bold text-[#1d6b3a]' : 'font-semibold text-[#b35400]'">{{ group.label }}</span>
+                </template>
               </td>
-              <td class="py-1 pr-2 text-right">
-                {{ type.adhoc_sold }}
+              <td data-label="Status">
+                <span
+                  class="a2-label"
+                  :class="statusClass(row)"
+                >{{ handOutStatus(row).label }}</span>
+                <span
+                  v-if="handOutStatus(row).label === 'Partial'"
+                  class="a2-muted a2-small mt-1 block"
+                >{{ handOutStatus(row).left }} left to hand out</span>
               </td>
-              <td class="py-1 pr-2">
-                <span v-if="type.stock === 0">—</span>
-                <span v-else>{{ Array.from({ length: type.stock }, (_, unit) => (unit < type.handed_out + type.adhoc_sold ? '☑' : '☐')).join(' ') }}</span>
-              </td>
-              <td class="py-1 text-right">
-                {{ type.remaining }}
-              </td>
-            </tr>
-            <tr class="font-semibold">
-              <td class="py-1 pr-2">
-                All types
-              </td>
-              <td class="py-1 pr-2 text-right">
-                {{ types.reduce((sum, type) => sum + type.stock, 0) }}
-              </td>
-              <td class="py-1 pr-2 text-right">
-                {{ types.reduce((sum, type) => sum + type.ordered, 0) }}
-              </td>
-              <td class="py-1 pr-2 text-right">
-                {{ types.reduce((sum, type) => sum + type.adhoc_sold, 0) }}
-              </td>
-              <td class="py-1 pr-2" />
-              <td class="py-1 text-right">
-                {{ types.reduce((sum, type) => sum + type.remaining, 0) }}
+              <td class="a2-cell-nolabel">
+                <button
+                  type="button"
+                  class="a2-btn a2-btn-info a2-btn-block"
+                  :aria-label="`Shirts for #${row.invoice_id} ${row.primary_name}`"
+                  @click="openShirts(row)"
+                >
+                  Shirts
+                </button>
               </td>
             </tr>
           </tbody>
         </table>
-      </section>
+        <p
+          v-if="visibleRegistrations.length === 0"
+          class="a2-muted mb-4"
+        >
+          No shirts match.
+        </p>
+
+        <p class="mt-4 mb-6 flex flex-wrap items-center gap-x-3.5 gap-y-2.5">
+          <a
+            :href="printHref"
+            target="_blank"
+            rel="noopener"
+            class="a2-btn"
+          >Printable shirt checklist</a>
+          <span class="a2-muted a2-small min-w-0 flex-1 basis-48">Opens a new tab — one block per registrant, shirts in a row with checkboxes; bold = already handed out in app.</span>
+        </p>
+
+        <h2 class="a2-legend">
+          Ad-hoc shirt sales
+        </h2>
+        <p class="mb-2.5">
+          <button
+            type="button"
+            class="a2-btn a2-btn-info"
+            @click="openSale"
+          >
+            Sell shirt
+          </button>
+        </p>
+        <p
+          v-if="inventory.adhoc_sales.length === 0"
+          class="a2-muted"
+        >
+          No ad-hoc shirt sales for this event.
+        </p>
+        <table
+          v-else
+          class="a2-table a2-cards"
+          aria-label="Ad-hoc sales"
+        >
+          <thead>
+            <tr>
+              <th scope="col">
+                Sold
+              </th>
+              <th scope="col">
+                Shirts
+              </th>
+              <th scope="col">
+                Sold by
+              </th>
+              <th scope="col">
+                Action
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="sale in inventory.adhoc_sales"
+              :key="sale.id"
+            >
+              <td data-label="Sold">
+                {{ sale.created_at ? new Date(sale.created_at.replace(' ', 'T')).toLocaleString() : '' }}
+              </td>
+              <td data-label="Shirts">
+                {{ saleText(sale) }}
+              </td>
+              <td data-label="Sold by">
+                {{ sale.sold_by }}
+              </td>
+              <td class="a2-cell-nolabel">
+                <button
+                  type="button"
+                  class="a2-btn a2-btn-danger"
+                  :aria-label="`Delete sale ${sale.id}`"
+                  @click="deleteSale(sale)"
+                >
+                  Delete
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <TshirtHandoffDialog
+          :row="openRegistration"
+          :busy-line-id="busyLineId"
+          :error="handoffError"
+          @toggle="toggleLine"
+          @close="openRegistrationId = null"
+        />
+        <TshirtInventoryDialog
+          :open="inventoryOpen"
+          :types="types"
+          :saving="saving"
+          @save="saveStock"
+          @close="inventoryOpen = false"
+        />
+        <TshirtSaleDialog
+          :open="saleOpen"
+          :types="types"
+          :saving="saving"
+          :error="saleError"
+          @save="recordSale"
+          @close="saleOpen = false"
+        />
+      </template>
     </template>
   </div>
 </template>

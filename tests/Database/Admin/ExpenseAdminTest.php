@@ -108,6 +108,18 @@ class ExpenseAdminTest extends AdminTestCase
     }
 
     #[Test]
+    public function a_large_amount_is_stored_exactly(): void
+    {
+        $show = CarShow::factory()->create();
+
+        $this->actingAs($this->admin())->postJson(self::BASE, ['show_id' => $show->id, 'amount' => '99999.99', 'type' => 'expense'])
+            ->assertCreated()
+            ->assertJsonPath('data.amount', '99999.99');
+
+        $this->assertSame('99999.99', Expense::query()->sole()->amount);
+    }
+
+    #[Test]
     public function an_expense_is_stored_positive_and_income_negative(): void
     {
         $show = CarShow::factory()->create();
@@ -156,7 +168,7 @@ class ExpenseAdminTest extends AdminTestCase
             'amount missing' => [['type' => 'expense'], 'amount'],
             'amount negative' => [['amount' => '-5', 'type' => 'expense'], 'amount'],
             'amount three decimals' => [['amount' => '1.234', 'type' => 'expense'], 'amount'],
-            'amount over the column' => [['amount' => '1000000.00', 'type' => 'expense'], 'amount'],
+            'amount over the float precision' => [['amount' => '100000.00', 'type' => 'expense'], 'amount'],
             'amount not a number' => [['amount' => 'ten', 'type' => 'expense'], 'amount'],
             'type missing' => [['amount' => '5'], 'type'],
             'type unknown' => [['amount' => '5', 'type' => 'refund'], 'type'],
@@ -186,7 +198,7 @@ class ExpenseAdminTest extends AdminTestCase
     {
         $show = CarShow::factory()->create();
 
-        $this->actingAs($this->admin())->postJson(self::BASE, ['show_id' => $show->id, 'description' => str_repeat('a', 255), 'amount' => '999999.99', 'type' => 'expense'])
+        $this->actingAs($this->admin())->postJson(self::BASE, ['show_id' => $show->id, 'description' => str_repeat('a', 255), 'amount' => '99999.99', 'type' => 'expense'])
             ->assertCreated();
     }
 

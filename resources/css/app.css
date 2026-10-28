@@ -58,8 +58,10 @@
   --text-h3--line-height: 1.3;
   --text-h4: 0.875rem;
   --text-h4--line-height: 1.4;
-  --text-nav: 1rem;
-  --text-nav--letter-spacing: 0.04em;
+  --text-nav: 0.9375rem;
+  --text-nav--letter-spacing: 0.5px;
+  --text-content: 0.875rem;
+  --text-content--line-height: 1.6;
   --text-utility: 0.8125rem;
   --text-footer: 0.75rem;
 
@@ -71,10 +73,11 @@
   /* Radii */
   --radius-sm: 4px;
   --radius-md: 6px;
+  --radius-panel: 8px;
 
   /* Shadows */
-  --shadow-header: 0 1px 4px rgb(0 0 0 / 0.08);
-  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.04);
+  --shadow-header: 0 1px 3px rgb(0 0 0 / 0.06);
+  --shadow-panel: 0 1px 3px rgb(0 0 0 / 0.04);
   --shadow-card: 0 1px 3px rgb(0 0 0 / 0.12);
   --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.18);
 }
@@ -148,7 +151,7 @@
   /* Section heading (legacy h2: uppercase, 2px rule underneath) */
   .section-heading {
     color: var(--color-heading);
-    font-size: 1.0625rem;
+    font-size: var(--text-h2);
     line-height: var(--text-h2--line-height);
     font-weight: 600;
     letter-spacing: var(--text-h2--letter-spacing);
@@ -193,5 +196,125 @@
 
   .form-control[aria-invalid="true"] {
     border-color: var(--color-danger);
+  }
+
+  /*
+   * Admin-authored legacy HTML (agenda, schedule, judging text). The legacy pages styled it with Bootstrap 2:
+   * <center>/<big>, text-center and pull-* classes, inline image sizes and .btn links ("REGISTER NOW").
+   */
+  .event-html {
+    font-size: var(--text-content);
+    line-height: var(--text-content--line-height);
+  }
+
+  .event-html p {
+    margin-bottom: 0.625rem;
+  }
+
+  .event-html center,
+  .event-html .text-center {
+    display: block;
+    text-align: center;
+  }
+
+  .event-html .text-right {
+    text-align: right;
+  }
+
+  .event-html big {
+    font-size: 1.1em;
+  }
+
+  .event-html h1,
+  .event-html h2,
+  .event-html h3,
+  .event-html h4,
+  .event-html h5,
+  .event-html h6 {
+    color: var(--color-heading);
+    font-weight: 600;
+    margin: 0.625rem 0;
+  }
+
+  .event-html ul {
+    list-style: disc;
+    padding-left: 1.5rem;
+  }
+
+  .event-html ol {
+    list-style: decimal;
+    padding-left: 1.5rem;
+  }
+
+  .event-html img {
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: middle;
+  }
+
+  .event-html img[style*="height"]:not([style*="height: auto"]) {
+    object-fit: contain;
+  }
+
+  .event-html .pull-left {
+    float: left;
+    margin-right: 1rem;
+  }
+
+  .event-html .pull-right {
+    float: right;
+    margin-left: 1rem;
+  }
+
+  .event-html::after {
+    content: "";
+    display: table;
+    clear: both;
+  }
+
+  .event-html .btn {
+    display: inline-block;
+    border: 1px solid var(--color-default-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-default);
+    color: var(--color-text);
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    text-decoration-line: none;
+  }
+
+  .event-html .btn:hover {
+    background-color: var(--color-default-hover);
+  }
+
+  .event-html .btn-primary,
+  .event-html .btn-info {
+    border-color: transparent;
+    background-color: var(--color-primary);
+    color: #fff;
+  }
+
+  .event-html .btn-primary:hover,
+  .event-html .btn-info:hover {
+    background-color: var(--color-primary-hover);
+    color: #fff;
+  }
+
+  .event-html .btn-danger {
+    border-color: transparent;
+    background-color: var(--color-danger);
+    color: #fff;
+  }
+
+  .event-html .btn-danger:hover {
+    background-color: var(--color-danger-hover);
+    color: #fff;
+  }
+
+  .event-html .btn-large,
+  .event-html .btn-lg {
+    padding: 0.5rem 1.25rem;
+    font-size: 1rem;
   }
 }

@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import BaseButton from '../../../components/ui/BaseButton.vue';
+/**
+ * The legacy judging list table: car #, year, body, model (car page link), judging type with answered/missing
+ * counts, score, owner, email, the Questions · Answers · QR forms and Remove. Below 768px each row is a card laid
+ * out like the legacy mobile list (big car number, Remove top right, indigo judging-type box, form buttons).
+ */
 import type { JudgingEntry } from './judging';
 
 defineProps<{
@@ -12,72 +16,42 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="overflow-x-auto">
-    <table class="mt-2 w-full border-collapse text-sm">
+  <div class="a2-scroll">
+    <table class="a2-table a2-cards a2-cards--pair a2-judging">
       <caption class="sr-only">
         Judging entries for the selected event
       </caption>
       <thead>
-        <tr class="border-b text-left text-muted">
-          <th
-            scope="col"
-            class="py-2 pr-3"
-          >
+        <tr>
+          <th scope="col">
             Car #
           </th>
-          <th
-            scope="col"
-            class="py-2 pr-3"
-          >
+          <th scope="col">
             Year
           </th>
-          <th
-            scope="col"
-            class="py-2 pr-3"
-          >
+          <th scope="col">
             Body
           </th>
-          <th
-            scope="col"
-            class="py-2 pr-3"
-          >
+          <th scope="col">
             Model
           </th>
-          <th
-            scope="col"
-            class="py-2 pr-3"
-          >
+          <th scope="col">
             Judging type
           </th>
-          <th
-            scope="col"
-            class="py-2 pr-3"
-          >
-            Progress
-          </th>
-          <th
-            scope="col"
-            class="py-2 pr-3"
-          >
+          <th scope="col">
             Score
           </th>
-          <th
-            scope="col"
-            class="py-2 pr-3"
-          >
+          <th scope="col">
             Owner
           </th>
-          <th
-            scope="col"
-            class="py-2 pr-3"
-          >
-            Links
+          <th scope="col">
+            Email
           </th>
-          <th
-            scope="col"
-            class="py-2"
-          >
-            <span class="sr-only">Actions</span>
+          <th scope="col">
+            Forms
+          </th>
+          <th scope="col">
+            <span class="sr-only">Remove</span>
           </th>
         </tr>
       </thead>
@@ -85,75 +59,107 @@ const emit = defineEmits<{
         <tr
           v-for="entry in entries"
           :key="entry.id"
-          class="border-b align-top"
         >
-          <td class="py-2 pr-3 font-medium text-heading">
+          <td
+            data-label="Car #"
+            class="a2-cell-big"
+          >
             {{ entry.invoice_id }}
           </td>
-          <td class="py-2 pr-3">
+          <td
+            data-label="Year"
+            class="a2-cell-third"
+          >
             {{ entry.year ?? '' }}
           </td>
-          <td class="py-2 pr-3">
+          <td
+            data-label="Body"
+            class="a2-cell-third"
+          >
             {{ entry.body ?? '' }}
           </td>
-          <td class="py-2 pr-3">
-            {{ entry.model ?? '' }}
+          <td
+            data-label="Model"
+            class="a2-cell-third"
+          >
+            <a :href="`#/car/${entry.car_id}`">{{ entry.model ?? '' }}</a>
           </td>
-          <td class="py-2 pr-3">
+          <td
+            data-label="Judging type"
+            class="a2-judging-type"
+          >
             {{ entry.judging_type }}
-          </td>
-          <td class="py-2 pr-3">
-            {{ entry.num_answered }}/{{ entry.num_questions }}
             <span
-              v-if="entry.num_answered < entry.num_questions"
-              class="text-muted"
-            >({{ entry.num_questions - entry.num_answered }} missing)</span>
+              v-if="entry.num_questions > 0"
+              class="a2-qstats"
+            >
+              <strong>{{ entry.num_answered }}/{{ entry.num_questions }}</strong> answered
+              <span
+                v-if="entry.num_answered < entry.num_questions"
+                class="a2-incomplete"
+              >({{ entry.num_questions - entry.num_answered }} missing)</span>
+            </span>
+            <span class="a2-qstats a2-mobile-only">Score: <strong>{{ entry.score ?? '—' }}</strong></span>
           </td>
-          <td class="py-2 pr-3">
+          <td
+            data-label="Score"
+            class="a2-desktop-only"
+          >
             {{ entry.score ?? '—' }}
           </td>
-          <td class="py-2 pr-3">
+          <td
+            data-label="Owner"
+            class="a2-cell-owner"
+          >
             {{ entry.owner_name }}
-            <br>
+          </td>
+          <td
+            data-label="Email"
+            class="a2-cell-email"
+          >
             <a
-              :href="`mailto:${entry.owner_email}`"
-              class="text-link underline"
+              v-if="entry.owner_email !== null"
+              :href="`mailto:${entry.owner_email}?subject=SESF Judging`"
             >{{ entry.owner_email }}</a>
           </td>
-          <td class="py-2 pr-3">
-            <div class="flex flex-wrap gap-2">
+          <td
+            data-label="Forms"
+            class="a2-cell-sep"
+          >
+            <span class="a2-form-links">
               <a
                 :href="entry.judging_url"
                 target="_blank"
                 rel="noopener"
-                class="text-link underline"
                 :aria-label="`Questions for car ${entry.invoice_id} (opens in a new tab)`"
-              >Questions</a>
-              <a
+              >Questions</a><span
+                class="a2-sep"
+                aria-hidden="true"
+              > · </span><a
                 :href="entry.answers_url"
                 target="_blank"
                 rel="noopener"
-                class="text-link underline"
                 :aria-label="`Answers for car ${entry.invoice_id} (opens in a new tab)`"
-              >Answers</a>
-              <a
+              >Answers</a><span
+                class="a2-sep"
+                aria-hidden="true"
+              > · </span><a
                 :href="entry.qr_url"
                 target="_blank"
                 rel="noopener"
-                class="text-link underline"
                 :aria-label="`QR code for car ${entry.invoice_id} (opens in a new tab)`"
               >QR</a>
-            </div>
+            </span>
           </td>
-          <td class="py-2">
-            <BaseButton
-              size="sm"
-              variant="danger"
+          <td class="a2-cell-corner a2-cell-nolabel">
+            <button
+              type="button"
+              class="a2-btn a2-btn-small"
               :aria-label="`Remove car ${entry.invoice_id} from judging`"
               @click="emit('remove', entry)"
             >
               Remove
-            </BaseButton>
+            </button>
           </td>
         </tr>
       </tbody>

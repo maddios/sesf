@@ -50,7 +50,13 @@ export interface RegistrationInput {
   is_paid: boolean | null;
   /** null: computed (open show) or moved by the change in received and discount (ended show). */
   amount_owed_cents: number | string | null;
+  /** The stored received and discount the form was loaded with; the server answers 409 when they changed since. */
+  expected_amount_received_cents?: number;
+  expected_discount_cents?: number;
 }
+
+/** 409 code when the registration's received or discount changed after it was loaded (e.g. a PayPal payment). */
+export const REGISTRATION_CHANGED = 'registration_changed';
 
 /** A car the admin may put on the registration (GET registrations/{id}/cars). */
 export interface RegistrationCarOption {
@@ -77,6 +83,7 @@ export const REGISTRATION_FIELDS: AdminField[] = [
     label: 'Donation',
     type: 'select',
     required: true,
+    section: 'Registration',
     options: DONATION_CENTS.map((cents) => ({ value: String(cents), label: cents === 0 ? 'None' : `$${cents / 100}` })),
   },
   { name: 'arrival_date', label: 'Arrival date', type: 'date', hint: 'Within the show dates.' },
@@ -84,8 +91,8 @@ export const REGISTRATION_FIELDS: AdminField[] = [
   { name: 'is_cancelled', label: 'Cancelled', type: 'checkbox', hint: 'Keeps the cars, guests and amounts.' },
   { name: 'user_id', label: 'Member', required: true },
   { name: 'invoice_id', label: 'Invoice number', type: 'number', required: true },
-  { name: 'car_ids', label: 'Cars' },
-  { name: 'amount_received_cents', label: 'Amount received ($)', hint: 'Negative after a refund.' },
+  { name: 'car_ids', label: 'Cars', section: 'Cars', wide: true },
+  { name: 'amount_received_cents', label: 'Amount received ($)', section: 'Payment', hint: 'Negative after a refund.' },
   { name: 'amount_received_actual_cents', label: 'Actual amount received ($)', hint: 'After fees. Blank if unknown.' },
   { name: 'discount_cents', label: 'Discount ($)' },
   { name: 'discount_note', label: 'Discount note', type: 'textarea', rows: 2 },
@@ -116,13 +123,13 @@ export const REGISTRATION_COLUMNS: AdminColumn<Registration>[] = [
   { key: 'invoice_id', label: 'Invoice', sortable: true, align: 'right' },
   { key: 'show_name', label: 'Event' },
   { key: 'user_name', label: 'Member' },
-  { key: 'cars_count', label: 'Cars', align: 'right' },
-  { key: 'guests_count', label: 'Guests', align: 'right' },
-  { key: 'shirts_count', label: 'Shirts', align: 'right' },
-  { key: 'total_cents', label: 'Total', align: 'right' },
+  { key: 'cars_count', label: 'Cars', align: 'right', hideOnMobile: true },
+  { key: 'guests_count', label: 'Guests', align: 'right', hideOnMobile: true },
+  { key: 'shirts_count', label: 'Shirts', align: 'right', hideOnMobile: true },
+  { key: 'total_cents', label: 'Total', align: 'right', hideOnMobile: true },
   { key: 'owed_cents', label: 'Owed', align: 'right', format: (row) => formatCents(row.owed_cents) },
   { key: 'is_cancelled', label: 'Status', sortable: true },
-  { key: 'created_at', label: 'Date registered', sortable: true, format: (row) => (row.created_at ?? '').slice(0, 10) },
+  { key: 'created_at', label: 'Date registered', sortable: true, hideOnMobile: true, format: (row) => (row.created_at ?? '').slice(0, 10) },
 ];
 
 /** "$1,234.50", with a minus sign for a credit. */
@@ -198,7 +205,16 @@ export function toInput(values: FormValues): RegistrationInput {
   };
 }
 
+/** The edited values plus the stored amounts they were based on (the server's lost-update check). */
+export function updateInput(registration: Registration, values: FormValues): RegistrationInput {
+  return {
+    ...toInput(values),
+    expected_amount_received_cents: registration.received_cents,
+    expected_discount_cents: registration.discount_cents,
+  };
+}
+
 /** The current values with only the cancellation changed (the row action). */
 export function cancelInput(registration: Registration, cancelled: boolean): RegistrationInput {
-  return { ...toInput(toForm(registration)), is_cancelled: cancelled };
+  return { ...updateInput(registration, toForm(registration)), is_cancelled: cancelled };
 }

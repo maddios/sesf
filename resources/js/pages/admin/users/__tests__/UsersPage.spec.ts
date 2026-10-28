@@ -92,9 +92,18 @@ describe('UsersPage', () => {
     const user = userEvent.setup();
     const { router } = await renderAt(Page, '/admin/users');
     await within(table()).findByText('Ada Lovelace');
-    await user.selectOptions(screen.getByLabelText('Status'), 'disabled');
+    await user.click(screen.getByRole('combobox', { name: 'Status' }));
+    await user.click(await screen.findByRole('option', { name: 'Disabled' }));
     expect(router.currentRoute.value.query['f.status']).toBe('disabled');
     await waitFor(() => expect(seen.filter((r) => r.path === '/admin-api/users').at(-1)?.params.get('filter[status]')).toBe('disabled'));
+  });
+
+  it('opens the edit dialog when a row is clicked', async () => {
+    stubUsers();
+    const user = userEvent.setup();
+    await renderAt(Page, '/admin/users');
+    await user.click(await within(table()).findByText('Ada Lovelace'));
+    expect(await screen.findByRole('dialog', { name: 'Edit Ada Lovelace' })).toBeTruthy();
   });
 
   it('logs in as a member only after confirmation, then goes to the site', async () => {

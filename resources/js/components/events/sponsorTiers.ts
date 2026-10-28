@@ -6,16 +6,16 @@ export interface SponsorTier {
   sponsors: EventSponsor[];
 }
 
-/** Tier headings in legacy order, keyed by App\Enums SponsorType ids. */
+/** Tier headings in legacy order and wording (BMW paint names Silber, Bronzit), keyed by App\Enums SponsorType ids. */
 const TIERS: Array<{ typeId: number; heading: string }> = [
-  { typeId: 1, heading: 'M Class' },
+  { typeId: 1, heading: '///M Class' },
   { typeId: 2, heading: 'Gold Class' },
-  { typeId: 3, heading: 'Silver Class' },
-  { typeId: 4, heading: 'Bronze Class' },
+  { typeId: 3, heading: 'Silber Class' },
+  { typeId: 4, heading: 'Bronzit Class' },
 ];
 
 /**
- * Groups sponsors into tiers (M, Gold, Silver, Bronze) in that order. Empty tiers are dropped. Sponsors with an
+ * Groups sponsors into tiers (///M, Gold, Silber, Bronzit) in that order. Empty tiers are dropped. Sponsors with an
  * unknown or missing type go into a last "Other sponsors" group so none disappear.
  */
 export function groupSponsorsByTier(sponsors: EventSponsor[]): SponsorTier[] {

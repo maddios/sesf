@@ -44,3 +44,11 @@ site (`docs/design-baseline/tokens.json`); changed only where WCAG 2.2 AA requir
 BaseButton (primary/default/danger/link; sm/md/lg; loading), BaseCard, BaseAlert, TabNav, BaseModal,
 BaseAccordion, DropdownMenu, BasePagination (`?page=` in the hash query), SafeImage + PlaceholderImage
 (broken images become a neutral tile with the name as text), BaseSpinner.
+
+## Admin (`resources/css/admin.css`)
+The admin copies the legacy admin instead of the public site look: dark top bar (#5a6064 to #4a4f52), light grey
+menu (#f4f5f5, current item #d9e4ec), gradient bars for page headers, table headers and the pager (#f3f4f4 to
+#e2e4e5, text #4f5559), 13px table text, striped rows (#f6f7f7), and Bootstrap 2 buttons, labels, wells and alerts for
+the former /admin2 pages. On desktop the admin root font size is 14px (denser rem-based spacing). Legacy colours that
+failed WCAG AA were darkened in the same hue (btn-info #23819f to #1b6f8a, label-warning #a35a00, label-success
+#3d7a3e, links #005580); each is noted in the stylesheet.

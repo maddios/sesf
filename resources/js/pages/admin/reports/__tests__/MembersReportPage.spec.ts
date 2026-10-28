@@ -44,7 +44,8 @@ describe('MembersReportPage', () => {
     const { router } = await renderAt(Page, '/admin/reports/members');
     await screen.findByRole('table', { name: 'Members' });
 
-    await user.selectOptions(screen.getByLabelText('Allow system Email'), '0');
+    await user.click(screen.getByRole('combobox', { name: 'Allow system Email' }));
+    await user.click(await screen.findByRole('option', { name: 'No' }));
 
     await waitFor(() => expect(router.currentRoute.value.query['f.allow_system_email']).toBe('0'));
     await waitFor(() => expect(seen.filter((r) => r.path === '/admin-api/reports/members').at(-1)?.params.get('filter[allow_system_email]')).toBe('0'));

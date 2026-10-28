@@ -5,8 +5,8 @@
  * returns the registration; the page replaces the row.
  */
 import { computed, ref } from 'vue';
-import BaseButton from '../../../../components/ui/BaseButton.vue';
 import BaseModal from '../../../../components/ui/BaseModal.vue';
+import HandoffToggle from '../../../../components/admin/HandoffToggle.vue';
 import { useConfirm } from '../../../../composables/admin/useConfirm';
 import { useToast } from '../../../../composables/admin/useToast';
 import { shirtsApi } from '../../tshirts/tshirts';
@@ -84,8 +84,11 @@ async function sendReminder(): Promise<void> {
   const ok = await confirm({ title: 'Waiver reminder', message: 'Send waiver reminder email to the primary registrant?', confirmLabel: 'Send reminder' });
   if (!ok) return;
   await run(async () => {
-    await checkinApi.waiverReminder(props.row);
-    setAlert('Reminder queued for primary email.', 'success');
+    if (await checkinApi.waiverReminder(props.row)) {
+      setAlert('Reminder queued for primary email.', 'success');
+    } else {
+      setAlert('The reminder could not be queued and was not sent. Try again.', 'error');
+    }
   }, 'Could not queue reminder');
 }
 
@@ -96,8 +99,11 @@ async function sendPayLink(): Promise<void> {
   const ok = await confirm({ title: 'Billing link', message, confirmLabel: 'Send email' });
   if (!ok) return;
   await run(async () => {
-    await checkinApi.payLinkEmail(props.row);
-    setAlert('Billing link email queued for primary email.', 'success');
+    if (await checkinApi.payLinkEmail(props.row)) {
+      setAlert('Billing link email queued for primary email.', 'success');
+    } else {
+      setAlert('The billing link email could not be queued and was not sent. Try again.', 'error');
+    }
   }, 'Could not queue email');
 }
 
@@ -123,149 +129,153 @@ async function toggleShirt(line: CheckinRow['shirt_lines'][number], handedOut: b
 
 <template>
   <BaseModal
+    sheet
     :open="true"
     :title="`Check-in · Reg #${row.invoice_id}`"
-    size="lg"
+    size="sm"
     @update:open="(value: boolean) => { if (!value) emit('close'); }"
   >
-    <div class="space-y-4 text-base">
-      <p>
-        <span class="text-muted">Primary</span> <strong>{{ row.primary_name }}</strong>
+    <div class="a2-page">
+      <p class="a2-modal-line">
+        <span class="a2-modal-label">Registration #</span>
+        <strong>#{{ row.invoice_id }}</strong>
+      </p>
+      <p class="a2-modal-line">
+        <span class="a2-modal-label">Primary</span>
+        {{ row.primary_name }}
       </p>
 
-      <section class="space-y-2">
-        <h3 class="font-semibold">
-          Party waivers
-        </h3>
-        <p :class="row.party_complete ? 'text-success-fg' : 'text-warning-fg'">
+      <div class="a2-modal-section">
+        <span class="a2-modal-label">Party waivers</span>
+        <p
+          class="mt-1 font-semibold"
+          :class="row.party_complete ? 'text-[#1d6b3a]' : 'text-[#b35400]'"
+        >
           {{ partyStatus }}
         </p>
-        <ul class="space-y-2">
+        <ul class="mt-2">
           <li
             v-for="member in row.party"
             :key="member.guest_id ?? 'primary'"
-            class="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-2"
+            class="a2-subtle-row flex items-center justify-between gap-2"
           >
             <span>
-              <span :class="member.signed ? 'rounded-full bg-success-bg px-2 text-success-fg' : 'rounded-full bg-warning-bg px-2 text-warning-fg'">{{ member.signed ? 'Signed' : 'Unsigned' }}</span>
-              <span class="text-muted"> {{ member.role === 'guest' ? 'Guest' : 'Primary' }}</span>
-              {{ member.name }}
+              <span
+                class="a2-label"
+                :class="member.signed ? 'a2-label-success' : 'a2-label-warning'"
+              >{{ member.signed ? 'Signed' : 'Unsigned' }}</span>
+              {{ member.role === 'guest' ? 'Guest' : 'Primary' }} {{ member.name }}
             </span>
-            <BaseButton
+            <button
               v-if="!member.signed"
-              size="lg"
-              class="min-h-12"
+              type="button"
+              class="a2-btn a2-btn-small a2-btn-info"
               :disabled="busy"
               @click="openSign(member)"
             >
               Sign
-            </BaseButton>
+            </button>
           </li>
         </ul>
-      </section>
+      </div>
 
-      <section class="space-y-2">
-        <h3 class="font-semibold">
-          T-shirts (toggle when handed out)
-        </h3>
+      <div class="a2-modal-section">
+        <span class="a2-modal-label">T-shirts (toggle when handed out)</span>
         <p
           v-if="row.shirt_lines.length === 0"
-          class="text-muted"
+          class="a2-muted mt-1"
         >
           None on order
         </p>
         <ul
           v-else
-          class="grid gap-2 sm:grid-cols-2"
+          class="mt-2.5 space-y-2.5"
         >
           <li
             v-for="line in row.shirt_lines"
             :key="line.id"
           >
-            <label class="flex min-h-12 items-center gap-3 rounded-md border border-border px-3">
-              <input
-                type="checkbox"
-                class="h-6 w-6"
-                :checked="line.handed_out"
-                :aria-label="`Handed out: ${line.type_name}`"
-                :disabled="busy"
-                @change="toggleShirt(line, ($event.target as HTMLInputElement).checked)"
-              >
-              <span>{{ line.type_name }}</span>
-            </label>
+            <HandoffToggle
+              compact
+              :label="line.type_name"
+              :checked="line.handed_out"
+              :busy="busy"
+              @toggle="(handedOut) => toggleShirt(line, handedOut)"
+            />
           </li>
         </ul>
-      </section>
+      </div>
 
-      <section class="space-y-1">
-        <h3 class="font-semibold">
-          Payment
-        </h3>
-        <span :class="row.is_paid ? 'rounded-full bg-success-bg px-2 text-success-fg' : 'rounded-full bg-warning-bg px-2 text-warning-fg'">{{ row.is_paid ? 'Paid' : 'Not paid' }}</span>
-      </section>
-
+      <p class="a2-modal-line">
+        <span class="a2-modal-label">Payment</span>
+        <span
+          class="a2-label"
+          :class="row.is_paid ? 'a2-label-success' : 'a2-label-warning'"
+        >{{ row.is_paid ? 'Paid' : 'Not paid' }}</span>
+      </p>
       <p
         v-if="checkedLine"
-        class="text-muted"
+        class="a2-modal-line a2-muted"
       >
         {{ checkedLine }}
       </p>
       <p
         v-if="alert"
         role="status"
-        class="rounded-md border p-3 text-sm"
-        :class="alert.kind === 'error' ? 'border-danger-border bg-danger-bg' : alert.kind === 'success' ? 'border-success-border bg-success-bg' : 'border-info-border bg-info-bg'"
+        class="a2-alert"
+        :class="alert.kind === 'error' ? 'a2-alert-error' : alert.kind === 'success' ? 'a2-alert-success' : 'a2-alert-info'"
       >
         {{ alert.text }}
       </p>
     </div>
 
     <template #footer>
-      <BaseButton
-        v-if="!row.party_complete"
-        size="lg"
-        class="min-h-12"
-        :disabled="busy"
-        @click="sendReminder"
-      >
-        Send waiver reminder
-      </BaseButton>
-      <BaseButton
-        v-if="!row.is_paid"
-        size="lg"
-        class="min-h-12"
-        :disabled="busy || !row.primary_email"
-        :title="row.primary_email ? 'Sends the same billing link email as new registration.' : 'Primary registrant has no email on file.'"
-        @click="sendPayLink"
-      >
-        Email billing link
-      </BaseButton>
-      <BaseButton
-        v-if="row.is_checked_in"
-        variant="danger"
-        size="lg"
-        class="min-h-12"
-        :disabled="busy"
-        @click="undoCheckIn"
-      >
-        Remove check-in
-      </BaseButton>
-      <BaseButton
-        :variant="notReady ? 'default' : 'primary'"
-        size="lg"
-        class="min-h-12"
-        :disabled="confirmDisabled"
-        @click="confirmCheckIn"
-      >
-        {{ row.is_checked_in ? 'Already checked in' : 'Confirm check-in' }}
-      </BaseButton>
-      <BaseButton
-        size="lg"
-        class="min-h-12"
-        @click="emit('close')"
-      >
-        Close
-      </BaseButton>
+      <div class="a2-modal-actions">
+        <button
+          v-if="!row.party_complete"
+          type="button"
+          class="a2-btn a2-btn-secondary"
+          :disabled="busy"
+          @click="sendReminder"
+        >
+          Send waiver reminder
+        </button>
+        <button
+          v-if="!row.is_paid"
+          type="button"
+          class="a2-btn a2-btn-secondary"
+          :disabled="busy || !row.primary_email"
+          :title="row.primary_email ? 'Sends the same billing link email as new registration.' : 'Primary registrant has no email on file.'"
+          @click="sendPayLink"
+        >
+          Email billing link
+        </button>
+        <button
+          v-if="row.is_checked_in"
+          type="button"
+          class="a2-btn a2-btn-warning"
+          :disabled="busy"
+          @click="undoCheckIn"
+        >
+          Remove check-in
+        </button>
+        <button
+          type="button"
+          class="a2-btn"
+          :class="notReady ? 'a2-btn-warning' : 'a2-btn-info'"
+          :disabled="confirmDisabled"
+          @click="confirmCheckIn"
+        >
+          {{ row.is_checked_in ? 'Already checked in' : 'Confirm check-in' }}
+        </button>
+        <button
+          type="button"
+          class="a2-btn"
+          @click="emit('close')"
+        >
+          Close
+        </button>
+      </div>
     </template>
 
     <WaiverSignDialog

@@ -8,6 +8,7 @@ use App\Models\ShowRegistration;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 use Throwable;
 
 /**
@@ -49,6 +50,13 @@ class IpnProcessor
     public const RECEIVER_MISMATCH = 'receiver_email/business does not match the configured PayPal account';
 
     public const UNKNOWN_INVOICE = 'unknown item_number';
+
+    /** Rejected-before-postback rows stored per client IP per hour; the post kept in them is capped too. */
+    public const UNVERIFIED_ROWS_PER_HOUR = 20;
+
+    private const UNVERIFIED_POST_FIELDS = 60;
+
+    private const UNVERIFIED_POST_VALUE_CHARS = 100;
 
     public function __construct(
         private readonly IpnVerifier $verifier,
@@ -301,6 +309,13 @@ class IpnProcessor
             return null;
         }
 
+        $budget = 'paypal-ipn-unverified:'.request()->ip();
+        if (RateLimiter::tooManyAttempts($budget, self::UNVERIFIED_ROWS_PER_HOUR)) {
+            Log::warning('PayPal IPN rejection not stored: hourly row cap for this IP reached', $payload->logContext());
+
+            return null;
+        }
+
         $status = (string) $payload->get('payment_status');
         $seen = PayPalPayment::query()->forTxn($txnId)->where('paypal_verified', '')->pluck('entirepost')
             ->contains(function (?string $post) use ($status, $reason): bool {
@@ -311,6 +326,8 @@ class IpnProcessor
         if ($seen) {
             return null;
         }
+
+        RateLimiter::hit($budget, 3600);
 
         return $this->store($payload, null, IpnOutcome::REJECTED, $reason, verified: false);
     }
@@ -417,7 +434,7 @@ class IpnProcessor
                 'status' => $status,
                 'outcome' => $outcome,
                 'reason' => $reason,
-            ] + $money),
+            ] + $money, compact: ! $verified),
         ];
 
         $payment = new PayPalPayment;
@@ -429,15 +446,18 @@ class IpnProcessor
     /**
      * @param  array<string, mixed>  $meta
      */
-    private static function entirepost(IpnPayload $payload, array $meta): string
+    private static function entirepost(IpnPayload $payload, array $meta, bool $compact = false): string
     {
         $flags = JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE;
         $json = (string) json_encode(['post' => $payload->auditFields(), 'sesf' => $meta], $flags);
 
-        // TEXT holds 65,535 bytes. Keep the processing result; trim the post values.
-        if (strlen($json) > 60000) {
-            $trimmed = array_map(fn (string $v): string => mb_substr($v, 0, 200), array_slice($payload->auditFields(), 0, 100, true));
-            $json = (string) json_encode(['post' => $trimmed, 'post_truncated' => true, 'sesf' => $meta], $flags);
+        // TEXT holds 65,535 bytes. Keep the processing result; trim the post values. An unverified post (anyone can
+        // send one) is always kept small.
+        if ($compact || strlen($json) > 60000) {
+            [$fields, $length] = $compact ? [self::UNVERIFIED_POST_FIELDS, self::UNVERIFIED_POST_VALUE_CHARS] : [100, 200];
+            $trimmed = array_map(fn (string $v): string => mb_substr($v, 0, $length), array_slice($payload->auditFields(), 0, $fields, true));
+            $truncated = $trimmed !== $payload->auditFields();
+            $json = (string) json_encode(['post' => $trimmed] + ($truncated ? ['post_truncated' => true] : []) + ['sesf' => $meta], $flags);
         }
 
         return $json;

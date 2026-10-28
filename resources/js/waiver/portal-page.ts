@@ -15,6 +15,11 @@ interface PortalStatus {
     people: Person[];
 }
 
+interface NotRegistered {
+    message: string;
+    signedInAs?: string;
+}
+
 const OTP_LENGTH = 6;
 const COUNTDOWN_SECONDS = 8;
 const TOO_MANY = 'Too many attempts. Please wait a minute.';
@@ -23,6 +28,11 @@ const FALLBACK_LINK = 'click here to sign in a new tab';
 
 function isPortalStatus(body: unknown): body is PortalStatus {
     return typeof body === 'object' && body !== null && Array.isArray((body as { people?: unknown }).people);
+}
+
+function isNotRegistered(body: unknown): body is NotRegistered {
+    const candidate = body as { error?: unknown; message?: unknown } | null;
+    return candidate?.error === 'not_registered' && typeof candidate.message === 'string';
 }
 
 function firstMessage(result: ApiResult, fallback: string): string {
@@ -117,10 +127,19 @@ export function mountPortalPage(doc: Document, base: string): void {
         listSection.hidden = false;
     }
 
+    function showNotRegistered(body: NotRegistered): void {
+        showList({ signedInAs: body.signedInAs ?? '', people: [] });
+        say(body.message, 'error');
+    }
+
     async function refresh(): Promise<void> {
         const result = await requestJson('GET', `${base}/status`);
         if (result.status === 401) {
             showLogin();
+            return;
+        }
+        if (result.status === 403 && isNotRegistered(result.body)) {
+            showNotRegistered(result.body);
             return;
         }
         if (!result.ok || !isPortalStatus(result.body)) {
@@ -200,7 +219,7 @@ export function mountPortalPage(doc: Document, base: string): void {
     byId<HTMLButtonElement>(doc, 'sesf-waiver-modal-close').addEventListener('click', closeSigningModal);
     window.addEventListener('message', (event: MessageEvent<unknown>) => {
         const data = event.data as { type?: unknown } | null;
-        if (event.origin !== window.location.origin || data?.type !== PORTAL_SIGNED_MESSAGE || !modal.open) {
+        if (event.origin !== window.location.origin || event.source !== modalFrame.contentWindow || data?.type !== PORTAL_SIGNED_MESSAGE || !modal.open) {
             return;
         }
         startCountdown();
@@ -249,8 +268,7 @@ export function mountPortalPage(doc: Document, base: string): void {
             say(firstMessage(result, 'That code did not match. Try again, or use the button in your email.'), 'error');
             return;
         }
-        const redirect = (result.body as { redirect_path?: unknown } | null)?.redirect_path;
-        window.location.href = typeof redirect === 'string' ? redirect : base;
+        window.location.href = (result.body as { redirect: string }).redirect;
     }
 
     step1.addEventListener('submit', (event) => {

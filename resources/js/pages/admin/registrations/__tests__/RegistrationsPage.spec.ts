@@ -98,9 +98,8 @@ describe('RegistrationsPage', () => {
     await renderAt(Page, '/admin/registrations');
     await user.click(await within(table()).findByRole('button', { name: 'Edit registration 1001' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit registration 1001' });
-    const donation = within(dialog).getByLabelText('Donation (required)') as HTMLSelectElement;
-    expect(within(donation).getByRole('option', { name: '$5' })).toBeTruthy();
-    await user.selectOptions(donation, '500');
+    await user.click(within(dialog).getByRole('combobox', { name: /^Donation/ }));
+    await user.click(await screen.findByRole('option', { name: '$5' }));
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
@@ -118,6 +117,8 @@ describe('RegistrationsPage', () => {
       discount_note: null,
       is_paid: null,
       amount_owed_cents: null,
+      expected_amount_received_cents: 0,
+      expected_discount_cents: 0,
     });
     expect(screen.getByRole('status', { name: 'Notifications' }).textContent).toContain('Registration #1001 saved.');
   });
@@ -163,8 +164,35 @@ describe('RegistrationsPage', () => {
       discount_note: null,
       is_paid: null,
       amount_owed_cents: null,
+      expected_amount_received_cents: 0,
+      expected_discount_cents: 0,
     });
     expect(await screen.findByText('Registration #1001 cancelled.')).toBeTruthy();
+  });
+
+  it('sends the loaded received and discount, and offers a reload when the server says they changed', async () => {
+    let gets = 0;
+    const { seen } = stubRegistrations([registration({ received_cents: 2500, discount_cents: 100 })], (r) => {
+      if (r.method === 'PUT') return jsonResponse(409, { message: 'This registration changed since you opened it.', code: 'registration_changed' });
+      if (r.method === 'GET' && r.path === '/admin-api/registrations/1') {
+        gets++;
+        return jsonResponse(200, { data: registration({ received_cents: 17500, discount_cents: 100 }) });
+      }
+      return undefined;
+    });
+    const user = userEvent.setup();
+    await renderAt(Page, '/admin/registrations');
+    await user.click(await within(table()).findByRole('button', { name: 'Edit registration 1001' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit registration 1001' });
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+    const prompt = await screen.findByRole('dialog', { name: 'Registration changed' });
+    expect(seen.find((r) => r.method === 'PUT')?.body).toMatchObject({ expected_amount_received_cents: 2500, expected_discount_cents: 100 });
+    await user.click(within(prompt).getByRole('button', { name: 'Reload' }));
+
+    await waitFor(() => expect(gets).toBe(1));
+    const reloaded = await screen.findByRole('dialog', { name: 'Edit registration 1001' });
+    await waitFor(() => expect((within(reloaded).getByLabelText('Amount received ($)') as HTMLInputElement).value).toBe('175.00'));
   });
 
   it('filters by event through the RelationSelect and syncs the URL', async () => {
@@ -192,7 +220,8 @@ describe('RegistrationsPage', () => {
     await user.clear(within(dialog).getByLabelText('Discount ($)'));
     await user.type(within(dialog).getByLabelText('Discount ($)'), '-30');
     await user.type(within(dialog).getByLabelText('Discount note'), 'Late fee');
-    await user.selectOptions(within(dialog).getByLabelText('Paid (required)'), '1');
+    await user.click(within(dialog).getByRole('combobox', { name: /^Paid/ }));
+    await user.click(await screen.findByRole('option', { name: 'Paid' }));
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
@@ -225,6 +254,14 @@ describe('RegistrationsPage', () => {
     await renderAt(Page, '/admin/registrations');
     const link = await within(table()).findByRole('link', { name: 'Open the full editor for registration 1001' });
     expect(link.getAttribute('href')).toContain('/SpringShow/e4/register?user_id=9');
+  });
+
+  it('opens the edit dialog when the row is clicked', async () => {
+    stubRegistrations();
+    const user = userEvent.setup();
+    await renderAt(Page, '/admin/registrations');
+    await user.click(await within(table()).findByText('1001'));
+    expect(await screen.findByRole('dialog', { name: 'Edit registration 1001' })).toBeTruthy();
   });
 
   it('deletes after the typed confirmation and reports a 409 as an error', async () => {
@@ -267,7 +304,8 @@ describe('RegistrationsPage', () => {
     await user.click(await within(table()).findByRole('button', { name: 'Add an extra to registration 1001' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add an extra to registration 1001' });
     expect(seen.find((r) => r.path === '/admin-api/extras')?.params.get('filter[show_id]')).toBe('4');
-    await user.selectOptions(within(dialog).getByLabelText('Extra (required)'), '3');
+    await user.click(within(dialog).getByRole('combobox', { name: /^Extra/ }));
+    await user.click(await screen.findByRole('option', { name: 'Dinner' }));
     await user.clear(within(dialog).getByLabelText('Quantity (required)'));
     await user.type(within(dialog).getByLabelText('Quantity (required)'), '2');
     await user.click(within(dialog).getByRole('button', { name: 'Add extra' }));

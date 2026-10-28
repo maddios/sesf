@@ -30,11 +30,11 @@ export const EXTRA_REGISTRATION_FIELDS: AdminField[] = [
 
 export const EXTRA_REGISTRATION_COLUMNS: AdminColumn<ExtraRegistration>[] = [
   { key: 'user_name', label: 'Member' },
-  { key: 'show_name', label: 'Event' },
+  { key: 'show_name', label: 'Event', hideOnMobile: true },
   { key: 'extra_name', label: 'Extra' },
   { key: 'num_extras', label: 'Quantity', align: 'right', format: (row) => (row.num_extras === null ? '—' : String(row.num_extras)) },
-  { key: 'registration_id', label: 'Registration', align: 'right' },
-  { key: 'created_at', label: 'Date registered', sortable: true, format: (row) => (row.created_at ?? '').slice(0, 10) },
+  { key: 'registration_id', label: 'Registration', align: 'right', hideOnMobile: true },
+  { key: 'created_at', label: 'Date registered', sortable: true, hideOnMobile: true, format: (row) => (row.created_at ?? '').slice(0, 10) },
 ];
 
 /** The edit form: the extra (choices are the event's extras) and the quantity. */

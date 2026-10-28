@@ -5,6 +5,7 @@
  */
 import { ref, watch } from 'vue';
 import BaseButton from '../../../components/ui/BaseButton.vue';
+import BaseCombobox from '../../../components/ui/BaseCombobox.vue';
 import BaseModal from '../../../components/ui/BaseModal.vue';
 import RelationSelect from '../../../components/admin/RelationSelect.vue';
 import ReorderableList from '../../../components/admin/ReorderableList.vue';
@@ -108,6 +109,7 @@ watch(() => [props.open, props.event?.id], () => void load(), { immediate: true 
 
 <template>
   <BaseModal
+    sheet
     :open="open"
     :title="event ? `Sponsors for ${event.name}` : 'Sponsors'"
     size="lg"
@@ -137,20 +139,15 @@ watch(() => [props.open, props.event?.id], () => void load(), { immediate: true 
               @update:model-value="pickId = $event"
             />
           </div>
-          <select
-            id="event-sponsor-pick-tier"
-            v-model="pickTier"
-            class="form-control w-40"
-            aria-label="Tier for the new sponsor"
-          >
-            <option
-              v-for="tier in SPONSOR_TIERS"
-              :key="tier.value"
-              :value="tier.value"
-            >
-              {{ tier.label }}
-            </option>
-          </select>
+          <div class="w-full sm:w-40">
+            <BaseCombobox
+              id="event-sponsor-pick-tier"
+              :model-value="pickTier"
+              :options="SPONSOR_TIERS"
+              aria-label="Tier for the new sponsor"
+              @update:model-value="pickTier = String($event ?? '')"
+            />
+          </div>
           <BaseButton
             :disabled="pickId === null"
             :loading="adding"
@@ -189,20 +186,14 @@ watch(() => [props.open, props.event?.id], () => void load(), { immediate: true 
               label="Disabled"
               variant="neutral"
             />
-            <select
-              class="form-control w-40"
-              :value="String(item.type_id ?? '')"
-              :aria-label="`Tier for ${item.name}`"
-              @change="setTier(item, ($event.target as HTMLSelectElement).value)"
-            >
-              <option
-                v-for="tier in SPONSOR_TIERS"
-                :key="tier.value"
-                :value="tier.value"
-              >
-                {{ tier.label }}
-              </option>
-            </select>
+            <div class="w-full sm:w-40">
+              <BaseCombobox
+                :model-value="String(item.type_id ?? '')"
+                :options="SPONSOR_TIERS"
+                :aria-label="`Tier for ${item.name}`"
+                @update:model-value="setTier(item, String($event ?? ''))"
+              />
+            </div>
             <div class="ms-auto flex gap-1">
               <BaseButton
                 size="sm"

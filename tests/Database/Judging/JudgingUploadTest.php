@@ -3,10 +3,13 @@
 namespace Tests\Database\Judging;
 
 use App\Models\Judging\Answer;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 use Tests\Fixtures\images\ImageFixtures;
 
@@ -29,16 +32,35 @@ final class JudgingUploadTest extends JudgingTestCase
         return $this->root.'/judging/'.$this->world->entry->id.'/'.$this->world->q1->id;
     }
 
+    private function file(string $bytes, string $name = 'photo.jpg'): UploadedFile
+    {
+        $path = (string) tempnam(sys_get_temp_dir(), 'judging-up');
+        file_put_contents($path, $bytes);
+
+        return new UploadedFile($path, $name, null, null, true);
+    }
+
     /**
      * @return TestResponse<Response>
      */
     private function upload(string $bytes, string $name = 'photo.jpg'): TestResponse
     {
-        $path = (string) tempnam(sys_get_temp_dir(), 'judging-up');
-        file_put_contents($path, $bytes);
-        $file = new UploadedFile($path, $name, null, null, true);
+        return $this->uploadFiles([$this->file($bytes, $name)]);
+    }
 
-        return $this->post('/judgingSubmit/'.$this->world->token(), ['data' => ['file_'.$this->world->q1->id => [$file]]], ['Accept' => 'application/json']);
+    /**
+     * @param  list<UploadedFile>  $files
+     * @return TestResponse<Response>
+     */
+    private function uploadFiles(array $files): TestResponse
+    {
+        return $this->post('/judgingSubmit/'.$this->world->token(), ['data' => ['file_'.$this->world->q1->id => $files]], ['Accept' => 'application/json']);
+    }
+
+    /** @return list<string> */
+    private function photoFiles(): array
+    {
+        return is_dir($this->photoDir()) ? array_values(array_diff(scandir($this->photoDir()) ?: [], ['.', '..'])) : [];
     }
 
     public function test_an_upload_is_re_encoded_with_exif_stripped(): void
@@ -47,7 +69,7 @@ final class JudgingUploadTest extends JudgingTestCase
 
         $stored = $this->upload(ImageFixtures::jpegWithExif())->assertOk()->json('uploadedFiles.'.$field.'.0');
 
-        $this->assertMatchesRegularExpression('/\A\d{10}_[0-9a-f]{13}\.jpg\z/', $stored['serverFile']);
+        $this->assertMatchesRegularExpression('/\A\d{10}_[0-9a-f]{32}\.jpg\z/', $stored['serverFile']);
         $this->assertSame('/images/judging/'.$this->world->entry->id.'/'.$this->world->q1->id.'/'.$stored['serverFile'], $stored['content']);
 
         $path = $this->photoDir().'/'.$stored['serverFile'];
@@ -78,8 +100,31 @@ final class JudgingUploadTest extends JudgingTestCase
             ->assertStatus(400)
             ->assertJsonPath('errors.0', 'The file must be a JPEG, PNG, GIF or WebP image.');
 
-        $this->assertSame([], is_dir($this->photoDir()) ? array_values(array_diff(scandir($this->photoDir()) ?: [], ['.', '..'])) : []);
+        $this->assertSame([], $this->photoFiles());
         $this->assertSame(0, Answer::query()->count());
+    }
+
+    public function test_a_rejected_later_file_removes_the_earlier_stored_photo(): void
+    {
+        $this->uploadFiles([$this->file(ImageFixtures::jpegWithExif()), $this->file(ImageFixtures::textPretendingToBeJpeg(), 'x.jpg')])
+            ->assertStatus(400)
+            ->assertJsonPath('errors.0', 'The file must be a JPEG, PNG, GIF or WebP image.');
+
+        $this->assertSame([], $this->photoFiles());
+        $this->assertSame(0, Answer::query()->count());
+    }
+
+    public function test_a_failed_save_leaves_no_stored_photo(): void
+    {
+        DB::listen(function (QueryExecuted $query): void {
+            if (str_starts_with($query->sql, 'insert into `show_registration_car_judging`')) {
+                throw new RuntimeException('database write failed');
+            }
+        });
+
+        $this->upload(ImageFixtures::jpegWithExif())->assertStatus(500);
+
+        $this->assertSame([], $this->photoFiles());
     }
 
     public function test_only_plain_photo_names_are_deleted(): void

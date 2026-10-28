@@ -7,7 +7,7 @@ const year = new Date().getFullYear();
 </script>
 
 <template>
-  <footer class="mx-auto w-full max-w-site px-4 py-8 text-footer uppercase tracking-[0.02em] text-muted md:w-[calc(100%-2rem)] md:px-panel">
+  <footer class="mx-auto w-full max-w-site px-4 py-3 text-footer font-medium uppercase text-muted md:w-[calc(100%-2rem)] md:px-panel">
     <div class="flex flex-col items-center gap-3 text-center sm:flex-row sm:justify-between sm:text-left">
       <p>
         Southeast Sharkfest, Inc. &copy; {{ year }}
@@ -21,7 +21,7 @@ const year = new Date().getFullYear();
       </p>
       <button
         type="button"
-        class="uppercase tracking-[0.02em] text-muted hover:text-brand hover:underline"
+        class="font-medium uppercase text-muted hover:text-brand hover:underline"
         @click="emit('contact')"
       >
         Contact Us

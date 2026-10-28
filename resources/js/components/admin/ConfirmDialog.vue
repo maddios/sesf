@@ -51,6 +51,7 @@ function confirm(): void {
 
 <template>
   <BaseModal
+    sheet
     :open="open"
     :title="title"
     size="sm"

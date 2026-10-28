@@ -26,6 +26,8 @@ describe('event normalisers', () => {
       imageUrl: '/images/shows/36.jpg',
       dateStart: '2026-04-30',
       dateEnd: '2026-05-03',
+      registrationOpens: '2026-01-15 09:30:00',
+      registrationCloses: '2026-04-20 23:59:59',
       ended: true,
       registrationOpen: false,
       locationLabel: 'Richmond, VA',
@@ -37,7 +39,7 @@ describe('event normalisers', () => {
   it('drops rows without an id and handles missing location', () => {
     expect(toCarShow({ name: 'no id' })).toBeNull();
     expect(toCarShow({ id: 1, primaryLocation: null })?.locationLabel).toBeNull();
-    expect(toCarShow({ id: 1, primaryLocation: { cityState: '  ' } })?.locationLabel).toBeNull();
+    expect(toCarShow({ id: 1, primaryLocation: { address: { cityState: '  ' } } })?.locationLabel).toBeNull();
     expect(toCarShow({ id: 1, description: 'Only long', imageURL: '../etc' })).toMatchObject({
       shortDescription: 'Only long',
       imageUrl: '',

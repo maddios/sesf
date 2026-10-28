@@ -33,6 +33,8 @@ class EventListShowResource extends JsonResource
             'profileURL' => $show->profileURL,
             'date_start' => $show->date_start?->format('Y-m-d'),
             'date_end' => $show->date_end?->format('Y-m-d'),
+            'date_active' => $show->date_active?->format('Y-m-d H:i:s'),
+            'date_registration_deactivation' => $show->date_registration_deactivation?->format('Y-m-d H:i:s'),
             'has_image' => (bool) $show->has_image,
             'ended' => $show->ended,
             'regOpen' => $show->regOpen,

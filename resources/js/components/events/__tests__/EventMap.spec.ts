@@ -86,6 +86,22 @@ describe('EventMap', () => {
     expect(addListener).toHaveBeenCalledWith('click', expect.any(Function));
   });
 
+  it('reads the key from the shell sesf-config block, as the Blade page provides it', async () => {
+    const block = document.createElement('script');
+    block.id = 'sesf-config';
+    block.type = 'application/json';
+    block.textContent = '{"mapsKey":"AIzaSyFAKEKEY_123456"}';
+    document.body.appendChild(block);
+    const { lib } = library();
+    vi.mocked(loadGoogleMaps).mockResolvedValue(lib);
+    try {
+      render(EventMap, { props: { title: 'Williamsburg Inn', address: ADDRESS } });
+      await waitFor(() => expect(loadGoogleMaps).toHaveBeenCalledWith('AIzaSyFAKEKEY_123456'));
+    } finally {
+      block.remove();
+    }
+  });
+
   it('opens an info window with plain text when the marker is clicked', async () => {
     (window as Window & { __SESF__?: unknown }).__SESF__ = { mapsKey: 'AIzaSyFAKEKEY_123456' };
     const { lib, addListener, open, lib_ } = library();

@@ -280,6 +280,35 @@ class IpnVerificationTest extends IpnTestCase
         $this->assertSame('applied', $this->lastAudit()['sesf']['outcome']);
     }
 
+    #[Test]
+    public function unverified_rejections_store_at_most_the_hourly_cap_of_rows_per_ip(): void
+    {
+        $this->paypalReplies('VERIFIED');
+        $wrong = ['receiver_email' => 'attacker@example.test', 'business' => 'attacker@example.test'];
+
+        for ($i = 0; $i <= IpnProcessor::UNVERIFIED_ROWS_PER_HOUR; $i++) {
+            $this->assertEmptyOk($this->postIpn(0, $wrong + ['txn_id' => sprintf('TXNFLOOD%09d', $i)]));
+        }
+
+        Http::assertNothingSent();
+        $this->assertSame(IpnProcessor::UNVERIFIED_ROWS_PER_HOUR, $this->paymentCount());
+    }
+
+    #[Test]
+    public function an_unverified_rejection_keeps_only_a_small_copy_of_the_post(): void
+    {
+        $this->paypalReplies('VERIFIED');
+        $wrong = ['receiver_email' => 'attacker@example.test', 'business' => 'attacker@example.test', 'memo' => str_repeat('x', 40000)];
+
+        $this->assertEmptyOk($this->postIpn($this->registration(), $wrong));
+
+        $row = PayPalPayment::query()->latest('id')->firstOrFail();
+        $this->assertLessThan(8000, strlen((string) $row->entirepost));
+        $audit = $this->lastAudit();
+        $this->assertTrue($audit['post_truncated']);
+        $this->assertSame(IpnProcessor::RECEIVER_MISMATCH, $audit['sesf']['reason']);
+    }
+
     private function assertUnverifiedRejection(string $reason): void
     {
         $row = PayPalPayment::query()->latest('id')->firstOrFail();

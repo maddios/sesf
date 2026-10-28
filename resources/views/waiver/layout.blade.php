@@ -6,6 +6,7 @@
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <meta name="robots" content="noindex">
     <title>@yield('title', 'Waiver') — Southeast Sharkfest</title>
+    @include('partials.datadog_rum')
     @yield('head')
     @vite(['resources/js/waiver/main.ts'])
 </head>

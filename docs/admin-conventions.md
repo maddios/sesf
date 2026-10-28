@@ -68,8 +68,26 @@ URLs 302 to `/#/admin/...` (`routes/web/admin_redirects.php`).
      `?page&sort&search&f.<key>`) + `AdminDataTable` (slots `cell-<key>`, `actions`, `filters`, `toolbar-end`),
      `AdminFormModal` (schema or slots; 422s land on fields; dirty guard), `ImageUploadModal`, `useConfirm()`
      (`danger`, `typedConfirmation: 'DELETE'`), `useToast().success(...)` after every write.
-3. Other kit parts (`components/admin/`): `RelationSelect` (lookup endpoints answer `{data:[{id,label}]}` for
-   `?search=` and `?ids=`, see `LookupController`), `ReorderableList` (emits `reorder` with ids), `MoneyInput`
+3. Look and layout (legacy admin, `resources/css/admin.css`, loaded by AdminLayout which sets `body.admin-ui`):
+   dark legacy top bar, grouped left menu (a drawer with backdrop below 768px), `AdminPageHeader` (title bar with the
+   page buttons in slot `actions`, e.g. "New thing"), `AdminDataTable` (compact striped rows, sticky header row, sort
+   marks, first and actions columns pinned while a wide table scrolls, `@row-click` opens the edit dialog,
+   `:active-filters="list.activeFilters.value"`; the `filters` slot is a bar on desktop and a bottom sheet on phones;
+   each filter is `<div class="w-48"><label for>..</label><control/></div>`), row actions as `AdminIconButton`
+   (`icon`, `label` = accessible name and tooltip, `variant` danger for deletes), `AdminFormModal` (two columns from
+   768px, `wide` and `section` on `AdminField`, required asterisk via `AdminFormField`, phone sheet with sticky
+   Save/Cancel). BaseButton is restyled to compact Bootstrap 2 buttons inside the admin (30px, sm 24px; on touch
+   36px with a 44px hit area): never add `size="lg"` or fixed big heights. Every dropdown is `components/ui/BaseCombobox.vue`
+   (static `options` or async `search`/`resolve`; RelationSelect wraps it for lookups). Dialogs use `BaseModal`
+   with `sheet`.
+   The former /admin2 pages (check-in, T-shirts, waivers, reports, expenses, judging) use the `a2-*` classes that copy
+   the old Bootstrap 2 look: `a2-page`, `a2-legend`, `a2-well`, `a2-table` + `a2-cards` (cards when the content is
+   narrower than 700px; every td needs `data-label`), `a2-scroll` + `a2-sticky-col` for wide reports, `a2-label-*`
+   badges, `a2-btn-*`, `a2-alert-*`, `a2-accordion` on `<details>`, `EventFilter`, `HandoffToggle`.
+   Reference pages: sponsors (lists) and tshirts (admin2 look). Judges (level 2) see only the judging pages: the
+   dashboard redirects them to `/admin/judging`, the menu and breadcrumb hide everything else.
+4. Other kit parts (`components/admin/`): `RelationSelect` (lookup endpoints answer `{data:[{id,label}]}` for
+   `?search=` and `?ids=`, see `LookupController`), `ReorderableList` (emits `reorder` with ids; Move up / Move down icon buttons, drag on desktop), `MoneyInput`
    (decimal string), `DateInput`/`DateTimeInput` (server formats, Eastern time note), `BooleanToggle`, `StatusBadge`.
    AdminLayout already mounts the toast region and the confirm host.
 
@@ -84,4 +102,6 @@ URLs 302 to `/#/admin/...` (`routes/web/admin_redirects.php`).
   from `resources/js/test/admin.ts`, `renderAt(Page, '/admin/things')`; render the page with
   `AdminConfirmHost` and `AdminToastRegion` (see the sponsors spec); assert requests, URL sync, 422 mapping,
   409 handling and `axe`.
+- E2E: `e2e/12-admin-mobile.spec.ts` opens every admin page at 390x844 (no sideways scroll, one h1, menu button) and
+  runs axe on all of them; add new pages to its list.
 - Run: `COMPOSE_PROJECT_NAME=<you> ./scripts/test.sh tests/Database/Admin`, `npm run test`, `npm run lint`, `npm run typecheck`.

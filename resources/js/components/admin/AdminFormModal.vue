@@ -6,6 +6,9 @@
  * result and closes. Server errors are mapped with mapAdminError: field messages appear under their fields (and
  * focus moves to the first invalid one), anything else in a banner.
  *
+ * Layout: two columns from 768px (textareas and `wide` fields span both), `section` starts a titled group, required
+ * fields get an asterisk. On phones the dialog is a full-height sheet with the Cancel/Save bar always visible.
+ *
  * Dirty guard: closing (Escape, backdrop, x, Cancel) with unsaved changes first asks "Discard changes?" inside the
  * dialog; "Keep editing" returns to the form.
  */
@@ -13,7 +16,8 @@ import { computed, nextTick, ref, useId, watch } from 'vue';
 import BaseModal from '../ui/BaseModal.vue';
 import BaseButton from '../ui/BaseButton.vue';
 import BaseAlert from '../ui/BaseAlert.vue';
-import FormField from '../FormField.vue';
+import BaseCombobox from '../ui/BaseCombobox.vue';
+import AdminFormField from './AdminFormField.vue';
 import ResponseBanner from '../ResponseBanner.vue';
 import MoneyInput from './MoneyInput.vue';
 import DateInput from './DateInput.vue';
@@ -154,6 +158,7 @@ defineExpose({ values, dirty, requestClose });
     :title="title"
     :size="size"
     :close-on-backdrop="true"
+    sheet
     @update:open="(value) => { if (!value) void requestClose(); }"
   >
     <form
@@ -165,118 +170,120 @@ defineExpose({ values, dirty, requestClose });
     >
       <ResponseBanner :messages="banner" />
 
-      <slot
-        :values="values"
-        :errors="errors"
-        :field-id="fieldId"
-        :set-value="setValue"
-      >
-        <template
-          v-for="field in fields"
-          :key="field.name"
+      <div class="admin-form-grid">
+        <slot
+          :values="values"
+          :errors="errors"
+          :field-id="fieldId"
+          :set-value="setValue"
         >
-          <slot
-            :id="fieldId(field.name)"
-            :name="`field-${field.name}`"
-            :field="field"
-            :value="values[field.name]"
-            :errors="errors[field.name] ?? []"
-            :set-value="(value: unknown) => setValue(field.name, value)"
+          <template
+            v-for="field in fields"
+            :key="field.name"
           >
-            <div v-if="field.type === 'checkbox'">
-              <BooleanToggle
-                :id="fieldId(field.name)"
-                :model-value="values[field.name] === true"
-                :label="field.label"
-                @update:model-value="(value) => setValue(field.name, value)"
-              />
-              <p
-                v-if="field.hint"
-                class="mt-1 text-sm text-muted"
-              >
-                {{ field.hint }}
-              </p>
-              <p
-                v-for="(message, index) in errors[field.name] ?? []"
-                :key="index"
-                class="text-sm text-danger-fg"
-              >
-                {{ message }}
-              </p>
-            </div>
-            <FormField
-              v-else
-              :id="fieldId(field.name)"
-              v-slot="{ inputProps }"
-              :label="field.required ? `${field.label} (required)` : field.label"
-              :hint="field.hint"
-              :errors="errors[field.name] ?? []"
+            <h3
+              v-if="field.section"
+              class="admin-form-section"
             >
-              <textarea
-                v-if="field.type === 'textarea'"
-                v-bind="inputProps"
-                class="form-control w-full"
-                :rows="field.rows ?? 4"
-                :maxlength="field.maxlength"
-                :required="field.required"
-                :value="textValue(field.name)"
-                @input="onText(field, $event)"
-              />
-              <select
-                v-else-if="field.type === 'select'"
-                v-bind="inputProps"
-                class="form-control w-full"
-                :required="field.required"
-                :value="textValue(field.name)"
-                @change="onText(field, $event)"
+              {{ field.section }}
+            </h3>
+            <slot
+              :id="fieldId(field.name)"
+              :name="`field-${field.name}`"
+              :field="field"
+              :value="values[field.name]"
+              :errors="errors[field.name] ?? []"
+              :set-value="(value: unknown) => setValue(field.name, value)"
+            >
+              <div
+                v-if="field.type === 'checkbox'"
+                class="self-end pb-1"
+                :class="field.wide ? 'is-wide' : ''"
               >
-                <option
-                  v-if="!field.required"
-                  value=""
+                <BooleanToggle
+                  :id="fieldId(field.name)"
+                  :model-value="values[field.name] === true"
+                  :label="field.label"
+                  @update:model-value="(value) => setValue(field.name, value)"
+                />
+                <p
+                  v-if="field.hint"
+                  class="mt-1 text-xs text-muted"
                 >
-                  —
-                </option>
-                <option
-                  v-for="option in field.options ?? []"
-                  :key="option.value"
-                  :value="option.value"
+                  {{ field.hint }}
+                </p>
+                <p
+                  v-for="(message, index) in errors[field.name] ?? []"
+                  :key="index"
+                  class="admin-field-error"
                 >
-                  {{ option.label }}
-                </option>
-              </select>
-              <MoneyInput
-                v-else-if="field.type === 'money'"
-                v-bind="inputProps"
-                :model-value="nullableText(field.name)"
-                @update:model-value="(value) => setValue(field.name, value)"
-              />
-              <DateInput
-                v-else-if="field.type === 'date'"
-                v-bind="inputProps"
-                :model-value="nullableText(field.name)"
-                @update:model-value="(value) => setValue(field.name, value)"
-              />
-              <DateTimeInput
-                v-else-if="field.type === 'datetime'"
-                v-bind="inputProps"
-                :model-value="nullableText(field.name)"
-                @update:model-value="(value) => setValue(field.name, value)"
-              />
-              <input
+                  {{ message }}
+                </p>
+              </div>
+              <AdminFormField
                 v-else
-                v-bind="inputProps"
-                class="form-control w-full"
-                :type="field.type ?? 'text'"
-                :autocomplete="field.type === 'password' ? 'new-password' : undefined"
-                :maxlength="field.maxlength"
+                :id="fieldId(field.name)"
+                v-slot="{ inputProps }"
+                :label="field.label"
                 :required="field.required"
-                :value="textValue(field.name)"
-                @input="onText(field, $event)"
+                :hint="field.hint"
+                :errors="errors[field.name] ?? []"
+                :wide="field.wide || field.type === 'textarea'"
               >
-            </FormField>
-          </slot>
-        </template>
-      </slot>
+                <textarea
+                  v-if="field.type === 'textarea'"
+                  v-bind="inputProps"
+                  class="form-control w-full"
+                  :rows="field.rows ?? 4"
+                  :maxlength="field.maxlength"
+                  :required="field.required"
+                  :value="textValue(field.name)"
+                  @input="onText(field, $event)"
+                />
+                <BaseCombobox
+                  v-else-if="field.type === 'select'"
+                  v-bind="inputProps"
+                  :model-value="textValue(field.name) === '' ? null : textValue(field.name)"
+                  :options="field.options ?? []"
+                  :clearable="!field.required"
+                  placeholder="Choose…"
+                  @update:model-value="(value) => setValue(field.name, value === null ? '' : String(value))"
+                />
+                <MoneyInput
+                  v-else-if="field.type === 'money'"
+                  v-bind="inputProps"
+                  :model-value="nullableText(field.name)"
+                  @update:model-value="(value) => setValue(field.name, value)"
+                />
+                <DateInput
+                  v-else-if="field.type === 'date'"
+                  v-bind="inputProps"
+                  :model-value="nullableText(field.name)"
+                  @update:model-value="(value) => setValue(field.name, value)"
+                />
+                <DateTimeInput
+                  v-else-if="field.type === 'datetime'"
+                  v-bind="inputProps"
+                  :model-value="nullableText(field.name)"
+                  @update:model-value="(value) => setValue(field.name, value)"
+                />
+                <input
+                  v-else
+                  v-bind="inputProps"
+                  class="form-control w-full"
+                  :type="field.type ?? 'text'"
+                  :inputmode="field.type === 'number' ? 'numeric' : undefined"
+                  :autocomplete="field.type === 'password' ? 'new-password' : undefined"
+                  :maxlength="field.maxlength"
+                  :required="field.required"
+                  :value="textValue(field.name)"
+                  @input="onText(field, $event)"
+                >
+              </AdminFormField>
+            </slot>
+          </template>
+        </slot>
+      </div>
 
       <BaseAlert
         v-if="confirmingDiscard"
@@ -301,23 +308,23 @@ defineExpose({ values, dirty, requestClose });
           </BaseButton>
         </div>
       </BaseAlert>
-
-      <div class="flex flex-wrap justify-end gap-2 border-t border-border pt-4">
-        <BaseButton
-          :disabled="busy"
-          @click="requestClose"
-        >
-          Cancel
-        </BaseButton>
-        <BaseButton
-          type="submit"
-          variant="primary"
-          :loading="busy"
-          loading-label="Saving"
-        >
-          {{ submitLabel }}
-        </BaseButton>
-      </div>
     </form>
+    <template #footer>
+      <BaseButton
+        :disabled="busy"
+        @click="requestClose"
+      >
+        Cancel
+      </BaseButton>
+      <BaseButton
+        type="submit"
+        variant="primary"
+        :form="formId"
+        :loading="busy"
+        loading-label="Saving"
+      >
+        {{ submitLabel }}
+      </BaseButton>
+    </template>
   </BaseModal>
 </template>

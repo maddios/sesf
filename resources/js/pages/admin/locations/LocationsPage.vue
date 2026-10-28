@@ -5,12 +5,14 @@
  */
 import { computed, ref } from 'vue';
 import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
+import AdminIconButton from '../../../components/admin/AdminIconButton.vue';
+import AdminPageHeader from '../../../components/admin/AdminPageHeader.vue';
+import EventFilter from '../../../components/admin/EventFilter.vue';
 import ReorderableList from '../../../components/admin/ReorderableList.vue';
-import RelationSelect, { type RelationOption } from '../../../components/admin/RelationSelect.vue';
 import StatusBadge from '../../../components/admin/StatusBadge.vue';
 import BaseButton from '../../../components/ui/BaseButton.vue';
 import { useAdminList } from '../../../composables/admin/useAdminList';
-import { ADMIN_API_BASE, mapAdminError, type ListResponse } from '../../../composables/admin/useAdminResource';
+import { mapAdminError, type ListResponse } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
 import type { FormValues } from '../../../components/admin/types';
@@ -30,14 +32,12 @@ const eventId = computed<number | null>(() => {
   const raw = list.state.value.filters.show_id;
   return raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : null;
 });
-const eventLabel = ref('');
 
 const editing = ref<Location | null>(null);
 const formOpen = ref(false);
 
-function onEvent(option: RelationOption | null): void {
-  eventLabel.value = option?.label ?? '';
-  void list.setFilter('show_id', option === null ? null : String(option.id));
+function onEvent(value: number | null): void {
+  void list.setFilter('show_id', value === null ? null : String(value));
 }
 
 function openCreate(): void {
@@ -93,39 +93,27 @@ async function remove(location: Location): Promise<void> {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <h1 class="page-title">
-      Locations
-    </h1>
+  <div class="a2-page">
+    <AdminPageHeader title="Locations">
+      <template #actions>
+        <BaseButton
+          variant="primary"
+          :disabled="eventId === null"
+          @click="openCreate"
+        >
+          New location
+        </BaseButton>
+      </template>
+    </AdminPageHeader>
 
-    <div class="flex flex-wrap items-end gap-3">
-      <div class="min-w-64 flex-1 sm:max-w-md">
-        <label
-          for="location-event"
-          class="block text-sm font-medium text-text"
-        >Event</label>
-        <div class="mt-1">
-          <RelationSelect
-            id="location-event"
-            :endpoint="`${ADMIN_API_BASE}/lookups/events`"
-            :model-value="eventId"
-            placeholder="Choose an event"
-            @change="onEvent"
-          />
-        </div>
-      </div>
-      <BaseButton
-        variant="primary"
-        :disabled="eventId === null"
-        @click="openCreate"
-      >
-        New location
-      </BaseButton>
-    </div>
+    <EventFilter
+      :model-value="eventId"
+      @update:model-value="onEvent"
+    />
 
     <p
       v-if="eventId === null"
-      class="text-muted"
+      class="a2-muted"
     >
       Choose an event to see and arrange its locations.
     </p>
@@ -134,13 +122,13 @@ async function remove(location: Location): Promise<void> {
       <p
         v-if="list.error.value"
         role="alert"
-        class="text-danger"
+        class="a2-alert a2-alert-error"
       >
         {{ list.error.value }}
       </p>
       <p
         v-else-if="!list.loading.value && list.rows.value.length === 0"
-        class="text-muted"
+        class="a2-muted"
       >
         No locations for this event yet.
       </p>
@@ -149,36 +137,36 @@ async function remove(location: Location): Promise<void> {
         v-else
         :items="list.rows.value"
         :item-label="(item: Location) => item.name"
-        :label="`Locations${eventLabel ? ` for ${eventLabel}` : ''}`"
+        label="Locations"
         :disabled="list.loading.value"
         @reorder="reorder"
       >
         <template #default="{ item }">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="font-medium text-heading">{{ item.name }}</span>
-            <span class="text-sm text-muted">{{ item.address1 }}, {{ item.city }}, {{ item.state }} {{ item.zip }}</span>
-            <StatusBadge
-              v-if="item.is_primary"
-              label="Primary"
-              variant="success"
-            />
-            <div class="ml-auto flex gap-1">
-              <BaseButton
-                size="sm"
-                :aria-label="`Edit ${item.name}`"
-                @click="openEdit(item)"
-              >
-                Edit
-              </BaseButton>
-              <BaseButton
-                size="sm"
-                variant="danger"
-                :aria-label="`Delete ${item.name}`"
-                @click="remove(item)"
-              >
-                Delete
-              </BaseButton>
+          <div class="flex min-w-0 items-center gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span class="font-medium text-heading">{{ item.name }}</span>
+                <StatusBadge
+                  v-if="item.is_primary"
+                  label="Primary"
+                  variant="success"
+                />
+              </div>
+              <div class="text-sm text-muted">
+                {{ item.address1 }}, {{ item.city }}, {{ item.state }} {{ item.zip }}
+              </div>
             </div>
+            <AdminIconButton
+              icon="edit"
+              :label="`Edit ${item.name}`"
+              @click="openEdit(item)"
+            />
+            <AdminIconButton
+              icon="trash"
+              variant="danger"
+              :label="`Delete ${item.name}`"
+              @click="remove(item)"
+            />
           </div>
         </template>
       </ReorderableList>

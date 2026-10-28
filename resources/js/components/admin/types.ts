@@ -15,6 +15,10 @@ export interface AdminField {
   hint?: string;
   rows?: number;
   options?: Array<{ value: string; label: string }>;
+  /** Take the full form width on desktop (textareas always do). */
+  wide?: boolean;
+  /** Start a new titled group of fields before this one. */
+  section?: string;
 }
 
 /** One AdminDataTable column. `key` is the row property and, when sortable, the server sort column. */

@@ -1,10 +1,11 @@
 <script setup lang="ts">
 /**
- * Schedule tab. A PDF schedule is embedded (with a download link for browsers that cannot show it); an HTML
+ * Schedule tab. A PDF schedule is rendered page by page with pdf.js (with a download link kept for failures); an HTML
  * schedule is rendered through SafeHtml.
  */
 import { computed } from 'vue';
 import AsyncBlock from '../../components/events/AsyncBlock.vue';
+import PdfViewer from '../../components/events/PdfViewer.vue';
 import SafeHtml from '../../components/events/SafeHtml.vue';
 import { fetchSchedule } from '../../api/events';
 import { useEventContext, useEventData } from '../../composables/events/useEventData';
@@ -34,16 +35,11 @@ const hasHtml = computed(() => data.value !== null && data.value !== undefined &
       >
         Schedule
       </h2>
-      <object
-        :data="data.pdfUrl"
-        type="application/pdf"
-        title="Event schedule (PDF)"
-        class="h-[70vh] w-full rounded-sm border border-border"
-      >
-        <p>
-          The schedule cannot be shown in this browser.
-        </p>
-      </object>
+      <PdfViewer
+        :key="data.pdfUrl"
+        :url="data.pdfUrl"
+        title="Event schedule"
+      />
       <p>
         <a
           :href="data.pdfUrl"

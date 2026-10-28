@@ -42,10 +42,10 @@ export function saveLocationOrder(showId: number, ids: number[]): Promise<unknow
 }
 
 export const LOCATION_FIELDS: AdminField[] = [
-  { name: 'name', label: 'Name', required: true, maxlength: 128 },
+  { name: 'name', label: 'Name', required: true, maxlength: 128, wide: true },
   { name: 'description', label: 'Description', type: 'textarea', rows: 3 },
-  { name: 'address1', label: 'Street', required: true, maxlength: 60 },
-  { name: 'address2', label: 'Street 2', maxlength: 60 },
+  { name: 'address1', label: 'Street', required: true, maxlength: 60, wide: true, section: 'Address' },
+  { name: 'address2', label: 'Street 2', maxlength: 60, wide: true },
   { name: 'city', label: 'City', required: true, maxlength: 60 },
   { name: 'state', label: 'State', required: true, maxlength: 10 },
   { name: 'zip', label: 'Zip', required: true, maxlength: 10 },

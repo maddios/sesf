@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { accountMenuItems, navSectionFor, profilePath, ADMIN_URL, JUDGING_URL } from '../navigation';
+import { accountMenuItems, navSectionFor, profilePath, ADMIN_URL } from '../navigation';
 import type { AuthUser } from '../../stores/auth';
 
 const user: AuthUser = {
@@ -51,15 +51,15 @@ describe('accountMenuItems', () => {
     expect(accountMenuItems(user)[2]?.to).toBe('/SharkF/u7/billing');
   });
 
-  it('a judge also gets Judging', () => {
+  it('a judge gets Admin (the judging area) and no separate Judging item', () => {
     const items = accountMenuItems({ ...user, userLevel: 2, typeId: 2 });
-    expect(items.map((item) => item.id)).toEqual(['profile', 'settings', 'billing', 'judging', 'logout']);
-    expect(items.find((item) => item.id === 'judging')?.href).toBe(JUDGING_URL);
+    expect(items.map((item) => item.id)).toEqual(['profile', 'settings', 'billing', 'admin', 'logout']);
+    expect(items.find((item) => item.id === 'admin')?.href).toBe(ADMIN_URL);
   });
 
-  it('an admin gets Admin and Judging', () => {
+  it('an admin gets Admin', () => {
     const items = accountMenuItems({ ...user, userLevel: 3, typeId: 3 });
-    expect(items.map((item) => item.id)).toEqual(['profile', 'settings', 'billing', 'admin', 'judging', 'logout']);
+    expect(items.map((item) => item.id)).toEqual(['profile', 'settings', 'billing', 'admin', 'logout']);
     expect(items.find((item) => item.id === 'admin')?.href).toBe(ADMIN_URL);
     expect(items.at(-1)?.separator).toBe(true);
   });

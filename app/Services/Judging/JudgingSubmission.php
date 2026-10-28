@@ -13,6 +13,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Throwable;
 
 /**
  * Saves a judge's autosave, page save or photo upload (legacy CarJudging::receiveJudgingData).
@@ -59,14 +60,23 @@ final class JudgingSubmission
         $this->validate($questions, $payload);
         $this->assertPageOrder($car, $questions, $payload);
 
-        $uploaded = $this->storeUploads($car->id, $payload);
+        $stored = [];
+        try {
+            $uploaded = $this->storeUploads($car->id, $payload, $stored);
 
-        DB::transaction(function () use ($car, $judge, $payload): void {
-            ShowRegistrationCar::query()->whereKey($car->id)->lockForUpdate()->first();
-            foreach ($payload as $questionId => $fields) {
-                $this->saveAnswer($car->id, $questionId, $fields, $judge);
+            DB::transaction(function () use ($car, $judge, $payload): void {
+                ShowRegistrationCar::query()->whereKey($car->id)->lockForUpdate()->first();
+                foreach ($payload as $questionId => $fields) {
+                    $this->saveAnswer($car->id, $questionId, $fields, $judge);
+                }
+            });
+        } catch (Throwable $e) {
+            foreach ($stored as $questionId => $names) {
+                $this->photos->delete($car->id, $questionId, $names);
             }
-        });
+
+            throw $e;
+        }
 
         foreach ($payload as $questionId => $fields) {
             $this->photos->delete($car->id, $questionId, $fields['delete_file'] ?? []);
@@ -173,9 +183,10 @@ final class JudgingSubmission
 
     /**
      * @param  array<int, array<string, mixed>>  $payload
+     * @param  array<int, list<string>>  $stored  file names stored so far, per question id
      * @return array<string, list<array<string, string>>> previews per file_{id}
      */
-    private function storeUploads(int $registrationCarId, array $payload): array
+    private function storeUploads(int $registrationCarId, array $payload, array &$stored): array
     {
         $uploaded = [];
         foreach ($payload as $questionId => $fields) {
@@ -190,6 +201,7 @@ final class JudgingSubmission
                     throw InvalidJudgingSubmission::errors([$e->getMessage()]);
                 }
 
+                $stored[$questionId][] = $name;
                 $uploaded['file_'.$questionId][] = $this->sheet->preview($registrationCarId, $questionId, $name);
             }
         }

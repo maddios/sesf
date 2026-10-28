@@ -26,7 +26,7 @@ final class ExpenseRequest extends FormRequest
     {
         $rules = [
             'description' => ['nullable', 'string', 'max:255', new Latin1Text],
-            'amount' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:999999.99'],
+            'amount' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:99999.99'],
             'type' => ['required', 'string', 'in:'.implode(',', self::TYPES)],
         ];
 

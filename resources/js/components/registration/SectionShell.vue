@@ -18,20 +18,23 @@ defineProps<{
   <fieldset
     :id="domId"
     tabindex="-1"
-    class="min-w-0 space-y-4 rounded-md border border-border bg-panel p-4 focus:outline-none sm:p-5"
+    class="min-w-0 rounded-md border border-border bg-panel p-4 focus:outline-none sm:p-5"
   >
-    <legend class="px-1">
+    <!-- Floated so the heading and its full-width rule sit inside the box instead of on its border. -->
+    <legend class="float-left w-full">
       <h2 class="section-heading">
         {{ step }}. {{ title }}
       </h2>
     </legend>
-    <p
-      v-if="hint"
-      class="text-sm text-muted"
-    >
-      {{ hint }}
-    </p>
-    <ResponseBanner :messages="messages ?? []" />
-    <slot />
+    <div class="clear-both space-y-4">
+      <p
+        v-if="hint"
+        class="text-sm text-muted"
+      >
+        {{ hint }}
+      </p>
+      <ResponseBanner :messages="messages ?? []" />
+      <slot />
+    </div>
   </fieldset>
 </template>

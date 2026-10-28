@@ -69,7 +69,7 @@ describe('JudgingPage', () => {
     const { seen } = stubJudging();
     const { container } = await renderAt(Page, '/admin/judging?show=4');
     expect(await screen.findByText('Ada Lovelace')).toBeTruthy();
-    expect((screen.getByLabelText('Event') as HTMLSelectElement).value).toBe('4');
+    expect((screen.getByRole('combobox', { name: 'Event' }) as HTMLInputElement).value).toBe('Spring Show');
     expect(screen.getByRole('link', { name: 'Draw winners' }).getAttribute('href')).toBe('/judging_draw/4');
     expect(screen.getByRole('link', { name: 'QR sheet (PDF)' }).getAttribute('href')).toBe('/judging_qr_code/show/4');
     expect(screen.getByRole('link', { name: 'Questions for car 101 (opens in a new tab)' }).getAttribute('href')).toBe('/judging/31');
@@ -78,12 +78,20 @@ describe('JudgingPage', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
+  it('shows no mailto link when the entrant email is withheld', async () => {
+    stubJudging((r) => (r.method === 'GET' && r.path === '/admin-api/judging/shows/4/entries' ? jsonResponse(200, { data: [{ ...ENTRY, owner_email: null }] }) : undefined));
+    await renderAt(Page, '/admin/judging?show=4');
+    expect(await screen.findByText('Ada Lovelace')).toBeTruthy();
+    expect(document.querySelector('a[href^="mailto:"]')).toBeNull();
+  });
+
   it('sends the judging type filter to the entries request', async () => {
     const { seen } = stubJudging();
     const user = userEvent.setup();
     await renderAt(Page, '/admin/judging?show=4');
     await screen.findByText('Ada Lovelace');
-    await user.selectOptions(screen.getByLabelText('Filter by type'), 'Clean');
+    await user.click(screen.getByRole('combobox', { name: 'Filter by type' }));
+    await user.click(await screen.findByRole('option', { name: 'Clean' }));
     await waitFor(() => {
       const last = seen.filter((r) => r.path.endsWith('/entries')).at(-1)!;
       expect(last.params.get('judging_type_id')).toBe('1');
@@ -117,9 +125,12 @@ describe('JudgingPage', () => {
     const user = userEvent.setup();
     await renderAt(Page, '/admin/judging?show=4');
     await screen.findByText('Ada Lovelace');
-    await user.selectOptions(screen.getByLabelText('Registration'), '7');
-    await user.selectOptions(screen.getByLabelText('Car'), '9');
-    await user.selectOptions(await screen.findByLabelText('Judging type'), '2');
+    await user.click(screen.getByRole('combobox', { name: 'Registration' }));
+    await user.click(await screen.findByRole('option', { name: 'Grace Hopper (invoice 55)' }));
+    await user.click(screen.getByRole('combobox', { name: 'Car' }));
+    await user.click(await screen.findByRole('option', { name: '1966 Mustang' }));
+    await user.click(screen.getByRole('combobox', { name: 'Judging type' }));
+    await user.click(await screen.findByRole('option', { name: 'Super Clean' }));
     await user.click(screen.getByRole('button', { name: 'Add to judging' }));
     expect(await screen.findByText('Please correct the highlighted fields.')).toBeTruthy();
     expect(screen.getByText('Not offered for this body.')).toBeTruthy();

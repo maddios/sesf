@@ -112,11 +112,11 @@ export const checkinApi = {
   async checkOut(row: CheckinRow): Promise<CheckinRow> {
     return (await api.post<{ data: CheckinRow }>(`${BASE}/registrations/${row.id}/check-out`, {})).data;
   },
-  async waiverReminder(row: CheckinRow): Promise<void> {
-    await api.post<unknown>(`${BASE}/registrations/${row.id}/waiver-reminder`, {});
+  async waiverReminder(row: CheckinRow): Promise<boolean> {
+    return (await api.post<{ queued: boolean }>(`${BASE}/registrations/${row.id}/waiver-reminder`, {})).queued;
   },
-  async payLinkEmail(row: CheckinRow): Promise<void> {
-    await api.post<unknown>(`${BASE}/registrations/${row.id}/pay-link-email`, {});
+  async payLinkEmail(row: CheckinRow): Promise<boolean> {
+    return (await api.post<{ queued: boolean }>(`${BASE}/registrations/${row.id}/pay-link-email`, {})).queued;
   },
   async waiverSignUrl(row: CheckinRow, guestId: number | null): Promise<{ url: string; personName: string }> {
     return api.post<{ url: string; personName: string }>(`${BASE}/registrations/${row.id}/waiver-sign-url`, { guest_id: guestId });
@@ -127,8 +127,9 @@ export const checkinApi = {
   async garage(showId: number, userId: number): Promise<GarageCar[]> {
     return (await api.get<{ data: GarageCar[] }>(`${BASE}/users/${userId}/garage?show_id=${showId}`)).data;
   },
-  async createRegistration(showId: number, payload: NewRegistrationPayload): Promise<CheckinRow> {
-    return (await api.post<{ data: CheckinRow }>(`${BASE}/shows/${showId}/registrations`, payload)).data;
+  async createRegistration(showId: number, payload: NewRegistrationPayload): Promise<{ row: CheckinRow; queued: boolean }> {
+    const response = await api.post<{ data: CheckinRow; queued: boolean }>(`${BASE}/shows/${showId}/registrations`, payload);
+    return { row: response.data, queued: response.queued };
   },
 };
 

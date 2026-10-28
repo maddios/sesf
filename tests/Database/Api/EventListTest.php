@@ -33,7 +33,7 @@ class EventListTest extends TestCase
     /** @var list<string> */
     private const SHOW_KEYS = [
         'id', 'name', 'short_name', 'description', 'short_description', 'shortDescription', 'imageURL',
-        'profileURL', 'date_start', 'date_end', 'has_image', 'ended', 'regOpen', 'primaryLocation',
+        'profileURL', 'date_start', 'date_end', 'date_active', 'date_registration_deactivation', 'has_image', 'ended', 'regOpen', 'primaryLocation',
         'num_registered_members', 'num_registered_cars',
     ];
 
@@ -109,6 +109,24 @@ class EventListTest extends TestCase
         $this->assertEqualsCanonicalizing(self::SHOW_KEYS, array_keys($row));
         $this->assertSame('Main Lot', $row['primaryLocation']['name']);
         $this->assertSame('Raleigh, NC', $row['primaryLocation']['address']['cityState']);
+    }
+
+    #[Test]
+    public function car_shows_carry_registration_window_in_legacy_format_or_null(): void
+    {
+        CarShow::factory()->create([
+            'date_end' => '2026-11-01', 'is_active' => true,
+            'date_active' => '2026-09-03 08:30:00', 'date_registration_deactivation' => '2026-10-30 23:59:59',
+        ]);
+        CarShow::factory()->create(['date_end' => '2026-12-01', 'is_active' => true, 'date_active' => null, 'date_registration_deactivation' => null]);
+
+        $rows = $this->getJson('/events/car-shows?is_active=1')->assertOk()->json();
+        $byEnd = array_column($rows, null, 'date_end');
+
+        $this->assertSame('2026-09-03 08:30:00', $byEnd['2026-11-01']['date_active']);
+        $this->assertSame('2026-10-30 23:59:59', $byEnd['2026-11-01']['date_registration_deactivation']);
+        $this->assertNull($byEnd['2026-12-01']['date_active']);
+        $this->assertNull($byEnd['2026-12-01']['date_registration_deactivation']);
     }
 
     #[Test]

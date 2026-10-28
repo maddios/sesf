@@ -5,11 +5,14 @@ namespace Tests\Database\Admin;
 use App\Enums\JudgingType;
 use App\Models\Car;
 use App\Models\CarShow;
+use App\Models\Judging\Answer;
 use App\Models\PayPalPayment;
 use App\Models\ShowRegistration;
 use App\Models\User;
+use App\Models\UserGuest;
 use App\Models\Waiver;
 use App\Services\Registration\RegistrationPricing;
+use App\Services\Waivers\WaiverSignService;
 use App\Support\Admin\AuditLog;
 use Database\Factories\CarBodyFactory;
 use Database\Factories\ShirtTypeFactory;
@@ -343,6 +346,45 @@ class RegistrationAdminTest extends AdminTestCase
     }
 
     #[Test]
+    public function a_payment_after_the_form_was_loaded_is_a_409_and_is_kept(): void
+    {
+        $registration = $this->registrationWithCarAndGuest($this->registrationShow());
+        $stale = $this->updateBody($registration, ['discount_note' => 'Edited']);
+        DB::table('show_registration')->where('id', $registration->id)->update(['amount_received' => '150.00', 'is_paid' => true]);
+
+        $this->actingAs($this->admin())->putJson(self::BASE.'/'.$registration->id, $stale)
+            ->assertStatus(409)
+            ->assertJsonPath('code', 'registration_changed');
+
+        $registration->refresh();
+        $this->assertSame('150.00', (string) $registration->amount_received);
+        $this->assertNull($registration->discount_note);
+    }
+
+    #[Test]
+    public function a_discount_changed_after_the_form_was_loaded_is_a_409(): void
+    {
+        $registration = $this->registrationWithCarAndGuest($this->registrationShow());
+        $stale = $this->updateBody($registration);
+        DB::table('show_registration')->where('id', $registration->id)->update(['discount' => '5.00']);
+
+        $this->actingAs($this->admin())->putJson(self::BASE.'/'.$registration->id, $stale)->assertStatus(409);
+        $this->assertSame('5.00', (string) $registration->refresh()->discount);
+    }
+
+    #[Test]
+    public function the_expected_amounts_are_required(): void
+    {
+        $registration = $this->registrationWithCarAndGuest($this->registrationShow());
+        $body = $this->updateBody($registration);
+        unset($body['expected_amount_received_cents'], $body['expected_discount_cents']);
+
+        $this->actingAs($this->admin())->putJson(self::BASE.'/'.$registration->id, $body)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['expected_amount_received_cents', 'expected_discount_cents']);
+    }
+
+    #[Test]
     public function paid_and_owed_overrides_win_over_the_computed_values(): void
     {
         $registration = $this->registrationWithCarAndGuest($this->registrationShow());
@@ -551,6 +593,9 @@ class RegistrationAdminTest extends AdminTestCase
             'a refund' => [fn (ShowRegistration $r) => $r->forceFill(['amount_received' => '-10.00'])->save(), 'amount_received'],
             'a paypal payment' => [fn (ShowRegistration $r) => PayPalPayment::factory()->create(['registration_id' => $r->id]), 'paypal_payment'],
             'a waiver' => [fn (ShowRegistration $r) => Waiver::factory()->create(['show_registration_id' => $r->id]), 'waiver'],
+            'a guest waiver' => [fn (ShowRegistration $r) => Waiver::factory()->forGuest(UserGuest::query()->where('registration_id', $r->id)->firstOrFail())->create(), 'guest_waiver'],
+            'a judging answer' => [fn (ShowRegistration $r) => Answer::factory()->create(['show_registration_car_id' => $r->registrationCars()->firstOrFail()->id]), 'judging_answers'],
+            'a deleted judging answer' => [fn (ShowRegistration $r) => Answer::factory()->deleted()->create(['show_registration_car_id' => $r->registrationCars()->firstOrFail()->id]), 'judging_answers'],
         ];
     }
 
@@ -620,6 +665,40 @@ class RegistrationAdminTest extends AdminTestCase
     }
 
     #[Test]
+    public function a_reassigned_registration_drops_the_previous_members_waiver_and_check_in(): void
+    {
+        $show = $this->registrationShow();
+        $registration = $this->registrationWithCarAndGuest($show);
+        $guest = UserGuest::query()->where('registration_id', $registration->id)->firstOrFail();
+        $signed = Waiver::factory()->signed()->create(['show_registration_id' => $registration->id]);
+        $pending = Waiver::factory()->create(['show_registration_id' => $registration->id]);
+        $guestWaiver = Waiver::factory()->signed()->forGuest($guest)->create();
+        DB::table('show_registration')->where('id', $registration->id)->update(['waiver_id' => $signed->id, 'has_signed' => true, 'is_checked_in' => true, 'date_checked_in' => now()]);
+        DB::table('user_guest')->where('id', $guest->id)->update(['waiver_id' => $guestWaiver->id]);
+        $newMember = User::factory()->create();
+        $carId = (int) $registration->registrationCars()->sole()->car_id;
+
+        $this->actingAs($this->admin())->putJson(self::BASE.'/'.$registration->id, $this->updateBody($registration, ['user_id' => $newMember->id, 'car_ids' => [$carId]]))
+            ->assertOk();
+
+        $registration->refresh();
+        $this->assertNull($registration->waiver_id);
+        $this->assertFalse((bool) $registration->has_signed);
+        $this->assertFalse((bool) $registration->is_checked_in);
+        $this->assertNull($registration->date_checked_in);
+        $this->assertNull($signed->refresh()->show_registration_id);
+        $this->assertNull($pending->refresh()->show_registration_id);
+        $this->assertTrue((bool) $signed->has_signed);
+        $this->assertSame($guestWaiver->id, (int) $guest->refresh()->waiver_id);
+
+        $waiver = app(WaiverSignService::class)->ensurePending($registration);
+        $this->assertNotContains($waiver->id, [$signed->id, $pending->id]);
+        $this->assertFalse((bool) $waiver->has_signed);
+        $entry = collect($this->auditEntries())->firstWhere('action', 'registration.update');
+        $this->assertSame(['old' => $signed->id, 'new' => null], $entry['changes']['waiver_id']);
+    }
+
+    #[Test]
     public function reassigning_to_a_member_already_registered_or_disabled_is_a_422(): void
     {
         $show = $this->registrationShow();
@@ -661,6 +740,8 @@ class RegistrationAdminTest extends AdminTestCase
             'discount_note' => $registration->discount_note,
             'is_paid' => null,
             'amount_owed_cents' => null,
+            'expected_amount_received_cents' => RegistrationPricing::signedCents((string) $registration->amount_received),
+            'expected_discount_cents' => RegistrationPricing::signedCents((string) $registration->discount),
         ], $overrides);
     }
 }

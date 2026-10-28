@@ -1,5 +1,6 @@
 import type { RouteRecordRaw } from 'vue-router';
 import { ADMIN_REGISTRY } from '../../admin/registry';
+import { USER_TYPE_ADMIN, useAuthStore } from '../../stores/auth';
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -25,7 +26,8 @@ const routes: RouteRecordRaw[] = [
         path: '',
         name: 'admin',
         component: () => import('../../pages/admin/AdminDashboardPage.vue'),
-        meta: { title: 'Admin', adminKey: 'dashboard' },
+        meta: { title: 'Admin', adminKey: 'dashboard', minUserLevel: 2 },
+        beforeEnter: () => (useAuthStore().userLevel < USER_TYPE_ADMIN ? { name: 'admin-judging', replace: true } : true),
       },
       ...ADMIN_REGISTRY.map(
         (entry): RouteRecordRaw => ({

@@ -7,7 +7,8 @@
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
 import type { EventAddress } from '../../api/events';
 import { directionsHref } from './directions';
-import { loadGoogleMaps, readMapsKey, type MapsLibrary } from './mapsLoader';
+import { getMapsKey } from '../../config';
+import { loadGoogleMaps, type MapsLibrary } from './mapsLoader';
 
 const props = defineProps<{
   /** Venue name, used as the marker title and the map's accessible name. */
@@ -20,7 +21,7 @@ type MapState = 'idle' | 'loading' | 'ready' | 'unavailable';
 const hasCoordinates = computed(() => props.address.latitude !== null && props.address.longitude !== null);
 
 const directions = computed(() => directionsHref(props.address));
-const mapWanted = computed(() => hasCoordinates.value && readMapsKey() !== '');
+const mapWanted = computed(() => hasCoordinates.value && getMapsKey() !== '');
 const mapState = ref<MapState>(mapWanted.value ? 'idle' : 'unavailable');
 const mapEl = ref<HTMLElement | null>(null);
 let alive = true;
@@ -50,7 +51,7 @@ onMounted(async () => {
   }
   mapState.value = 'loading';
   try {
-    const library = await loadGoogleMaps(readMapsKey());
+    const library = await loadGoogleMaps(getMapsKey());
     if (!alive || mapEl.value === null) {
       return;
     }
@@ -67,8 +68,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="grid gap-5 md:grid-cols-2">
-    <div class="space-y-4">
+  <div class="grid gap-5 md:grid-cols-[minmax(0,1fr)_370px]">
+    <div class="flex flex-wrap items-start justify-between gap-4">
       <address class="not-italic leading-relaxed">
         <template v-if="address.address1">
           {{ address.address1 }}<br>
@@ -88,9 +89,9 @@ onBeforeUnmount(() => {
         :href="directions"
         target="_blank"
         rel="noopener noreferrer"
-        class="inline-flex items-center gap-1 rounded-sm border border-primary bg-primary px-3.5 py-1.5 text-sm font-medium text-white no-underline hover:bg-primary-hover"
+        class="inline-flex items-center gap-1 rounded-sm border border-default-border bg-default px-2.5 py-1 text-[0.8125rem] font-medium text-text no-underline hover:bg-default-hover hover:text-text"
       >
-        Get directions <span class="sr-only">to {{ title }} (opens Google Maps in a new tab)</span>
+        Get Directions <span class="sr-only">to {{ title }} (opens Google Maps in a new tab)</span>
       </a>
     </div>
     <div
@@ -98,7 +99,7 @@ onBeforeUnmount(() => {
       ref="mapEl"
       role="region"
       :aria-label="`Map of ${title}`"
-      class="h-64 w-full overflow-hidden rounded-sm border border-border bg-subtle"
+      class="h-[370px] w-full overflow-hidden rounded-sm border border-border bg-subtle"
     >
       <p
         v-if="mapState !== 'ready'"

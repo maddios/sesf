@@ -9,7 +9,6 @@ import { fetchCarProfile, type CarProfile } from '../../api/cars';
 import { ApiError } from '../../api/client';
 import BaseAlert from '../../components/ui/BaseAlert.vue';
 import BaseButton from '../../components/ui/BaseButton.vue';
-import BaseCard from '../../components/ui/BaseCard.vue';
 import BaseSpinner from '../../components/ui/BaseSpinner.vue';
 import SafeImage from '../../components/ui/SafeImage.vue';
 import { setPageTitle } from '../../composables/usePageTitle';
@@ -60,6 +59,27 @@ const specs = computed(() => {
   return [value.year, value.model].filter(Boolean).join(' ');
 });
 
+interface DetailRow {
+  label: string;
+  value: string;
+  to?: string;
+}
+
+/** Legacy "Details" labels (Owner, Model, Year, Body) plus the type; rows without a value are left out. */
+const details = computed<DetailRow[]>(() => {
+  const value = car.value;
+  if (value === null) {
+    return [];
+  }
+  const rows: DetailRow[] = [];
+  if (value.owner) {
+    rows.push({ label: 'Owner', value: value.owner.fullName, to: value.owner.profilePath || undefined });
+  }
+  rows.push({ label: 'Model', value: value.model }, { label: 'Year', value: value.year });
+  rows.push({ label: 'Body', value: value.bodyName }, { label: 'Type', value: value.typeName });
+  return rows.filter((row) => row.value !== '');
+});
+
 /** Judging links come from the server: only in-app hash paths and https links are followed. */
 function safeHref(value: string): string | undefined {
   return /^#\/(?!\/)[^\s]*$/.test(value) || /^https:\/\/[^\s]+$/i.test(value) ? value : undefined;
@@ -105,110 +125,129 @@ function safeHref(value: string): string | undefined {
     </BaseAlert>
 
     <template v-else-if="car !== null">
-      <header class="flex flex-col gap-5 sm:flex-row sm:items-start">
-        <!-- Sized wrapper: the placeholder tile is w-full, so without it a car with no photo pushed the title to zero
-             width (found by E2E, docs/e2e.md). -->
-        <div class="w-full max-w-md shrink-0 sm:w-1/2">
+      <div class="space-y-1">
+        <p v-if="car.owner?.profilePath">
+          <RouterLink
+            :to="car.owner.profilePath"
+            class="text-xs no-underline hover:underline"
+          >
+            Back to Owner Profile
+          </RouterLink>
+        </p>
+        <h1 class="text-2xl font-bold text-title">
+          {{ heading }}
+        </h1>
+        <p
+          v-if="specs && specs !== heading"
+          class="text-muted"
+        >
+          {{ specs }}
+        </p>
+      </div>
+
+      <div class="grid gap-8 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <!-- Grid wrapper: the placeholder tile fills it, so a car with no photo keeps a sized block (E2E, docs/e2e.md). -->
+        <div class="grid min-h-48 self-start">
           <SafeImage
             :src="car.imageUrl"
             resize="carProfile"
             :alt="`Photo of ${heading}`"
             :placeholder="heading"
-            img-class="aspect-[4/3] w-full rounded-md border border-border object-cover"
+            width="652"
+            height="407"
+            img-class="h-auto w-full rounded-sm"
             loading="eager"
           />
         </div>
-        <div class="min-w-0 flex-1 space-y-2">
-          <h1 class="page-title">
-            {{ heading }}
-          </h1>
-          <p
-            v-if="specs && specs !== heading"
-            class="text-muted"
-          >
-            {{ specs }}
-          </p>
-          <p
-            v-if="car.bodyName || car.typeName"
-            class="text-sm text-text"
-          >
-            <template v-if="car.bodyName">
-              Body: {{ car.bodyName }}
-            </template>
-            <template v-if="car.bodyName && car.typeName">
-              &middot;
-            </template>
-            <template v-if="car.typeName">
-              Type: {{ car.typeName }}
-            </template>
-          </p>
-          <p
-            v-if="car.owner"
-            class="text-sm"
-          >
-            Owner:
-            <RouterLink
-              v-if="car.owner.profilePath"
-              :to="car.owner.profilePath"
+
+        <div class="space-y-6">
+          <section aria-labelledby="car-details-heading">
+            <h2
+              id="car-details-heading"
+              class="text-xl font-semibold text-title"
             >
-              {{ car.owner.fullName }}
-            </RouterLink>
-            <span v-else>{{ car.owner.fullName }}</span>
-          </p>
-          <div
-            v-if="car.isOwner"
-            class="pt-2"
-          >
+              Details
+            </h2>
+            <dl class="mt-3 space-y-2 text-[0.8125rem]">
+              <div
+                v-for="row in details"
+                :key="row.label"
+                class="flex items-center gap-2"
+              >
+                <dt class="rounded-sm bg-muted px-1.5 text-[0.6875rem] font-bold leading-4 text-white">
+                  {{ row.label }}
+                </dt>
+                <dd>
+                  <RouterLink
+                    v-if="row.to"
+                    :to="row.to"
+                    class="no-underline hover:underline"
+                  >
+                    {{ row.value }}
+                  </RouterLink>
+                  <template v-else>
+                    {{ row.value }}
+                  </template>
+                </dd>
+              </div>
+            </dl>
             <BaseButton
+              v-if="car.isOwner"
+              class="mt-4"
               :to="`/car/${car.id}/settings`"
-              variant="default"
+              size="sm"
             >
               Edit car
             </BaseButton>
-          </div>
-        </div>
-      </header>
+          </section>
 
-      <BaseCard title="Shows">
-        <p
-          v-if="car.shows.length === 0"
-          class="text-muted"
-        >
-          This car has not attended a show yet.
-        </p>
-        <ul
-          v-else
-          class="space-y-3"
-        >
-          <li
-            v-for="show in car.shows"
-            :key="`${show.name}-${show.shortDate}`"
-            class="flex flex-wrap items-center justify-between gap-2"
-          >
-            <span>
-              <RouterLink
-                v-if="show.profilePath"
-                :to="show.profilePath"
-              >
-                {{ show.name }}
-              </RouterLink>
-              <span v-else>{{ show.name }}</span>
-              <span
-                v-if="show.shortDate"
-                class="text-sm text-muted"
-              > ({{ show.shortDate }})</span>
-            </span>
-            <BaseButton
-              v-if="show.judgingLink && safeHref(show.judgingLink)"
-              :href="safeHref(show.judgingLink)"
-              variant="default"
-              size="sm"
+          <section aria-labelledby="car-shows-heading">
+            <h2
+              id="car-shows-heading"
+              class="text-xl font-semibold text-title"
             >
-              Judging results <span class="sr-only">for {{ show.name }}</span>
-            </BaseButton>
-          </li>
-        </ul>
-      </BaseCard>
+              Visited Shows
+            </h2>
+            <p
+              v-if="car.shows.length === 0"
+              class="mt-3 text-muted"
+            >
+              This car has not attended a show yet.
+            </p>
+            <ul
+              v-else
+              class="mt-3 space-y-2 text-[0.8125rem]"
+            >
+              <li
+                v-for="show in car.shows"
+                :key="`${show.name}-${show.shortDate}`"
+              >
+                <RouterLink
+                  v-if="show.profilePath"
+                  :to="show.profilePath"
+                  class="font-bold no-underline hover:underline"
+                >
+                  {{ show.name }}
+                </RouterLink>
+                <span
+                  v-else
+                  class="font-bold"
+                >{{ show.name }}</span>
+                <span v-if="show.shortDate"> ({{ show.shortDate }})</span>
+                <BaseButton
+                  v-if="show.judgingLink && safeHref(show.judgingLink)"
+                  :href="safeHref(show.judgingLink)"
+                  variant="default"
+                  size="sm"
+                  class="ml-2"
+                >
+                  Judging results <span class="sr-only">for {{ show.name }}</span>
+                </BaseButton>
+              </li>
+            </ul>
+          </section>
+        </div>
+      </div>
     </template>
   </section>
 </template>

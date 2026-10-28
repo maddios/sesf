@@ -117,7 +117,8 @@ describe('EventSponsorsDialog', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Sponsors for Spring Show' });
     await user.type(within(dialog).getByRole('combobox', { name: 'Add a sponsor' }), 'free');
     await user.click(await screen.findByRole('option', { name: 'Free Co' }));
-    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Tier for the new sponsor' }), '1');
+    await user.click(within(dialog).getByRole('combobox', { name: 'Tier for the new sponsor' }));
+    await user.click(await screen.findByRole('option', { name: 'Main (M)' }));
     await user.click(within(dialog).getByRole('button', { name: 'Add sponsor' }));
 
     await waitFor(() => expect(seen.some((r) => r.method === 'POST' && r.path === '/admin-api/events/1/sponsors')).toBe(true));
@@ -129,12 +130,13 @@ describe('EventSponsorsDialog', () => {
     const user = userEvent.setup();
     await renderAt(Host, '/admin/events');
     const dialog = await screen.findByRole('dialog', { name: 'Sponsors for Spring Show' });
-    await user.selectOptions(await within(dialog).findByRole('combobox', { name: 'Tier for Acme' }), '2');
+    await user.click(await within(dialog).findByRole('combobox', { name: 'Tier for Acme' }));
+    await user.click(await screen.findByRole('option', { name: 'Gold' }));
 
     await waitFor(() => expect(seen.some((r) => r.method === 'PUT' && r.path === '/admin-api/events/1/sponsors/11')).toBe(true));
     expect(seen.find((r) => r.method === 'PUT' && r.path === '/admin-api/events/1/sponsors/11')?.body).toEqual({ type_id: 2 });
     expect(await screen.findByText('Tier for “Acme” saved.')).toBeTruthy();
-    await waitFor(() => expect((within(dialog).getByRole('combobox', { name: 'Tier for Acme' }) as HTMLSelectElement).value).toBe('2'));
+    await waitFor(() => expect((within(dialog).getByRole('combobox', { name: 'Tier for Acme' }) as HTMLInputElement).value).toBe('Gold'));
   });
 
   it('clears the tier of a sponsor with "No tier"', async () => {
@@ -142,7 +144,8 @@ describe('EventSponsorsDialog', () => {
     const user = userEvent.setup();
     await renderAt(Host, '/admin/events');
     const dialog = await screen.findByRole('dialog', { name: 'Sponsors for Spring Show' });
-    await user.selectOptions(await within(dialog).findByRole('combobox', { name: 'Tier for Acme' }), '');
+    await user.click(await within(dialog).findByRole('combobox', { name: 'Tier for Acme' }));
+    await user.click(await screen.findByRole('option', { name: 'No tier' }));
 
     await waitFor(() => expect(seen.some((r) => r.method === 'PUT' && r.path === '/admin-api/events/1/sponsors/11')).toBe(true));
     expect(seen.find((r) => r.method === 'PUT' && r.path === '/admin-api/events/1/sponsors/11')?.body).toEqual({ type_id: null });

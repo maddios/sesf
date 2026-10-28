@@ -93,6 +93,7 @@ The sandbox serves the working tree as it is, so in-progress changes by others s
 | 09-authorization | another member's billing/settings/garage (guard), foreign invoice API 404, `user_id` cannot widen reads, anonymous 401s, `/admin-api` 403 for a member and 200 for the admin |
 | 10-accessibility | axe (WCAG 2.1 A/AA) on home, events, event, login, register, registration, billing, settings: no serious or critical violations |
 | 11-mobile | 390 x 844: no horizontal scroll on home, login, registration; menu button, links, Escape |
+| 12-admin-mobile | 390 x 844: every admin page without sideways scroll, one h1, Menu button; admin drawer (Escape, closes after navigating); check-in and T-shirt dialogs as full-width sheets; filter sheet and event combobox; axe (serious/critical) on every admin page |
 
 Every test fails on unexpected browser console errors. Always allowed: the 401 of `POST /login/authenticate` for
 anonymous visits, 404s for images, and messages from other origins (YouTube, Cloudflare). A test allows its own

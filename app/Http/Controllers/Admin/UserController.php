@@ -122,12 +122,15 @@ final class UserController extends Controller
     {
         $model = $this->find($user);
         $fields = $request->fields();
+        $typeId = $request->typeId();
         if ($fields['email'] !== $model->email && $this->isOtherAdmin($request, $model)) {
             return response()->json(['message' => "You cannot change another administrator's email."], 403);
         }
-        $typeId = $request->typeId();
         if ($typeId !== null && $typeId !== $model->type_id && $request->user()?->is($model)) {
             throw ValidationException::withMessages(['type_id' => ['You cannot change the account type of your own account.']]);
+        }
+        if ($fields['email'] !== $model->email && $typeId !== null && $typeId !== $model->type_id) {
+            return response()->json(['message' => 'Change the account type and the email in separate saves.'], 403);
         }
 
         $model->fill($fields);

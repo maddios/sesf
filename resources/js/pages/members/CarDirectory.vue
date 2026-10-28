@@ -9,6 +9,7 @@ import BaseButton from '../../components/ui/BaseButton.vue';
 import BasePagination from '../../components/ui/BasePagination.vue';
 import BaseSpinner from '../../components/ui/BaseSpinner.vue';
 import CarCard from '../../components/directory/CarCard.vue';
+import DirectoryTabs from '../../components/directory/DirectoryTabs.vue';
 import DirectoryFilters, { type FilterField } from '../../components/directory/DirectoryFilters.vue';
 import { useAsyncData } from '../../composables/useAsyncData';
 import { useDirectory } from '../../composables/directory/useDirectory';
@@ -55,17 +56,29 @@ const gridClass = computed(() =>
     <h1
       v-if="!embedded"
       :id="headingId"
-      class="page-title"
+      class="sr-only"
     >
       Cars
     </h1>
 
-    <div class="grid gap-6 md:grid-cols-[14rem_minmax(0,1fr)]">
+    <DirectoryTabs
+      v-if="embedded"
+      embedded
+    />
+
+    <div :class="embedded ? 'space-y-4' : 'grid gap-6 md:grid-cols-[12rem_minmax(0,1fr)]'">
       <aside
         class="space-y-4"
         aria-label="Car filters"
       >
+        <h2
+          v-if="!embedded"
+          class="section-heading"
+        >
+          Filters
+        </h2>
         <DirectoryFilters
+          :inline="embedded"
           :fields="fields"
           :values="directory.params.value"
           label="Filter cars"
@@ -80,6 +93,11 @@ const gridClass = computed(() =>
       </aside>
 
       <div class="min-w-0">
+        <DirectoryTabs
+          v-if="!embedded"
+          :embedded="false"
+          class="mb-4"
+        />
         <BaseSpinner
           v-if="directory.status.value === 'loading'"
           label="Loading cars"
@@ -105,7 +123,7 @@ const gridClass = computed(() =>
             No cars match these filters.
           </p>
           <template v-else>
-            <p class="mb-3 text-sm text-muted">
+            <p class="mb-3 text-xs text-muted">
               {{ directory.total.value }} {{ directory.total.value === 1 ? 'car' : 'cars' }}
             </p>
             <ul :class="gridClass">

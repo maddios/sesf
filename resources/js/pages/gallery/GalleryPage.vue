@@ -52,12 +52,15 @@ watch(
 
 watch(heading, (title) => setPageTitle(title));
 
-async function openViewer(item: GalleryItem): Promise<void> {
-  const list = await page.allItems();
-  const index = list.findIndex((row) => row.id === item.id);
-  viewerItems.value = list;
-  viewerStart.value = index < 0 ? 0 : index;
+/** Opens at once on the loaded photos; when more pages exist, the full list replaces them once it arrives. */
+function openViewer(item: GalleryItem): void {
+  viewerItems.value = items.value;
+  viewerStart.value = Math.max(items.value.findIndex((row) => row.id === item.id), 0);
   viewerOpen.value = true;
+  if (!hasMore.value) return;
+  void page.allItems().then((list) => {
+    if (viewerOpen.value) viewerItems.value = list;
+  });
 }
 
 let observer: IntersectionObserver | null = null;
@@ -139,14 +142,14 @@ onBeforeUnmount(() => observer?.disconnect());
         :heading-level="2"
       >
         <template #panel>
-          <ul class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          <ul class="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
             <li
               v-for="sub in subGalleries"
               :key="sub.id"
             >
               <RouterLink
                 :to="`/gallery/e${eventId}/${sub.id}`"
-                class="block no-underline"
+                class="block overflow-hidden rounded-sm bg-panel no-underline shadow-card"
               >
                 <img
                   v-if="sub.coverImageUrl"
@@ -156,9 +159,9 @@ onBeforeUnmount(() => observer?.disconnect());
                   loading="lazy"
                   width="200"
                   height="140"
-                  class="mb-2 aspect-[200/140] w-full rounded-sm object-cover"
+                  class="aspect-[200/140] w-full object-cover"
                 >
-                <span class="item-title text-brand">
+                <span class="block p-2 text-xs font-bold text-heading">
                   {{ sub.title }}{{ sub.isEnabled ? '' : ' (disabled)' }}
                 </span>
               </RouterLink>
@@ -175,7 +178,7 @@ onBeforeUnmount(() => observer?.disconnect());
       </p>
       <ul
         v-else
-        class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
+        class="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4"
         aria-label="Photos"
       >
         <li
@@ -184,7 +187,7 @@ onBeforeUnmount(() => observer?.disconnect());
         >
           <button
             type="button"
-            class="block w-full overflow-hidden rounded-sm border border-border"
+            class="block w-full overflow-hidden rounded-sm bg-subtle shadow-card"
             :aria-label="`View photo ${index + 1}${item.title ? `: ${item.title}` : ''}`"
             @click="openViewer(item)"
           >
@@ -193,6 +196,7 @@ onBeforeUnmount(() => observer?.disconnect());
               :srcset="resizedImageSrcset(item.imageUrl, LEGACY_IMAGE_SIZES.galleryItem) || undefined"
               alt=""
               loading="lazy"
+              decoding="async"
               width="320"
               height="230"
               class="aspect-[320/230] w-full object-cover"

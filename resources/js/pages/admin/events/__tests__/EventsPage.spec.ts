@@ -86,7 +86,8 @@ describe('EventsPage', () => {
     const { router } = await renderAt(Page, '/admin/events?f.is_active=0');
     await within(table()).findByText('Fall Show');
     expect(seen.find((r) => r.path === '/admin-api/events')?.params.get('filter[is_active]')).toBe('0');
-    await user.selectOptions(screen.getByLabelText('Status'), '1');
+    await user.click(screen.getByRole('combobox', { name: 'Status' }));
+    await user.click(await screen.findByRole('option', { name: 'Active' }));
     expect(router.currentRoute.value.query['f.is_active']).toBe('1');
   });
 
@@ -100,7 +101,8 @@ describe('EventsPage', () => {
     const dialog = await screen.findByRole('dialog', { name: 'New event' });
     await user.type(within(dialog).getByLabelText('Name (required)'), 'New Show');
     await user.type(within(dialog).getByLabelText('Short name (required)'), 'new');
-    await user.selectOptions(within(dialog).getByLabelText(/Clone eligible bodies/), '7');
+    await user.click(within(dialog).getByRole('combobox', { name: /Clone eligible bodies/ }));
+    await user.click(await screen.findByRole('option', { name: 'Last Year' }));
     await user.click(within(dialog).getByRole('button', { name: 'Create event' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
@@ -111,7 +113,7 @@ describe('EventsPage', () => {
     expect(screen.getByRole('status', { name: 'Notifications' }).textContent).toContain('Event “New Show” created.');
   });
 
-  it('marks the clone source required when earlier events exist, and maps a 422 onto it', async () => {
+  it('maps a 422 on the clone source onto its combobox', async () => {
     stubEvents(undefined, (r) =>
       r.method === 'POST' && r.path === '/admin-api/events'
         ? jsonResponse(422, { message: 'Bodies missing.', errors: { clone_from_show_id: ['The selected event has no eligible car bodies configured (car_body_show is empty).'] } })
@@ -121,11 +123,11 @@ describe('EventsPage', () => {
     await renderAt(Page, '/admin/events');
     await user.click(await screen.findByRole('button', { name: 'New event' }));
     const dialog = await screen.findByRole('dialog', { name: 'New event' });
-    const clone = within(dialog).getByLabelText(/Clone eligible bodies/) as HTMLSelectElement;
-    expect(clone.required).toBe(true);
+    const clone = within(dialog).getByRole('combobox', { name: /Clone eligible bodies/ }) as HTMLInputElement;
     await user.type(within(dialog).getByLabelText('Name (required)'), 'X');
     await user.type(within(dialog).getByLabelText('Short name (required)'), 'x');
-    await user.selectOptions(clone, '7');
+    await user.click(clone);
+    await user.click(await screen.findByRole('option', { name: 'Last Year' }));
     await user.click(within(dialog).getByRole('button', { name: 'Create event' }));
 
     expect(await within(dialog).findByText(/no eligible car bodies/)).toBeTruthy();
@@ -240,7 +242,7 @@ describe('toCreateInput', () => {
     stubEvents();
     await renderAt(Page, '/admin/events');
     expect(await within(table()).findByRole('columnheader', { name: /ID/ })).toBeTruthy();
-    const link = await within(table()).findByRole('link', { name: 'Expense tracker for Spring Show' });
+    const link = await within(table()).findByRole('link', { name: 'Expenses for Spring Show' });
     expect(link.getAttribute('href')).toContain('/admin/expenses?show_id=1');
   });
 

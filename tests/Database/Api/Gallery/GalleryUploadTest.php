@@ -76,6 +76,38 @@ class GalleryUploadTest extends TestCase
     }
 
     #[Test]
+    public function a_new_upload_gets_an_unguessable_file_name(): void
+    {
+        $this->upload(F::jpeg(4, 4), 'a.jpg')->assertOk();
+        $this->upload(F::jpeg(4, 4), 'b.jpg')->assertOk();
+
+        $items = GalleryItem::query()->whereIn('original_name', ['a.jpg', 'b.jpg'])->get();
+        foreach ($items as $item) {
+            $this->assertMatchesRegularExpression('/\A[0-9a-f]{32}\.jpg\z/', (string) $item->file_name);
+            $this->assertFileExists($this->galleryTempRoot.'/'.NumericPath::for($item->id).'/'.$item->file_name);
+            $this->assertFileDoesNotExist($this->galleryTempRoot.'/'.NumericPath::for($item->id).'/'.$item->id.'.jpg');
+            $this->assertStringContainsString('/'.$item->file_name, $item->imageURL);
+        }
+        $this->assertNotSame($items[0]->file_name, $items[1]->file_name);
+    }
+
+    #[Test]
+    public function an_existing_item_keeps_its_legacy_id_path_and_can_be_removed(): void
+    {
+        $item = GalleryItem::factory()->create();
+        $this->gallery->items()->attach($item->id, ['user_id' => $item->user_id]);
+        $legacy = $this->galleryTempRoot.'/'.NumericPath::for($item->id).'/'.$item->id.'.jpg';
+        mkdir(dirname($legacy), 0755, true);
+        file_put_contents($legacy, F::jpeg(4, 4));
+
+        $this->assertNull($item->file_name);
+        $this->assertStringStartsWith('images/gallery/'.NumericPath::for($item->id).'/'.$item->id.'.jpg?', $item->imageURL);
+
+        $this->postJson('/gallery/remove-item', ['gallery_id' => $this->gallery->id, 'item_id' => $item->id])->assertOk();
+        $this->assertFileDoesNotExist($legacy);
+    }
+
+    #[Test]
     public function each_upload_takes_the_next_sort_order(): void
     {
         $this->upload(F::png(), 'first.png')->assertOk();
@@ -162,6 +194,6 @@ class GalleryUploadTest extends TestCase
 
     private function storedPath(GalleryItem $item): string
     {
-        return $this->galleryTempRoot.'/'.NumericPath::for($item->id).'/'.$item->id.'.jpg';
+        return $this->galleryTempRoot.'/'.$item->relativeImagePath();
     }
 }

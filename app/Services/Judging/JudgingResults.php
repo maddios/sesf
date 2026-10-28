@@ -7,6 +7,7 @@ use App\Models\CarShow;
 use App\Models\ShowRegistrationCar;
 use App\Support\Judging\JudgingId;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
 
 /**
@@ -30,11 +31,15 @@ final class JudgingResults
      * Queues the result mails and returns how many were queued.
      *
      * @throws \LogicException when results are not released
+     * @throws ResultsMailRecentlySent when the results were already queued within the last minute
      */
     public function mailOwners(CarShow $show): int
     {
         if ($show->is_judging_released !== true) {
             throw new \LogicException('Judging results can only be sent after they are released.');
+        }
+        if (! Cache::lock('judging-results-mail|'.$show->id, 60)->get()) {
+            throw new ResultsMailRecentlySent;
         }
 
         $cars = ShowRegistrationCar::query()

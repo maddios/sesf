@@ -18,10 +18,12 @@ export const CAR_SHOW_RAW = {
   profileURL: '#/SoutheastSharkfest2026/e36',
   date_start: '2026-04-30',
   date_end: '2026-05-03',
+  date_active: '2026-01-15 09:30:00',
+  date_registration_deactivation: '2026-04-20 23:59:59',
   has_image: '1',
   ended: true,
   regOpen: false,
-  primaryLocation: { cityState: 'Richmond, VA' },
+  primaryLocation: { name: 'Home Base', address: { cityState: 'Richmond, VA' } },
   num_registered_members: '12',
   num_registered_cars: 9,
 };
