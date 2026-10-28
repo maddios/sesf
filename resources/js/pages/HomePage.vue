@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * Home: overview video, latest event, additional sponsors, past videos carousel and the PayPal donate block.
- * Same sections as the legacy home, with the event content ahead of its sponsor logos and proper
+ * Same sections as the legacy home: the event's sponsors sit above the event, centred, and proper
  * loading / empty / error states for the two data blocks.
  */
 import { computed } from 'vue';
@@ -95,88 +95,89 @@ const homeVideoSrc = `https://www.youtube-nocookie.com/embed/${HOME_VIDEO_ID}?re
         >
           No events have been announced yet. Check back soon.
         </p>
-        <article
-          v-else
-          class="grid gap-5 sm:grid-cols-[minmax(0,240px)_1fr]"
-          aria-labelledby="home-event-title"
-        >
-          <RouterLink
-            :to="latestEvent.path"
-            class="mx-auto grid min-h-36 w-full max-w-60 self-start no-underline"
-            tabindex="-1"
-            aria-hidden="true"
+        <template v-else>
+          <div
+            v-if="latestEvent.primarySponsors.length > 0"
+            class="mb-6 text-center"
           >
-            <SafeImage
-              :src="latestEvent.imageUrl"
-              resize="eventCard"
-              alt=""
-              :placeholder="latestEvent.name"
-              width="240"
-              height="240"
-              img-class="h-auto w-full rounded-sm"
-            />
-          </RouterLink>
-          <div class="min-w-0">
-            <h3
-              id="home-event-title"
-              class="item-title"
-            >
-              <RouterLink
-                :to="latestEvent.path"
-                class="text-brand no-underline hover:underline"
-              >
-                {{ latestEvent.name }}
-              </RouterLink>
-              {{ ' ' }}<span
-                v-if="latestEvent.ended"
-                class="ml-2 inline-block rounded-sm bg-subtle px-2 py-0.5 align-middle text-xs font-semibold text-muted"
-              >(Ended)</span>
+            <h3 class="text-base font-bold uppercase tracking-wide text-heading">
+              Sponsored by
             </h3>
-            <p class="mt-3">
-              {{ latestEvent.shortDescription }}
-            </p>
-            <p class="mt-3">
-              <RouterLink :to="latestEvent.path">
-                More info <span class="sr-only">about {{ latestEvent.name }}</span>
-              </RouterLink>
-            </p>
-
-            <div
-              v-if="latestEvent.primarySponsors.length > 0"
-              class="mt-6"
-            >
-              <h4 class="text-h4 font-semibold uppercase tracking-wide text-muted">
-                Sponsored by
-              </h4>
-              <ul class="mt-2 flex flex-wrap items-center gap-3">
-                <li
-                  v-for="sponsor in latestEvent.primarySponsors"
-                  :key="sponsor.id"
-                  class="h-[55px] w-[calc(50%-0.375rem)] max-w-[200px]"
+            <ul class="mt-2 flex flex-wrap items-center justify-center gap-5">
+              <li
+                v-for="sponsor in latestEvent.primarySponsors"
+                :key="sponsor.id"
+                class="h-[100px] max-w-[min(100%,380px)]"
+              >
+                <component
+                  :is="sponsor.url ? 'a' : 'span'"
+                  :href="sponsor.url || undefined"
+                  :target="sponsor.url ? '_blank' : undefined"
+                  :rel="sponsor.url ? 'noopener noreferrer' : undefined"
+                  class="flex h-full items-center justify-center no-underline"
                 >
-                  <component
-                    :is="sponsor.url ? 'a' : 'span'"
-                    :href="sponsor.url || undefined"
-                    :target="sponsor.url ? '_blank' : undefined"
-                    :rel="sponsor.url ? 'noopener noreferrer' : undefined"
-                    class="flex h-full items-center justify-center no-underline"
-                  >
-                    <SafeImage
-                      :src="sponsor.logoUrl"
-                      resize="homeSponsor"
-                      :alt="sponsor.name"
-                      img-class="max-h-full max-w-full object-contain"
-                    />
-                    <span
-                      v-if="sponsor.url"
-                      class="sr-only"
-                    > (opens in a new tab)</span>
-                  </component>
-                </li>
-              </ul>
-            </div>
+                  <SafeImage
+                    :src="sponsor.logoUrl"
+                    resize="homeSponsorPrimary"
+                    :alt="sponsor.name"
+                    img-class="max-h-full max-w-full object-contain"
+                  />
+                  <span
+                    v-if="sponsor.url"
+                    class="sr-only"
+                  > (opens in a new tab)</span>
+                </component>
+              </li>
+            </ul>
           </div>
-        </article>
+
+          <article
+            class="grid gap-5 sm:grid-cols-[minmax(0,240px)_1fr]"
+            aria-labelledby="home-event-title"
+          >
+            <RouterLink
+              :to="latestEvent.path"
+              class="mx-auto grid min-h-36 w-full max-w-60 self-start no-underline"
+              tabindex="-1"
+              aria-hidden="true"
+            >
+              <SafeImage
+                :src="latestEvent.imageUrl"
+                resize="eventCard"
+                alt=""
+                :placeholder="latestEvent.name"
+                width="240"
+                height="240"
+                img-class="h-auto w-full rounded-sm"
+              />
+            </RouterLink>
+            <div class="min-w-0">
+              <h3
+                id="home-event-title"
+                class="item-title"
+              >
+                <RouterLink
+                  :to="latestEvent.path"
+                  class="text-brand no-underline hover:underline"
+                >
+                  {{ latestEvent.name }}
+                </RouterLink>
+                {{ ' ' }}<span
+                  v-if="latestEvent.ended"
+                  class="ml-2 inline-block rounded-sm bg-subtle px-2 py-0.5 align-middle text-xs font-semibold text-muted"
+                >(Ended)</span>
+              </h3>
+              <p class="mt-3">
+                {{ latestEvent.shortDescription }}
+              </p>
+              <p class="mt-3">
+                <RouterLink :to="latestEvent.path">
+                  More info <span class="sr-only">about {{ latestEvent.name }}</span>
+                </RouterLink>
+              </p>
+            </div>
+          </article>
+        </template>
 
         <p class="mt-6 border-t border-border pt-4">
           <RouterLink to="/events">
