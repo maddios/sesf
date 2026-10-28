@@ -54,7 +54,7 @@ describe('MemberProfilePage public view', () => {
     expect(screen.getByRole('link', { name: 'Southeast Sharkfest 2026' }).getAttribute('href')).toBe('/SoutheastSharkfest2026/e36');
     // The car appears in the garage and under the event: two links to the same profile.
     expect(screen.getAllByRole('link', { name: '1990 850i' }).map((a) => a.getAttribute('href'))).toEqual(['/car/2', '/car/2']);
-    expect(container.querySelector('img')?.getAttribute('src')).toBe('/images/generic_avatar_300.gif');
+    expect(container.querySelector('img')?.getAttribute('src')).toBe('/images/4/228/0/images/generic_avatar_300.gif');
   });
 
   it('hides the contact button for guests', async () => {
@@ -82,12 +82,12 @@ describe('MemberProfilePage public view', () => {
     profileApi(body);
     await mountWithRouter(MemberProfilePage, { path: PROFILE_PATH, props });
     const img = await waitFor(() => {
-      const found = document.querySelector('img[src="/images/users/44.jpg"]');
+      const found = document.querySelector('img[src="/images/4/228/0/images/users/44.jpg"]');
       expect(found).not.toBeNull();
       return found as HTMLImageElement;
     });
     fireEvent.error(img);
-    await waitFor(() => expect(document.querySelector('img[src="/images/generic_avatar_300.gif"]')).not.toBeNull());
+    await waitFor(() => expect(document.querySelector('img[src="/images/4/228/0/images/generic_avatar_300.gif"]')).not.toBeNull());
   });
 
   it('has no accessibility violations', async () => {

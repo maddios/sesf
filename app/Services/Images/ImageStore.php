@@ -59,15 +59,17 @@ final class ImageStore
     /** Chunk and block walk cap, so a crafted file cannot make the frame scan run long. */
     private const MAX_SCAN_STEPS = 200000;
 
-    /** @var array<string, true> */
+    /** Allowed MIME types and the ImageMagick coder pinned for each. */
     private const ALLOWED_MIME = [
-        'image/jpeg' => true,
-        'image/png' => true,
-        'image/gif' => true,
-        'image/webp' => true,
+        'image/jpeg' => 'jpeg',
+        'image/png' => 'png',
+        'image/gif' => 'gif',
+        'image/webp' => 'webp',
     ];
 
     private const BASENAME_PATTERN = '/^[a-z][a-z0-9_]{0,31}$/';
+
+    private const FILENAME_PATTERN = '/\A[A-Za-z0-9][A-Za-z0-9_]{0,63}\.jpg\z/';
 
     private ?ImageManager $manager = null;
 
@@ -84,6 +86,43 @@ final class ImageStore
     {
         $this->assertTarget($id, $basename);
 
+        $bytes = $this->encodeUpload($file);
+
+        $directory = $this->directoryFor($root, $id);
+        $final = $directory.DIRECTORY_SEPARATOR.$basename.'.jpg';
+
+        $this->writeAtomically($directory, $final, $bytes);
+        $this->removeVariants($directory, $basename, $final);
+
+        return $id.'/'.$basename.'.jpg';
+    }
+
+    /**
+     * Stores the upload as {directory}/{filename}, creating the directory. Nothing else in the
+     * directory is touched. The caller builds $directory from trusted values only; $filename
+     * must be a plain "name.jpg".
+     *
+     * @throws ImageUploadException when the upload is not a valid image or cannot be saved
+     */
+    public function storeAs(UploadedFile $file, string $directory, string $filename): void
+    {
+        if (preg_match(self::FILENAME_PATTERN, $filename) !== 1) {
+            throw new \InvalidArgumentException('Invalid image file name.');
+        }
+
+        $bytes = $this->encodeUpload($file);
+
+        $directory = rtrim($directory, '/\\');
+        if (! is_dir($directory) && ! @mkdir($directory, 0755, true) && ! is_dir($directory)) {
+            throw ImageUploadException::saveFailed();
+        }
+
+        $this->writeAtomically($directory, $directory.DIRECTORY_SEPARATOR.$filename, $bytes);
+    }
+
+    /** Validates the upload and returns it re-encoded as a metadata-free JPEG. */
+    private function encodeUpload(UploadedFile $file): string
+    {
         if (! $file->isValid()) {
             throw ImageUploadException::invalidUpload();
         }
@@ -98,17 +137,9 @@ final class ImageStore
             throw ImageUploadException::tooLarge();
         }
 
-        $this->assertImageContent($source);
+        $coder = $this->assertImageContent($source);
 
-        $bytes = $this->reencode($source);
-
-        $directory = $this->directoryFor($root, $id);
-        $final = $directory.DIRECTORY_SEPARATOR.$basename.'.jpg';
-
-        $this->writeAtomically($directory, $final, $bytes);
-        $this->removeVariants($directory, $basename, $final);
-
-        return $id.'/'.$basename.'.jpg';
+        return $this->reencode($source, $coder);
     }
 
     /**
@@ -129,9 +160,10 @@ final class ImageStore
 
     /**
      * Checks the content, not the name: the MIME type from finfo and the header from getimagesize
-     * must both be an allowed image type, and the dimensions must be within the limit.
+     * must be the same allowed image type, and the dimensions must be within the limit. Returns the
+     * ImageMagick coder for that type.
      */
-    private function assertImageContent(string $source): void
+    private function assertImageContent(string $source): string
     {
         $mime = self::finfo()->file($source);
         if ($mime === false || ! isset(self::ALLOWED_MIME[$mime])) {
@@ -139,7 +171,7 @@ final class ImageStore
         }
 
         $info = @getimagesize($source);
-        if ($info === false || ! isset(self::ALLOWED_MIME[$info['mime']])) {
+        if ($info === false || $info['mime'] !== $mime) {
             throw ImageUploadException::unsupportedType();
         }
 
@@ -156,6 +188,8 @@ final class ImageStore
         if ($frames > self::MAX_FRAMES || $frames * $width * $height > self::MAX_ANIMATION_PIXELS) {
             throw ImageUploadException::animationTooLarge();
         }
+
+        return self::ALLOWED_MIME[$mime];
     }
 
     /**
@@ -302,30 +336,31 @@ final class ImageStore
 
     /**
      * Decodes the first frame only, under ImageMagick resource limits that are restored afterwards.
-     * Applies EXIF orientation and encodes a metadata-free JPEG.
+     * The coder validated by assertImageContent is pinned, so ImageMagick never sniffs the format
+     * itself (a polyglot file cannot reach another decoder). Applies EXIF orientation and encodes a
+     * metadata-free JPEG.
      */
-    private function reencode(string $source): string
+    private function reencode(string $source, string $coder): string
     {
-        $previous = $this->applyResourceLimits();
-
         try {
-            $imagick = new Imagick;
-            // "[0]" selects the first frame at read time, so the other frames are never decoded.
-            $imagick->readImage($source.'[0]');
-            $frame = $imagick->getImage();
+            $bytes = ImagickLimits::within(self::RESOURCE_LIMITS, function () use ($source, $coder): string {
+                $imagick = new Imagick;
+                // "[0]" selects the first frame at read time, so the other frames are never decoded.
+                $imagick->readImage($coder.':'.$source.'[0]');
+                $frame = $imagick->getImage();
 
-            if ($frame->getImageWidth() * $frame->getImageHeight() > self::MAX_AREA) {
-                throw ImageUploadException::dimensionsTooLarge();
-            }
+                if ($frame->getImageWidth() * $frame->getImageHeight() > self::MAX_AREA) {
+                    throw ImageUploadException::dimensionsTooLarge();
+                }
 
-            $image = $this->manager()->read($frame)->orient();
-            $bytes = $image->toJpeg(quality: self::JPEG_QUALITY, strip: true)->toString();
+                $image = $this->manager()->read($frame)->orient();
+
+                return $image->toJpeg(quality: self::JPEG_QUALITY, strip: true)->toString();
+            });
         } catch (ImageUploadException $e) {
             throw $e;
         } catch (Throwable) {
             throw ImageUploadException::unreadable();
-        } finally {
-            $this->restoreResourceLimits($previous);
         }
 
         if ($bytes === '') {
@@ -333,32 +368,6 @@ final class ImageStore
         }
 
         return $bytes;
-    }
-
-    /**
-     * Sets the decode limits and returns the values they replaced.
-     *
-     * @return array<int, int>
-     */
-    private function applyResourceLimits(): array
-    {
-        $previous = [];
-        foreach (self::RESOURCE_LIMITS as $type => $limit) {
-            $previous[$type] = Imagick::getResourceLimit($type);
-            Imagick::setResourceLimit($type, $limit);
-        }
-
-        return $previous;
-    }
-
-    /**
-     * @param  array<int, int>  $previous
-     */
-    private function restoreResourceLimits(array $previous): void
-    {
-        foreach ($previous as $type => $limit) {
-            Imagick::setResourceLimit($type, $limit);
-        }
     }
 
     /**

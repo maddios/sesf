@@ -7,6 +7,7 @@ use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\UpdatePasswordRequest;
 use App\Http\Resources\Auth\LoginUserResource;
 use App\Models\User;
+use App\Support\Admin\ImpersonationSession;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -87,9 +88,7 @@ class SessionController extends Controller
      */
     public function logout(Request $request): JsonResponse|RedirectResponse
     {
-        Auth::guard('web')->logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        ImpersonationSession::logout($request);
 
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json(['message' => 'Logged out']);

@@ -71,7 +71,7 @@ final class LocationController extends Controller
         $model = $this->find($location);
         $model->delete();
 
-        AuditLog::record('location.delete', self::RESOURCE, [$model->id]);
+        AuditLog::record('location.delete', self::RESOURCE, [$model->id], AuditLog::deleted($model));
 
         return response()->json(null, 204);
     }

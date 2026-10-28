@@ -17,7 +17,9 @@ use Throwable;
  *  2. Cheap checks that need no PayPal reply, BEFORE the postback (so forged posts cost no
  *     outbound request): txn_id, a known payment_status, receiver_email/business, mc_currency,
  *     test_ipn against the sandbox setting, the amounts, and item_number naming an existing
- *     registration. A failure stores nothing; the admin notice (adminEmailMismatch,
+ *     registration. A failure with a well-formed txn_id stores one unverified REJECTED row per
+ *     (txn_id, payment_status, reason) (paypal_verified empty, no registration link), so a genuine
+ *     payment that fails here is never only in the logs. The admin notice (adminEmailMismatch,
  *     adminInvalidInvoice or adminInvalid) is sent at most once per kind per 10 minutes.
  *  3. Verify with PayPal (IpnVerifier). INVALID or a failed postback stores nothing; it is
  *     logged (summary only, with txn_id) and the admin notice is rate limited the same way.
@@ -77,7 +79,9 @@ class IpnProcessor
                 default => ['precheck', ['adminInvalid', [$payload, $reason]]],
             };
 
-            return new IpnOutcome(IpnOutcome::REJECTED, $reason, mails: $this->rateLimited($kind, $mail));
+            $payment = $this->storeUnverifiedRejection($payload, $reason);
+
+            return new IpnOutcome(IpnOutcome::REJECTED, $reason, paymentId: $payment?->id, mails: $this->rateLimited($kind, $mail));
         }
 
         try {
@@ -285,6 +289,32 @@ class IpnProcessor
         return new IpnOutcome($outcome, null, $registration->id, $payment->id, $mails);
     }
 
+    /**
+     * Records a message that failed the pre-check, without a postback. The row is not linked to a registration
+     * (nothing in it is trusted) and never counts as processed, so a resend after a fix still applies. A resend of the
+     * same rejected message adds no second row.
+     */
+    private function storeUnverifiedRejection(IpnPayload $payload, string $reason): ?PayPalPayment
+    {
+        $txnId = $payload->txnId();
+        if ($txnId === null) {
+            return null;
+        }
+
+        $status = (string) $payload->get('payment_status');
+        $seen = PayPalPayment::query()->forTxn($txnId)->where('paypal_verified', '')->pluck('entirepost')
+            ->contains(function (?string $post) use ($status, $reason): bool {
+                $meta = json_decode((string) $post, true)['sesf'] ?? null;
+
+                return is_array($meta) && ($meta['status'] ?? null) === $status && ($meta['reason'] ?? null) === $reason;
+            });
+        if ($seen) {
+            return null;
+        }
+
+        return $this->store($payload, null, IpnOutcome::REJECTED, $reason, verified: false);
+    }
+
     private function rejectForRegistration(IpnPayload $payload, ShowRegistration $registration, string $reason): IpnOutcome
     {
         Log::warning('PayPal IPN rejected: '.$reason, $payload->logContext());
@@ -339,7 +369,7 @@ class IpnProcessor
      *
      * @param  array<string, mixed>  $money
      */
-    private function store(IpnPayload $payload, ?ShowRegistration $registration, string $outcome, ?string $reason, array $money = []): PayPalPayment
+    private function store(IpnPayload $payload, ?ShowRegistration $registration, string $outcome, ?string $reason, array $money = [], bool $verified = true): PayPalPayment
     {
         $status = (string) $payload->get('payment_status');
         $text = fn (string $key, int $max): ?string => $payload->get($key) === null ? null : mb_substr((string) $payload->get($key), 0, $max);
@@ -381,7 +411,7 @@ class IpnProcessor
             'subscr_id' => $text('subscr_id', 20),
             'verify_sign' => $text('verify_sign', 125),
             'num_cart_items' => $int('num_cart_items', 2147483647),
-            'paypal_verified' => 'VERIFIED',
+            'paypal_verified' => $verified ? 'VERIFIED' : '',
             'registration_id' => $registration?->id,
             'entirepost' => self::entirepost($payload, [
                 'status' => $status,

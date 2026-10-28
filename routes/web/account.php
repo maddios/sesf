@@ -37,7 +37,7 @@ Route::post('member/account-info', [AccountController::class, 'updateAccountInfo
 Route::post('member/delete-account', [AccountController::class, 'deleteAccount'])->middleware(['auth', 'block.impersonated', 'throttle:account-password-check']);
 
 Route::post('member/message', [MessageController::class, 'send'])
-    ->middleware(['auth', 'throttle:account-message']);
+    ->middleware(['auth', 'block.impersonated', 'throttle:account-message']);
 
 Route::post('home/report', [ContactController::class, 'report'])
     ->middleware('throttle:account-contact');

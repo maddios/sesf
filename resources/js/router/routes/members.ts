@@ -3,7 +3,7 @@ import type { RouteRecordRaw } from 'vue-router';
 /**
  * Member and car directories plus the public member and car profiles. Hash-mode URLs.
  * The member profile is /:memberName/u:memberId(\d+). The car profile param is digits only, so /car/new is
- * never captured by it. Settings and garage routes belong to other modules.
+ * never captured by it. The legacy car address /:carName/c:carId(\d+) shows the same car profile. Settings and garage routes belong to other modules.
  */
 const routes: RouteRecordRaw[] = [
   {
@@ -34,6 +34,14 @@ const routes: RouteRecordRaw[] = [
     name: 'car-profile',
     component: () => import('../../pages/cars/CarProfilePage.vue'),
     // Fallback tab title; the page replaces it with the car's title once loaded.
+    meta: { title: 'Car' },
+    props: (route) => ({ carId: Number(route.params.carId) }),
+  },
+  {
+    // Legacy car address (Angular `/:carName/c:carId`), e.g. /1972-BMW-2002/c78: the same car profile.
+    path: '/:carName/c:carId(\\d+)',
+    name: 'car-profile-alias',
+    component: () => import('../../pages/cars/CarProfilePage.vue'),
     meta: { title: 'Car' },
     props: (route) => ({ carId: Number(route.params.carId) }),
   },

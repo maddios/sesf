@@ -39,6 +39,24 @@ URLs 302 to `/#/admin/...` (`routes/web/admin_redirects.php`).
 - Audit log: `storage/logs/audit-YYYY-MM-DD.log`, one JSON line per write (channel `audit`, not in the default
   stack). Values of sensitive fields (password, token, email, phone, address, notes...) are logged as `[redacted]`.
 - `admin-write` limiter: 120 writes/min per admin; reads are not limited. CSRF applies (web group).
+- Delete entries carry the deleted row's non-sensitive fields as `{old, new: null}` (`AuditLog::deleted`). Money
+  columns (`Money2`) are logged as decimal strings ("12.30").
+- Admin on-behalf writes through member endpoints (`event/registration`, `event/extra` with `user_id`) are audited
+  as `registration.save_on_behalf` / `registration.extra_on_behalf`.
+- Another administrator's email cannot be changed and a reset cannot be sent for them (403); each admin manages
+  their own account.
+
+## Impersonation ("log in as")
+- The session stores `impersonator_id` and `impersonated_id` (`ImpersonationSession`). The marker counts only while
+  the signed-in user is `impersonated_id`; every login clears it (`ClearImpersonationOnLogin`), and `stop` with a
+  marker that does not match ends the session.
+- Logging out while impersonating does not rotate the member's remember token (the real member stays signed in
+  on their own devices).
+- `block.impersonated` refuses, with 403 and an `impersonation.blocked` audit entry: password change and reset,
+  account info (email), account deletion, Vanilla forum SSO (`login/vanilla`), waiver sign links and signing
+  (`waiver/{show}/sign-url`, `waiver_sign/t/*`, `waiver_sign/s/*`), private messages (`member/message`) and
+  selling a car (`member/sell-car`). Everything else the member can do is allowed and audited as
+  `impersonation.write`.
 
 ## Frontend
 1. **Registry**: append one line to `resources/js/admin/registry.ts` in its group block:

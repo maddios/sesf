@@ -14,14 +14,14 @@ import { ADMIN_API_BASE, mapAdminError, type ListResponse } from '../../../compo
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
 import type { FormValues } from '../../../components/admin/types';
-import { AGENDA_FIELDS, agendaApi, saveAgendaOrder, toForm, toInput, type AgendaItem } from './agenda';
+import { AGENDA_FIELDS, AGENDA_TYPES, agendaApi, saveAgendaOrder, toForm, toInput, type AgendaItem } from './agenda';
 
 const NO_ROWS: ListResponse<AgendaItem> = { data: [], meta: { page: 1, per_page: 100, total: 0, last_page: 1 } };
 
 const list = useAdminList<AgendaItem>({
   fetch: (query) => (query.filter?.show_id === undefined ? Promise.resolve(NO_ROWS) : agendaApi.list(query)),
   defaults: { sort: 'sort_order', direction: 'asc', perPage: 100 },
-  filterKeys: ['show_id'],
+  filterKeys: ['show_id', 'type_id'],
 });
 const toast = useToast();
 const { confirm } = useConfirm();
@@ -31,6 +31,8 @@ const eventId = computed<number | null>(() => {
   return raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : null;
 });
 const eventLabel = ref('');
+/** The order covers every item of the event, so reordering is off while a type filter hides some. */
+const typeFiltered = computed(() => (list.state.value.filters.type_id ?? '') !== '');
 
 const editing = ref<AgendaItem | null>(null);
 const formOpen = ref(false);
@@ -114,6 +116,29 @@ async function remove(item: AgendaItem): Promise<void> {
           />
         </div>
       </div>
+      <div>
+        <label
+          for="agenda-type"
+          class="block text-sm font-medium text-text"
+        >Type</label>
+        <select
+          id="agenda-type"
+          class="form-control mt-1"
+          :value="list.state.value.filters.type_id ?? ''"
+          @change="list.setFilter('type_id', ($event.target as HTMLSelectElement).value)"
+        >
+          <option value="">
+            All
+          </option>
+          <option
+            v-for="type in AGENDA_TYPES"
+            :key="type.value"
+            :value="type.value"
+          >
+            {{ type.label }}
+          </option>
+        </select>
+      </div>
       <BaseButton
         variant="primary"
         :disabled="eventId === null"
@@ -131,6 +156,12 @@ async function remove(item: AgendaItem): Promise<void> {
     </p>
 
     <template v-else>
+      <p
+        v-if="typeFiltered"
+        class="text-sm text-muted"
+      >
+        Clear the type filter to change the order.
+      </p>
       <p
         v-if="list.error.value"
         role="alert"
@@ -150,7 +181,7 @@ async function remove(item: AgendaItem): Promise<void> {
         :items="list.rows.value"
         :item-label="(item: AgendaItem) => item.name"
         :label="`Agenda items${eventLabel ? ` for ${eventLabel}` : ''}`"
-        :disabled="list.loading.value"
+        :disabled="list.loading.value || typeFiltered"
         @reorder="reorder"
       >
         <template #default="{ item }">

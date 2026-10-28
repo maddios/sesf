@@ -113,7 +113,7 @@ class WaiverSignController extends Controller
             'ok' => true,
             'show' => ['id' => (int) $context->show->id, 'name' => (string) $context->show->name],
             'eventUrl' => rtrim((string) config('app.url'), '/').'/'.$context->show->profileURL,
-            'reference' => substr((string) $waiver->waiver_id, -8),
+            'reference' => substr((string) $waiver->tracking_id, -8),
             'signedAt' => $waiver->signed_at?->toIso8601String(),
         ]);
     }

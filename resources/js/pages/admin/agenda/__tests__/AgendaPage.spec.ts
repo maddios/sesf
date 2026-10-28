@@ -85,6 +85,18 @@ describe('AgendaPage', () => {
     expect(await screen.findByText('Agenda order saved.')).toBeTruthy();
   });
 
+  it('filters by type through the URL and turns reordering off while filtered', async () => {
+    const { seen } = stubAgenda();
+    const user = userEvent.setup();
+    const { router } = await renderAt(Page, '/admin/agenda?f.show_id=4');
+    await screen.findByRole('list', { name: 'Agenda items' });
+    await user.selectOptions(screen.getByLabelText('Type'), '2');
+    await waitFor(() => expect(router.currentRoute.value.query['f.type_id']).toBe('2'));
+    await waitFor(() => expect(seen.filter((r) => r.path === '/admin-api/agenda').at(-1)?.params.get('filter[type_id]')).toBe('2'));
+    expect(await screen.findByText('Clear the type filter to change the order.')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Move Opening remarks down' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it('reports a refused order and reloads the list', async () => {
     const { seen } = stubAgenda(ROWS, (r) =>
       r.method === 'POST' && r.path === '/admin-api/agenda/reorder'

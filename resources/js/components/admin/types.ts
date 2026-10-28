@@ -2,7 +2,7 @@
 
 export type FormValues = Record<string, unknown>;
 
-export type AdminFieldType = 'text' | 'textarea' | 'url' | 'email' | 'number' | 'checkbox' | 'select' | 'money' | 'date' | 'datetime';
+export type AdminFieldType = 'text' | 'textarea' | 'url' | 'email' | 'password' | 'number' | 'checkbox' | 'select' | 'money' | 'date' | 'datetime';
 
 /** One field in an AdminFormModal schema. `name` is the API field (errors are matched on it). */
 export interface AdminField {

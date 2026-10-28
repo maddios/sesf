@@ -31,8 +31,10 @@ has 2 decimals, so the cents results equal the legacy results.
 
 - **Reproduced:** every rule in the table above, including the guest-order dependence, signed owed, and
   non-adult types priced as child.
-- **Fixed:** negative counts, quantities, prices, donation, discount or received now throw
-  `InvalidArgumentException`. Legacy accepted them, and dev holds 3 rows with `discount = -30`.
+- **Fixed:** negative counts, quantities, prices or donation now throw `InvalidArgumentException`.
+  Discount and received are signed ledger values (`Money::toSignedCents`): dev holds 3 rows with
+  `discount = -30`, and a refund can make received negative. They are priced as signed, so owed stays
+  `total − received − discount` and no read, admin list or write fails on them.
 - **Fixed:** owed is computed whenever it is needed. Legacy wrote `amount_owed` only during
   `GET getInvoice` (`updateInvoiceAmounts`) and in the PayPal IPN, so the stored value goes stale.
 - **Not ported (bugs for the payment work):** PayPal IPN does `amount_owed -= cumulative received`
@@ -56,7 +58,7 @@ Stored `amount_owed` is compared with the calculated owed. Each row lands in the
 | J stored owed higher | 30 | 0 | Items removed or prices lowered after the last invoice view. |
 | B payment after last view | 12 | 0 | Admin entered `amount_received`, and `amount_owed` was never recomputed. |
 | C discount after last view | 5 | 0 | Admin set `discount`, and `amount_owed` was never recomputed. |
-| N negative stored discount | 3 | 0 | Legacy accepted it. The new validation rejects it. |
+| N negative stored discount | 3 | 0 | Legacy accepted it. Priced as a signed value (owed = total + 30). |
 | F car body not allowed | 2 | 0 | The car is linked but its body is not in `car_body_show`, so legacy excludes it. Stored values used it. |
 | **Total** | **1260** | **77** | |
 

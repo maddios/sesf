@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Http\Controllers\Admin\LegacyAdminRedirectController;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -22,14 +23,14 @@ class LegacyAdminRedirectTest extends TestCase
             'admin2 root' => ['/admin2', '/#/admin'],
             'judging' => ['/admin2/judging_list', '/#/admin/judging'],
             'judging with id' => ['/admin2/judging_list/12', '/#/admin/judging'],
-            'check-in' => ['/admin2/checkin_list', '/#/admin/check-in'],
+            'check-in' => ['/admin2/checkin_list', '/#/admin/checkin'],
             't-shirts' => ['/admin2/tshirt_list', '/#/admin/tshirts'],
             'waivers' => ['/admin2/waivers_list', '/#/admin/waivers'],
-            'members' => ['/admin2/member_list', '/#/admin/members-report'],
-            'events' => ['/admin2/event_summary', '/#/admin/events-report'],
-            'extras' => ['/admin2/extra_list', '/#/admin/extras-report'],
+            'members' => ['/admin2/member_list', '/#/admin/reports/members'],
+            'events' => ['/admin2/event_summary', '/#/admin/reports/event-summary'],
+            'extras' => ['/admin2/extra_list', '/#/admin/reports/extras'],
             'unknown' => ['/admin2/nope', '/#/admin'],
-            'query kept' => ['/admin2/event_summary?show_id=5&x=a%20b', '/#/admin/events-report?show_id=5&x=a+b'],
+            'query kept' => ['/admin2/event_summary?show_id=5&x=a%20b', '/#/admin/reports/event-summary?show_id=5&x=a+b'],
             'admin query kept' => ['/admin?tab=1', '/#/admin?tab=1'],
         ];
     }
@@ -51,6 +52,17 @@ class LegacyAdminRedirectTest extends TestCase
 
         $this->assertStringNotContainsString("\n", $location);
         $this->assertStringNotContainsString("\r", $location);
-        $this->assertStringEndsWith('/#/admin/members-report?a=Set-Cookie%3Ax', $location);
+        $this->assertStringEndsWith('/#/admin/reports/members?a=Set-Cookie%3Ax', $location);
+    }
+
+    #[Test]
+    public function every_mapped_legacy_section_lands_on_a_registered_admin_page(): void
+    {
+        $registry = (string) file_get_contents(base_path('resources/js/admin/registry.ts'));
+        $registered = preg_match_all("/path: '([^']+)'/", $registry, $matches) ? $matches[1] : [];
+
+        foreach (LegacyAdminRedirectController::ADMIN2_SECTIONS as $legacy => $path) {
+            $this->assertContains($path, $registered, "{$legacy} maps to {$path}, which is not in the admin registry.");
+        }
     }
 }

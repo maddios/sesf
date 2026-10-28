@@ -43,6 +43,7 @@ final class UserResource extends JsonResource
             'image_url' => $user->imageURL,
             'is_disabled' => $user->trashed(),
             'disabled_at' => $user->deleted_at?->toIso8601String(),
+            'profile_url' => '/'.$user->profileURL,
             'cars_count' => (int) ($user->getAttribute('cars_count') ?? 0),
             'date_registered' => $user->date_registered?->toIso8601String(),
             'created_at' => $user->created_at?->toIso8601String(),

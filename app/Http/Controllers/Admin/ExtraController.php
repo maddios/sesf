@@ -101,7 +101,7 @@ final class ExtraController extends Controller
             return $conflict($registrations);
         }
 
-        AuditLog::record('extra.delete', self::RESOURCE, [$model->id]);
+        AuditLog::record('extra.delete', self::RESOURCE, [$model->id], AuditLog::deleted($model));
 
         return response()->json(null, 204);
     }

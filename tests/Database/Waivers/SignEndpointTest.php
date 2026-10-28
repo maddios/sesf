@@ -17,14 +17,14 @@ class SignEndpointTest extends WaiverTestCase
     }
 
     #[Test]
-    public function prefill_returns_names_a_masked_email_and_the_csrf_token_only(): void
+    public function prefill_returns_names_the_full_email_and_the_csrf_token_only(): void
     {
         $waiver = $this->pending();
 
         $response = $this->getJson('/waiver_sign/t/'.$this->tracking($waiver).'/prefill')->assertOk();
 
         $this->assertSame(['ok', 'first', 'last', 'email', 'csrf'], array_keys((array) $response->json()));
-        $response->assertJson(['ok' => true, 'first' => 'Jane', 'last' => 'Doe', 'email' => 'j***@example.com']);
+        $response->assertJson(['ok' => true, 'first' => 'Jane', 'last' => 'Doe', 'email' => 'jane.doe@example.com']);
         $this->assertNotEmpty($response->json('csrf'));
     }
 
@@ -32,10 +32,12 @@ class SignEndpointTest extends WaiverTestCase
     public function prefill_is_404_for_unknown_and_409_for_signed_links(): void
     {
         $this->getJson('/waiver_sign/t/'.str_repeat('0', 32).'/prefill')->assertNotFound()->assertJson(['ok' => false, 'error' => 'Invalid waiver link.']);
+        $this->getJson('/waiver_sign/t/'.str_repeat('0', 32).'/prefill')->assertJsonMissingPath('email');
         $this->getJson('/waiver_sign/t/short/prefill')->assertNotFound();
 
         $signed = Waiver::factory()->signed()->create(['show_registration_id' => $this->registration()->id]);
-        $this->getJson('/waiver_sign/t/'.$this->tracking($signed).'/prefill')->assertStatus(409)->assertJson(['error' => 'Already signed.']);
+        $this->getJson('/waiver_sign/t/'.$this->tracking($signed).'/prefill')->assertStatus(409)->assertJson(['error' => 'Already signed.'])
+            ->assertJsonMissingPath('email');
 
         $orphan = Waiver::factory()->create(['show_registration_id' => null, 'adhoc_show_id' => 999999]);
         $this->getJson('/waiver_sign/t/'.$this->tracking($orphan).'/prefill')->assertNotFound()->assertJson(['error' => 'Event not found']);
@@ -70,7 +72,7 @@ class SignEndpointTest extends WaiverTestCase
 
         $this->getJson('/waiver_sign/thank-you/'.$this->tracking($waiver).'/data')
             ->assertOk()
-            ->assertJson(['ok' => true, 'show' => ['name' => 'Spring Fest'], 'reference' => substr((string) $fresh?->waiver_id, -8)])
+            ->assertJson(['ok' => true, 'show' => ['name' => 'Spring Fest'], 'reference' => substr((string) $fresh?->tracking_id, -8)])
             ->assertJsonMissingPath('email');
     }
 
@@ -84,7 +86,6 @@ class SignEndpointTest extends WaiverTestCase
             'missing last name' => [['last_name' => null], 'First and last name are required.'],
             'first name too long' => [['first_name' => str_repeat('a', 61)], ''],
             'control character in name' => [['last_name' => "Doe\x07"], ''],
-            'missing email' => [['email' => ''], 'Email is required.'],
             'bad email' => [['email' => 'not-an-email'], 'Enter a valid email address.'],
             'email too long' => [['email' => str_repeat('a', 120).'@example.test'], ''],
             'bad mode' => [['signature_mode' => 'svg'], ''],

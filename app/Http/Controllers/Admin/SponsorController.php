@@ -130,7 +130,7 @@ final class SponsorController extends Controller
         }
 
         $images->delete($model->id);
-        AuditLog::record('sponsor.delete', self::RESOURCE, [$model->id]);
+        AuditLog::record('sponsor.delete', self::RESOURCE, [$model->id], AuditLog::deleted($model, self::REDACT));
 
         return response()->json(null, 204);
     }

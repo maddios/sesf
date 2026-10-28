@@ -57,6 +57,11 @@ class RateLimitServiceProvider extends ServiceProvider
 
         RateLimiter::for('waiver-prefill', fn (Request $request) => Limit::perMinute(120)->by($request->ip()));
 
+        // Legacy resize URLs (new; legacy had none). A gallery page is 36 thumbnails plus covers and logos, and a
+        // show's visitors can share one NAT address, so this is loose; renders have their own tighter limit
+        // (LegacyImageController::RENDERS_PER_MINUTE).
+        RateLimiter::for('legacy-images', fn (Request $request) => Limit::perMinute(1200)->by('li-ip|'.$request->ip()));
+
         // Member account writes. Keyed by the signed-in member, so one member's limit never affects another.
         // Password checks (account-info email change, delete-account): guessing protection for a hijacked session.
         RateLimiter::for('account-password-check', fn (Request $request) => [

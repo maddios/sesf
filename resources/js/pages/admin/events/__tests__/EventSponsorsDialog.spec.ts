@@ -14,7 +14,7 @@ function event(): Event {
   return {
     id: 1, name: 'Spring Show', short_name: 'spring', description: null, short_description: null, schedule: null,
     is_schedule_pdf: false, price_car: null, price_adult: null, price_child: null, date_start: null, date_end: null,
-    date_active: null, date_registration_deactivation: null, is_active: true, is_judging_released: false, has_image: false,
+    date_active: null, date_registration_deactivation: null, is_active: true, is_judging_released: false, waiver_id: null, has_image: false,
     image_url: '', primary_sponsor_id: null, registrations_count: 0, created_at: null, updated_at: null,
   };
 }

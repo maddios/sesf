@@ -134,6 +134,7 @@ onMounted(() => void load());
       >
         <SafeImage
           :src="car.imageUrl || CAR_FALLBACK_IMAGE"
+          resize="garageCar"
           :alt="`Photo of ${carTitle(car)}`"
           img-class="aspect-[4/3] w-full object-cover"
         />

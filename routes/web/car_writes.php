@@ -11,4 +11,4 @@ Route::put('car/profile', [CarController::class, 'update'])->middleware('throttl
 
 Route::post('car/profile-image', [CarController::class, 'storeImage'])->middleware('throttle:20,1');
 
-Route::post('member/sell-car', [CarController::class, 'sell'])->middleware('throttle:account-write');
+Route::post('member/sell-car', [CarController::class, 'sell'])->middleware(['block.impersonated', 'throttle:account-write']);

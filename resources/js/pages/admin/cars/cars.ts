@@ -19,6 +19,8 @@ export interface Car {
   has_image: boolean;
   image_url: string;
   registrations_count: number;
+  /** Events the car is entered in (read-only; edited on the registration). */
+  shows: Array<{ registration_id: number; show_id: number; show_name: string | null }>;
   in_use: boolean;
   created_at: string | null;
   updated_at: string | null;
@@ -65,13 +67,22 @@ function toSelect(option: CarOption): { value: string; label: string } {
 
 export const CAR_COLUMNS: AdminColumn<Car>[] = [
   { key: 'image', label: 'Photo', srOnlyLabel: true, hideOnMobile: true, class: 'w-16' },
+  { key: 'id', label: 'ID', sortable: true, hideOnMobile: true },
   { key: 'model', label: 'Year, model', sortable: true, format: (row) => `${row.year ?? ''} ${row.model ?? ''}`.trim() },
   { key: 'nickname', label: 'Nickname', sortable: true, hideOnMobile: true },
   { key: 'owner_name', label: 'Owner', hideOnMobile: true },
   { key: 'type_name', label: 'Type', hideOnMobile: true },
   { key: 'body_name', label: 'Body', hideOnMobile: true },
+  { key: 'VIN', label: 'VIN', sortable: true, hideOnMobile: true },
+  { key: 'profile', label: 'Profile link', hideOnMobile: true },
+  { key: 'shows', label: 'Shows', hideOnMobile: true, format: (row) => row.shows.map((show) => show.show_name ?? `#${show.show_id}`).join(', ') || '—' },
   { key: 'is_confirmed', label: 'Status', sortable: true },
 ];
+
+/** The public car profile (legacy Car::profileURL). */
+export function profileHref(car: Car): string {
+  return `/#/car/${car.id}`;
+}
 
 export function toForm(car: Car | null): FormValues {
   return {

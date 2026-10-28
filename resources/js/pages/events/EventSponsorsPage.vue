@@ -56,6 +56,7 @@ const tiers = computed(() => groupSponsorsByTier(sponsors.data.value?.sponsors ?
               >
                 <SafeImage
                   :src="sponsor.logoUrl"
+                  resize="eventSponsor"
                   alt=""
                   :placeholder="sponsor.name"
                   img-class="h-16 w-full object-contain"
@@ -65,6 +66,7 @@ const tiers = computed(() => groupSponsorsByTier(sponsors.data.value?.sponsors ?
               <SafeImage
                 v-else
                 :src="sponsor.logoUrl"
+                resize="eventSponsor"
                 alt=""
                 :placeholder="sponsor.name"
                 img-class="h-16 w-full object-contain"

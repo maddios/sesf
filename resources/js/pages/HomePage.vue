@@ -108,6 +108,7 @@ const homeVideoSrc = `https://www.youtube-nocookie.com/embed/${HOME_VIDEO_ID}?re
           >
             <SafeImage
               :src="latestEvent.imageUrl"
+              resize="eventCard"
               alt=""
               :placeholder="latestEvent.name"
               width="200"
@@ -162,6 +163,7 @@ const homeVideoSrc = `https://www.youtube-nocookie.com/embed/${HOME_VIDEO_ID}?re
                   >
                     <SafeImage
                       :src="sponsor.logoUrl"
+                      resize="homeSponsor"
                       :alt="sponsor.name"
                       img-class="max-h-full max-w-full object-contain"
                     />
@@ -233,6 +235,7 @@ const homeVideoSrc = `https://www.youtube-nocookie.com/embed/${HOME_VIDEO_ID}?re
             >
               <SafeImage
                 :src="sponsor.logoUrl"
+                resize="homeSponsor"
                 :alt="sponsor.name"
                 img-class="max-h-full max-w-full object-contain"
               />

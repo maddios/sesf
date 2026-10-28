@@ -37,13 +37,21 @@ export const ADMIN_REGISTRY: AdminRegistryEntry[] = [
   { key: 'locations', label: 'Locations', group: 'Event', path: 'locations', component: () => import('../pages/admin/locations/LocationsPage.vue'), minLevel: 3 },
   { key: 'extras', label: 'Extras', group: 'Event', path: 'extras', component: () => import('../pages/admin/extras/ExtrasPage.vue'), minLevel: 3 },
   { key: 'extra-registrations', label: 'Extra registrations', group: 'Event', path: 'extra-registrations', component: () => import('../pages/admin/extra-registrations/ExtraRegistrationsPage.vue'), minLevel: 3 },
+  { key: 'checkin', label: 'Check-in', group: 'Event', path: 'checkin', component: () => import('../pages/admin/checkin/CheckinPage.vue'), minLevel: 3 },
+  { key: 'tshirts', label: 'T-shirts', group: 'Event', path: 'tshirts', component: () => import('../pages/admin/tshirts/TshirtsPage.vue'), minLevel: 3 },
+  { key: 'expenses', label: 'Expense tracker', group: 'Event', path: 'expenses', component: () => import('../pages/admin/expenses/ExpensesPage.vue'), minLevel: 3 },
+  { key: 'judging', label: 'Judging', group: 'Event', path: 'judging', component: () => import('../pages/admin/judging/JudgingPage.vue'), minLevel: 2 },
   // Registration
   { key: 'registrations', label: 'Registrations', group: 'Registration', path: 'registrations', component: () => import('../pages/admin/registrations/RegistrationsPage.vue'), minLevel: 3 },
   { key: 'registration-guests', label: 'Registration guests', group: 'Registration', path: 'registration-guests', component: () => import('../pages/admin/registration-guests/RegistrationGuestsPage.vue'), minLevel: 3 },
+  { key: 'waivers', label: 'Waivers', group: 'Registration', path: 'waivers', component: () => import('../pages/admin/waivers/WaiversPage.vue'), minLevel: 3 },
   // Sponsors
   { key: 'sponsors', label: 'Sponsors', group: 'Sponsors', path: 'sponsors', component: () => import('../pages/admin/sponsors/SponsorsPage.vue'), minLevel: 3 },
   // Extras
   // Reports
+  { key: 'report-members', label: 'Members report', group: 'Reports', path: 'reports/members', component: () => import('../pages/admin/reports/MembersReportPage.vue'), minLevel: 3 },
+  { key: 'report-event-summary', label: 'Event summary', group: 'Reports', path: 'reports/event-summary', component: () => import('../pages/admin/reports/EventSummaryReportPage.vue'), minLevel: 3 },
+  { key: 'report-extras', label: 'Extras summary', group: 'Reports', path: 'reports/extras', component: () => import('../pages/admin/reports/ExtrasReportPage.vue'), minLevel: 3 },
 ];
 
 /** Entries the given user level may open, grouped in ADMIN_GROUPS order (empty groups left out). */

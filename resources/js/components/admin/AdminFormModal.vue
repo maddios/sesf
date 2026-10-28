@@ -267,6 +267,7 @@ defineExpose({ values, dirty, requestClose });
                 v-bind="inputProps"
                 class="form-control w-full"
                 :type="field.type ?? 'text'"
+                :autocomplete="field.type === 'password' ? 'new-password' : undefined"
                 :maxlength="field.maxlength"
                 :required="field.required"
                 :value="textValue(field.name)"

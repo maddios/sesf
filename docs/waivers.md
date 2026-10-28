@@ -8,7 +8,7 @@ Waiver::getWaiverPDF). Pages are built separately and call these JSON endpoints.
 
 | Verb | Path | Notes |
 |---|---|---|
-| GET | `waiver_sign/t/{tracking}/prefill` | throttle `waiver-prefill`. `{ok,first,last,email(masked),csrf}`; 404 unknown, 409 signed |
+| GET | `waiver_sign/t/{tracking}/prefill` | throttle `waiver-prefill`. `{ok,first,last,email,csrf}` (full email on file); 404 unknown, 409 signed |
 | POST | `waiver_sign/t/{tracking}` | throttle `waiver-sign`. `{ok,thankYouUrl}`; 400 invalid, 404, 409, 419, 500 |
 | GET | `waiver_sign/s/{showId}/prefill` | walk-in: one pending row per session+show; 429 past the per-IP hourly cap |
 | POST | `waiver_sign/s/{showId}` | 403 when the session holds no unsigned walk-in waiver for the show |
@@ -23,6 +23,20 @@ POST bodies keep the legacy widget field names: `first_name`, `last_name`, `emai
 `signature_mode` (draw|type), `signature_base64` (PNG data URL in both modes), `signature_text`
 (typed text, Latin letters, max 80), `signing_for_minor` + `adult_first_name`/`adult_last_name`,
 `geolocation{lat,lng,accuracy}` (optional), `waiver_ui_mode=embedded`.
+
+## Pages (app/Http/Controllers/Waivers/WaiverPageController.php, resources/views/waiver)
+
+| GET | Path | Notes |
+|---|---|---|
+| GET | `waiver_sign/t/{tracking}` | sign page; 404 page for an unknown link; "already on file" page when signed |
+| GET | `waiver_sign/s/{showId}` | walk-in sign page; 404 for an unknown show |
+| GET | `waiver_sign/thank-you/{tracking}` | shell; 404 unless signed. Data from `.../data` |
+| GET | `waiver/{showId}` | portal shell (login, status, sign links); 404 for an unknown show |
+
+The pages hold no secret: the widget (resources/js/waiver) reads its own path and calls the JSON
+endpoints. The signing widget keeps the legacy behaviour: signature modes draw and type (typed name
+rendered in Allura to a 600x180 PNG on the client), legacy pen options, 3 attempts with a 120 s timeout
+for transient failures, the legacy messages, and sessionStorage recovery hints.
 
 ## Services (app/Services/Waivers)
 
@@ -51,12 +65,19 @@ signature image (none was kept locally, and the provider is never contacted).
 
 - Tracking ids: 128-bit random, never logged (logs use the row id). Unknown is 404 and signed is
   409: distinguishing them reveals nothing, since an id cannot be guessed; lookup is an indexed match.
-- Prefill shows only the waiver's own first/last and a masked email (`j***@example.com`).
+- Prefill returns the waiver's own first/last and full email. The tracking id is the bearer secret and the link is emailed to that address, so this is accepted (legacy behaviour). 404 and 409 bodies carry no email. Prefill is throttled and never logged. Walk-in (`s/{id}`) prefill has no email on file, so it is empty.
 - Signatures: data URL only, size cap `sesf.waiver_signature_base64_max_chars`, strict base64,
   PNG magic + finfo + getimagesize, 2000x800 pixel cap, ImageMagick decode under resource limits
   with the PNG decoder forced, metadata stripped. Stored legacy images are re-checked before render.
 - dompdf (3.1.6): remote off, PHP and JS off, only `data://` allowed, chroot `resources/views/waivers/pdf`.
 - PDFs: `config('waivers.storage_dir')/{waiver_id}.pdf`, temp file + rename, mode 0640, never public/.
-  A legacy `public/waivers/{id}.pdf` is copied into storage on first admin view (not served from there).
+- Legacy PDFs (the old app wrote `public/waivers/{id}.pdf`) are read from `waivers.legacy_public_dir`
+  (`WAIVERS_LEGACY_DIR`, default `storage/legacy-waivers`; dev compose mounts the store's `public/waivers` there)
+  and copied into storage on first admin view (`GET waiver-pdf`, admin only). They must never be web-served:
+  `public/.htaccess` answers 403 for `/waivers/*`. On nginx add the same rule to the vhost of this app AND the
+  legacy app while their `public/waivers` still exists:
+  `location ^~ /waivers/ { return 403; }`
 - Walk-in growth: a session reuses its unsigned row; new rows cost one hit of a per-IP hourly budget
-  (`waivers.adhoc_creates_per_ip_per_hour`); `pruneStaleAdhoc()` deletes old unsigned rows.
+  (`waivers.adhoc_creates_per_ip_per_hour`, env `WAIVER_ADHOC_CREATES_PER_IP_PER_HOUR`, default 300, sized for
+  venue Wi-Fi or carrier NAT where many walk-ins share one IP; a trip is logged); `pruneStaleAdhoc()` deletes old
+  unsigned rows.

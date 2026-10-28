@@ -28,7 +28,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @property string $title
  * @property string|null $original_name
  * @property int|null $sort_order
- * @property CarbonInterface $date_taken
+ * @property CarbonInterface|null $date_taken
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
  * @property-read string $imageURL

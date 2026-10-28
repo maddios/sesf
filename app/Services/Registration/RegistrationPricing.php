@@ -42,13 +42,18 @@ final class RegistrationPricing implements RegistrationBalance
 
     public const SOURCE_STORED = 'stored';
 
+    /**
+     * The car_body_show body ids per show id, read once per instance (the admin list prices many
+     * registrations of the same show).
+     *
+     * @var array<int, array<int, true>>
+     */
+    private array $allowedBodies = [];
+
     public function __construct(private readonly PricingCalculator $calculator = new PricingCalculator) {}
 
     /**
      * @return Totals
-     *
-     * @throws \InvalidArgumentException when a stored value is negative on a show that is not ended
-     *                                   (the calculator rejects negative inputs; see docs/pricing.md)
      */
     public function totalsFor(?ShowRegistration $registration): array
     {
@@ -63,14 +68,9 @@ final class RegistrationPricing implements RegistrationBalance
             return $this->zero();
         }
 
-        $result = $this->calculator->calculate($this->input($registration, $show));
-        $totals = $this->fromResult($result, self::SOURCE_COMPUTED);
+        $totals = $this->fromResult($this->calculator->calculate($this->input($registration, $show)), self::SOURCE_COMPUTED);
 
-        if (! $show->ended) {
-            return $totals;
-        }
-
-        return $this->withStoredSummary($totals, $registration);
+        return $show->ended ? $this->withStoredSummary($totals, $registration) : $totals;
     }
 
     /**
@@ -88,32 +88,26 @@ final class RegistrationPricing implements RegistrationBalance
         $registration->loadMissing(['carShow', 'cars', 'guests', 'shirts.shirtType', 'extras.showExtra']);
         $show = $registration->carShow;
 
-        if ($show !== null && $show->ended) {
-            $storedOwed = self::signedCents((string) $registration->getOriginal('amount_owed'));
-            $receivedChange = self::signedCents((string) $registration->amount_received)
-                - self::signedCents((string) $registration->getOriginal('amount_received'));
-            $discountChange = self::signedCents((string) $registration->discount)
-                - self::signedCents((string) $registration->getOriginal('discount'));
-
-            return $storedOwed - $receivedChange - $discountChange;
-        }
-
         if ($show === null) {
             return 0;
         }
 
-        // The calculator only takes non-negative inputs, but received can be negative after a
-        // refund and legacy rows hold negative discounts (docs/pricing.md, row N). So the total is
-        // priced on a copy with received and discount zeroed, and both are subtracted here as
-        // signed cents: owed = total - received - discount.
-        $priced = clone $registration;
-        $priced->amount_received = '0.00';
-        $priced->discount = '0.00';
-        $totalCents = $this->calculator->calculate($this->input($priced, $show))->totalCents;
+        if ($show->ended) {
+            return self::signedCents((string) $registration->getOriginal('amount_owed'))
+                - self::change($registration, 'amount_received')
+                - self::change($registration, 'discount');
+        }
 
-        return $totalCents
-            - self::signedCents((string) $registration->amount_received)
-            - self::signedCents((string) $registration->discount);
+        return $this->calculator->calculate($this->input($registration, $show))->owedCents;
+    }
+
+    /**
+     * Signed cents a money column moved since the model was loaded (current minus original).
+     */
+    public static function change(ShowRegistration $registration, string $column): int
+    {
+        return self::signedCents((string) $registration->getAttribute($column))
+            - self::signedCents((string) $registration->getOriginal($column));
     }
 
     /**
@@ -128,22 +122,16 @@ final class RegistrationPricing implements RegistrationBalance
     }
 
     /**
-     * Reads a stored decimal that may be negative (Money::toCents rejects a sign).
+     * Reads a stored decimal that may be negative.
      */
     public static function signedCents(?string $value): int
     {
-        if ($value === null || $value === '') {
-            return 0;
-        }
-
-        return str_starts_with($value, '-')
-            ? -Money::toCents(substr($value, 1))
-            : Money::toCents($value);
+        return $value === null || $value === '' ? 0 : Money::toSignedCents($value);
     }
 
     private function input(ShowRegistration $registration, CarShow $show): PricingInput
     {
-        $allowedBodies = array_flip(
+        $allowedBodies = $this->allowedBodies[(int) $show->id] ??= array_flip(
             DB::table('car_body_show')
                 ->where('show_id', $show->id)
                 ->pluck('body_id')

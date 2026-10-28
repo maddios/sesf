@@ -33,6 +33,12 @@ export function saveAgendaOrder(showId: number, ids: number[]): Promise<unknown>
   return api.post<unknown>(`${ADMIN_API_BASE}/agenda/reorder`, { show_id: showId, ids });
 }
 
+/** Agenda item types (car_show_agenda.type_id). */
+export const AGENDA_TYPES = [
+  { value: '1', label: 'Agenda' },
+  { value: '2', label: 'Judging' },
+];
+
 export const AGENDA_FIELDS: AdminField[] = [
   { name: 'name', label: 'Name', required: true, maxlength: 255 },
   {
@@ -40,10 +46,7 @@ export const AGENDA_FIELDS: AdminField[] = [
     label: 'Type',
     type: 'select',
     required: true,
-    options: [
-      { value: '1', label: 'Agenda' },
-      { value: '2', label: 'Judging' },
-    ],
+    options: AGENDA_TYPES,
   },
   { name: 'text', label: 'Description (HTML)', type: 'textarea', rows: 10, hint: 'Basic formatting only. Scripts and event handlers are removed when saved.' },
   { name: 'is_visible', label: 'Visible on the site', type: 'checkbox' },

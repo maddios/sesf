@@ -23,6 +23,12 @@ const ALWAYS_ALLOWED: ConsoleAllow[] = [
   ({ url }) => url !== '' && !url.startsWith(APP_ORIGIN),
 ];
 
+/** Real PayPal hosts (paypal.com and its subdomains). The sandbox only ever talks to the paypalstub container. */
+export function isRealPaypalUrl(url: string | URL): boolean {
+  const host = new URL(url).hostname.toLowerCase();
+  return host === 'paypal.com' || host.endsWith('.paypal.com');
+}
+
 interface Fixtures {
   /** Registers an extra allowed console error for the current test (e.g. an expected 422). */
   allowConsole: (rule: ConsoleAllow | RegExp) => void;
@@ -34,7 +40,20 @@ function describe(msg: ConsoleMessage): { text: string; url: string } {
   return { text: msg.text(), url: msg.location().url ?? '' };
 }
 
-export const test = base.extend<Fixtures>({
+export const test = base.extend<Fixtures & { blockRealPaypal: void }>({
+  // Every request from the browser to real PayPal (e.g. a click on "Pay") is aborted and fails the test.
+  blockRealPaypal: [
+    async ({ context }, use) => {
+      const hits: string[] = [];
+      await context.route(isRealPaypalUrl, (route) => {
+        hits.push(route.request().url());
+        return route.abort('blockedbyclient');
+      });
+      await use();
+      expect(hits, 'requests to real PayPal').toEqual([]);
+    },
+    { auto: true },
+  ],
   consoleErrors: [
     async ({ page }, use) => {
       const errors: string[] = [];

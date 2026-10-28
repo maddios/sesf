@@ -9,6 +9,7 @@ use App\Http\Requests\Registration\UpdateExtraRequest;
 use App\Services\Registration\RegistrationWriter;
 use App\Services\Registration\Writer\RegistrationProjector;
 use App\Services\Registration\Writer\RegistrationRejected;
+use App\Support\Admin\AuditLog;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -17,6 +18,7 @@ use Illuminate\Http\JsonResponse;
  * CSRF token (web middleware), and is throttled per user.
  *
  * Responses reuse the read endpoints, so a write returns exactly what the matching GET returns.
+ * An administrator's write for another member (user_id) gets an audit entry; these routes are outside admin-api.
  */
 class EventRegistrationWriteController extends Controller
 {
@@ -30,9 +32,16 @@ class EventRegistrationWriteController extends Controller
     public function save(SaveRegistrationRequest $request): JsonResponse
     {
         try {
-            $this->writer->save($request->show(), $request->targetUser(), $request->registrationData(), $request->isOnBehalf());
+            $registration = $this->writer->save($request->show(), $request->targetUser(), $request->registrationData(), $request->isOnBehalf());
         } catch (RegistrationRejected $e) {
             return RegistrationErrors::response($e->errors());
+        }
+
+        if ($request->isOnBehalf()) {
+            AuditLog::record('registration.save_on_behalf', 'registration', [$registration->id], [], [
+                'user_id' => $request->targetUser()->id,
+                'show_id' => $registration->show_id,
+            ]);
         }
 
         return $this->read->registration($request);
@@ -54,9 +63,17 @@ class EventRegistrationWriteController extends Controller
     public function extra(UpdateExtraRequest $request): JsonResponse
     {
         try {
-            $this->writer->saveExtra($request->targetUser(), $request->extra(), $request->quantity(), $request->isOnBehalf());
+            $registration = $this->writer->saveExtra($request->targetUser(), $request->extra(), $request->quantity(), $request->isOnBehalf());
         } catch (RegistrationRejected $e) {
             return RegistrationErrors::response($e->errors());
+        }
+
+        if ($request->isOnBehalf()) {
+            AuditLog::record('registration.extra_on_behalf', 'registration', [$registration->id], [], [
+                'user_id' => $request->targetUser()->id,
+                'extra_id' => $request->extra()->id,
+                'num_extras' => $request->quantity(),
+            ]);
         }
 
         return $this->read->extra($request);

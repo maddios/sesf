@@ -167,7 +167,7 @@ class IpnVerificationTest extends IpnTestCase
      */
     #[Test]
     #[DataProvider('rejectedMessages')]
-    public function an_invalid_message_is_rejected_before_the_postback_and_stores_nothing(array $overrides, string $reason): void
+    public function an_invalid_message_is_rejected_before_the_postback_and_stored_as_unverified(array $overrides, string $reason): void
     {
         $this->paypalReplies('VERIFIED');
         $registration = $this->registration();
@@ -176,7 +176,12 @@ class IpnVerificationTest extends IpnTestCase
 
         Http::assertNothingSent();
         $this->assertMoney($registration, ['owed' => '100.00', 'received' => '0.00', 'actual' => null, 'paid' => false]);
-        $this->assertSame(0, $this->paymentCount());
+        // A message without a usable txn_id cannot be deduplicated, so it is only logged.
+        if (array_key_exists('txn_id', $overrides)) {
+            $this->assertSame(0, $this->paymentCount());
+        } else {
+            $this->assertUnverifiedRejection($reason);
+        }
         $this->assertSame(['adminInvalid'], $this->mailer->methods());
         $this->assertStringContainsString($reason, (string) $this->mailer->calls[0]['text']);
     }
@@ -193,7 +198,8 @@ class IpnVerificationTest extends IpnTestCase
 
         Http::assertNothingSent();
         $this->assertMoney($registration, ['owed' => '100.00', 'received' => '0.00', 'actual' => null, 'paid' => false]);
-        $this->assertSame(0, $this->paymentCount());
+        $this->assertSame(2, $this->paymentCount());
+        $this->assertUnverifiedRejection(IpnProcessor::RECEIVER_MISMATCH);
         $this->assertSame(['adminEmailMismatch'], $this->mailer->methods());
     }
 
@@ -251,8 +257,37 @@ class IpnVerificationTest extends IpnTestCase
         }
 
         Http::assertNothingSent();
-        $this->assertSame(0, $this->paymentCount());
+        $this->assertSame(4, $this->paymentCount());
+        $this->assertUnverifiedRejection(IpnProcessor::UNKNOWN_INVOICE);
         $this->assertSame(['adminInvalidInvoice'], $this->mailer->methods());
+    }
+
+    #[Test]
+    public function a_resent_rejected_message_is_stored_once_and_does_not_block_the_corrected_message(): void
+    {
+        $this->paypalReplies('VERIFIED');
+        $registration = $this->registration();
+        $wrong = ['receiver_email' => 'attacker@example.test', 'business' => 'attacker@example.test'];
+
+        $this->assertEmptyOk($this->postIpn($registration, $wrong));
+        $this->assertEmptyOk($this->postIpn($registration, $wrong));
+        $this->assertSame(1, $this->paymentCount());
+
+        $this->assertEmptyOk($this->postIpn($registration));
+
+        $this->assertSame(2, $this->paymentCount());
+        $this->assertTrue($registration->fresh()?->is_paid);
+        $this->assertSame('applied', $this->lastAudit()['sesf']['outcome']);
+    }
+
+    private function assertUnverifiedRejection(string $reason): void
+    {
+        $row = PayPalPayment::query()->latest('id')->firstOrFail();
+        $this->assertSame('', $row->paypal_verified);
+        $this->assertNull($row->registration_id);
+        $meta = $this->lastAudit()['sesf'];
+        $this->assertSame('rejected', $meta['outcome']);
+        $this->assertStringContainsString($reason, (string) $meta['reason']);
     }
 
     #[Test]

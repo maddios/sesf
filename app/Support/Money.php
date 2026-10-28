@@ -66,6 +66,21 @@ final class Money
     }
 
     /**
+     * Like toCents, but a leading minus sign is kept (stored ledger values such as a refund or a
+     * legacy negative discount).
+     */
+    public static function toSignedCents(string|float $amount): int
+    {
+        if (is_float($amount)) {
+            return $amount < 0 ? -self::toCents(-$amount) : self::toCents($amount);
+        }
+
+        $amount = trim($amount);
+
+        return str_starts_with($amount, '-') ? -self::toCents(substr($amount, 1)) : self::toCents($amount);
+    }
+
+    /**
      * Format integer cents as a US dollar string, e.g. 123450 becomes "$1,234.50".
      *
      * @throws InvalidArgumentException for negative cents

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * App shell: skip link, header, the white content panel (<main id="main">) and footer.
+ * App shell: skip link, header, the first-login welcome banner, the white content panel (<main id="main">) and footer.
  * After each route change (path, not query) focus moves to <main> so keyboard and screen-reader users start
  * at the new page content. Contact Us opens the contact dialog and is also re-emitted as `contact`.
  */
@@ -10,6 +10,7 @@ import AppHeader from './AppHeader.vue';
 import AppFooter from './AppFooter.vue';
 import ContactModal from '../components/contact/ContactModal.vue';
 import ImpersonationBanner from '../components/admin/ImpersonationBanner.vue';
+import TutorialBanner from '../components/member/TutorialBanner.vue';
 import { useAuthStore } from '../stores/auth';
 
 const emit = defineEmits<{ contact: [] }>();
@@ -54,6 +55,8 @@ watch(
     <ImpersonationBanner v-if="auth.isLoggedIn" />
 
     <AppHeader />
+
+    <TutorialBanner />
 
     <main
       id="main"

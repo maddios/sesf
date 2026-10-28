@@ -43,7 +43,21 @@ Guests, shirts and extras that are not in the body are kept (legacy). Money keys
 3. Sync cars (`judging_type_id` on the pivot), guests, shirts, extras; ids re-checked against this registration.
 4. Price the stored rows (`RegistrationProjector::stored`, PricingCalculator, always computed), then persist
    `amount_owed` = owed and `is_paid`: false if owed > 0; true if owed ≤ 0 and received > 0; else unchanged.
-   ENDED show (admin only): rows change, `amount_owed`/`is_paid` are never recomputed (amounts: admin app).
+   ENDED show (admin only): rows change, `amount_owed`/`is_paid` are never recomputed.
+
+## Admin edits (admin-api)
+- `PUT admin-api/registrations/{id}` (legacy CarShowRegistration admin): donation, arrival, cancelled, `invoice_id` (unique per
+  show), `car_ids` (the member's cars or cars already on it; kept cars keep their judging type), and `AdminAmounts`:
+  `amount_received_cents`, `discount_cents` (signed), `amount_received_actual_cents` (unsigned), `discount_note`, and the
+  overrides `is_paid` / `amount_owed_cents` (null = the writer's rule). Open show: owed is recomputed with the new
+  received/discount, then the overrides apply. ENDED show: stored owed moves by the change in received and discount (as
+  `RegistrationPricing::owedCents`), then the overrides apply. Beyond ±9999.99: 422 `general.total`.
+- `DELETE admin-api/registrations/{id}`: 409 when money was received, PayPal payments or waivers exist (cancel instead).
+- Guests (`POST|PUT|DELETE admin-api/registration-guests`) and extras (`POST|PUT|DELETE admin-api/extra-registrations`,
+  quantity 0 removes) go through the writer (`saveExtra(byAdmin: true)`), so amounts follow on open shows.
+- `RegistrationRejected` in admin controllers is 422 `{message, errors: {<key>: [msg]}}` (`RegistrationErrors::adminResponse`).
+- New registrations: `POST admin-api/users/{id}/registrations` (also from the registrations page). The full editor for
+  guests/shirts/extras is `/#/:event/e:id/register?user_id=` (`editor_path` on the admin resource).
 
 The quote uses the same projector on the posted state (existing guests in id order, then new ones), so live totals equal
 the saved amount (tested).

@@ -11,7 +11,8 @@ use Illuminate\Validation\Rule;
  * POST admin-api/events and PUT admin-api/events/{id}: the editable event fields (car_show).
  * Widths are the car_show columns (docs/legacy/schema-sesf_dev.sql); text is latin1.
  * Creating an event requires clone_from_show_id once any event exists (legacy carShow.php rule).
- * Activation and judging release are not editable here (guarded; see the activate routes).
+ * Activation and judging release are not editable here (guarded; see the activate routes and admin-api/judging/shows/{id}/release).
+ * waiver_id is the legacy waiver switch: non-empty turns the internal waiver on for the event.
  */
 final class EventRequest extends FormRequest
 {
@@ -45,6 +46,7 @@ final class EventRequest extends FormRequest
             'date_end' => ['nullable', 'date_format:Y-m-d'],
             'date_active' => ['nullable', 'date_format:Y-m-d H:i:s'],
             'date_registration_deactivation' => ['nullable', 'date_format:Y-m-d H:i:s'],
+            'waiver_id' => ['nullable', 'string', 'max:32', new Latin1Text],
         ];
 
         if ($this->isMethod('POST')) {
@@ -78,6 +80,7 @@ final class EventRequest extends FormRequest
             'date_end' => $data['date_end'] ?? null,
             'date_active' => $data['date_active'] ?? null,
             'date_registration_deactivation' => $data['date_registration_deactivation'] ?? null,
+            'waiver_id' => self::nullableText($data['waiver_id'] ?? null),
         ];
     }
 

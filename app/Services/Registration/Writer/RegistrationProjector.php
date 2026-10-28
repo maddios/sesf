@@ -34,7 +34,7 @@ final class RegistrationProjector
     public function __construct(private readonly PricingCalculator $calculator = new PricingCalculator) {}
 
     /**
-     * @throws RegistrationRejected when a stored amount cannot be priced (negative legacy discount)
+     * @throws RegistrationRejected when a stored price cannot be priced (negative)
      */
     public function quote(CarShow $show, ?ShowRegistration $existing, RegistrationData $data): PricingResult
     {
@@ -116,7 +116,7 @@ final class RegistrationProjector
     /**
      * The registration as stored. Relations are reloaded, so call it after the writes.
      *
-     * @throws RegistrationRejected when a stored amount cannot be priced
+     * @throws RegistrationRejected when a stored price cannot be priced (negative)
      */
     public function stored(CarShow $show, ShowRegistration $registration): PricingResult
     {

@@ -2,6 +2,7 @@
 
 namespace App\Support\Admin;
 
+use App\Models\Casts\Money2;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -109,18 +110,19 @@ final class AuditLog
      */
     public static function created(Model $model, array $redact = []): array
     {
-        $out = [];
-        foreach ($model->getAttributes() as $field => $value) {
-            $field = (string) $field;
-            if (in_array($field, self::IGNORED, true) || $field === $model->getKeyName()) {
-                continue;
-            }
-            $out[$field] = self::isSensitive($field, $redact)
-                ? self::REDACTED
-                : ['old' => null, 'new' => self::clip(self::typed($model, $field, $value))];
-        }
+        return self::snapshot($model, $redact, fn (mixed $value): array => ['old' => null, 'new' => $value]);
+    }
 
-        return $out;
+    /**
+     * Fields of a model that was just deleted: [field => {old, new: null}] (redacted where sensitive), so a delete can
+     * be reconstructed from the log.
+     *
+     * @param  list<string>  $redact
+     * @return array<string, array{old: mixed, new: mixed}|string>
+     */
+    public static function deleted(Model $model, array $redact = []): array
+    {
+        return self::snapshot($model, $redact, fn (mixed $value): array => ['old' => $value, 'new' => null]);
     }
 
     /**
@@ -155,11 +157,39 @@ final class AuditLog
         return array_intersect($words, self::SENSITIVE_TOKENS) !== [];
     }
 
-    /** Raw attribute values as their cast scalar type (bool/int/float), so 1 -> true for boolean columns. */
+    /**
+     * @param  list<string>  $redact
+     * @param  callable(mixed): array{old: mixed, new: mixed}  $entry
+     * @return array<string, array{old: mixed, new: mixed}|string>
+     */
+    private static function snapshot(Model $model, array $redact, callable $entry): array
+    {
+        $out = [];
+        foreach ($model->getAttributes() as $field => $value) {
+            $field = (string) $field;
+            if (in_array($field, self::IGNORED, true) || $field === $model->getKeyName()) {
+                continue;
+            }
+            $out[$field] = self::isSensitive($field, $redact)
+                ? self::REDACTED
+                : $entry(self::clip(self::typed($model, $field, $value)));
+        }
+
+        return $out;
+    }
+
+    /**
+     * Raw attribute values as their cast scalar type (bool/int/float), so 1 -> true for boolean columns. Money2
+     * columns become decimal strings ("12.30") whether the raw value is a float or a string.
+     */
     private static function typed(Model $model, string $field, mixed $value): mixed
     {
         if ($value === null || ! is_scalar($value)) {
             return $value;
+        }
+
+        if (str_starts_with((string) ($model->getCasts()[$field] ?? ''), Money2::class)) {
+            return (new Money2)->get($model, $field, $value, []);
         }
 
         return match (true) {

@@ -64,6 +64,14 @@ describe('app router (hash mode)', () => {
     expect(router.currentRoute.value.fullPath).toBe('/unknown?x=1');
   });
 
+  it('resolves the legacy car address in the full route table without clashing with other areas', () => {
+    const router = createAppRouter(createMemoryHistory());
+    expect(router.resolve('/1972-BMW-2002/c78').name).toBe('car-profile-alias');
+    expect(router.resolve('/car/78').name).toBe('car-profile');
+    expect(router.resolve('/ShawnB/u44').name).toBe('member-profile');
+    expect(router.resolve('/Sharkfest-2026/e12').name).not.toBe('car-profile-alias');
+  });
+
   it('works with an in-memory history for isolated tests', async () => {
     const router = createAppRouter(createMemoryHistory());
     await router.push('/nope');

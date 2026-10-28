@@ -57,7 +57,7 @@ describe('MemberCard', () => {
     const { container } = await mountWithRouter(MemberCard, { path: '/', props: { member: memberRow(GUEST_ROW) } });
     expect(screen.getByRole('link', { name: 'Shawn B' }).getAttribute('href')).toBe('/ShawnB/u12');
     expect(screen.getByText('MO')).toBeTruthy();
-    expect(container.querySelector('img')?.getAttribute('src')).toBe('/images/users/12.jpg');
+    expect(container.querySelector('img')?.getAttribute('src')).toBe('/images/4/300/220/images/users/12.jpg');
   });
 
   it('renders a member row with the full name and city, state', async () => {
@@ -71,12 +71,12 @@ describe('MemberCard', () => {
       path: '/',
       props: { member: memberRow({ ...GUEST_ROW, has_image: false, imageURL: '' }) },
     });
-    expect(container.querySelector('img')?.getAttribute('src')).toBe(GENERIC_AVATAR_URL);
+    expect(container.querySelector('img')?.getAttribute('src')).toBe(`/images/4/300/220${GENERIC_AVATAR_URL}`);
 
     const broken = await mountWithRouter(MemberCard, { path: '/', props: { member: memberRow(GUEST_ROW) } });
     const img = broken.container.querySelector('img') as HTMLImageElement;
     await fireEvent.error(img);
-    expect(broken.container.querySelector('img')?.getAttribute('src')).toBe(GENERIC_AVATAR_URL);
+    expect(broken.container.querySelector('img')?.getAttribute('src')).toBe(`/images/4/300/220${GENERIC_AVATAR_URL}`);
   });
 
   it('shows plain text without a link when there is no profile path', async () => {
@@ -104,10 +104,10 @@ describe('CarCard', () => {
       props: { car: carRow({ ...CAR_ROW, nickname: '', year: '', model: '', imageURL: '' }) },
     });
     expect(screen.getByRole('link', { name: 'Car 78' })).toBeTruthy();
-    expect(blank.container.querySelector('img')?.getAttribute('src')).toBe(GENERIC_AVATAR_URL);
+    expect(blank.container.querySelector('img')?.getAttribute('src')).toBe(`/images/4/300/220${GENERIC_AVATAR_URL}`);
 
     const broken = await mountWithRouter(CarCard, { path: '/', props: { car: carRow(CAR_ROW) } });
     await fireEvent.error(broken.container.querySelector('img') as HTMLImageElement);
-    expect(broken.container.querySelector('img')?.getAttribute('src')).toBe(GENERIC_AVATAR_URL);
+    expect(broken.container.querySelector('img')?.getAttribute('src')).toBe(`/images/4/300/220${GENERIC_AVATAR_URL}`);
   });
 });

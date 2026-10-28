@@ -1,17 +1,26 @@
 <script setup lang="ts">
 /**
  * Event registrations (admin). List with counts, event and status filters and a member-name filter (URL-synced),
- * edit of donation, arrival and cancellation, and a cancel/reinstate row action. Ended shows show stored amounts
- * ("stored" badge). Guests are edited on the registration guests page.
+ * edit of the legacy admin fields (donation, arrival, cancellation, invoice number, cars, payments, discount, paid
+ * and owed overrides), cancel/reinstate, delete (409 when money or waivers are recorded: cancel instead), add a
+ * guest or an extra, a new registration for a member, and a link to the full on-behalf editor. Ended shows show
+ * stored amounts ("stored" badge). Guests are edited on the registration guests page.
  */
 import { ref } from 'vue';
 import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
 import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
 import RelationSelect from '../../../components/admin/RelationSelect.vue';
 import StatusBadge from '../../../components/admin/StatusBadge.vue';
+import RegisterForEventModal from '../users/RegisterForEventModal.vue';
+import { GUEST_FIELDS, registrationGuestsApi, toInput as toGuestInput } from '../registration-guests/registration-guests';
+import { extraRegistrationsApi } from '../extra-registrations/extraRegistrations';
+import { useAdminResource } from '../../../composables/admin/useAdminResource';
+import type { Extra } from '../extras/extras';
+import type { AdminField } from '../../../components/admin/types';
 import BaseButton from '../../../components/ui/BaseButton.vue';
 import { useAdminList } from '../../../composables/admin/useAdminList';
 import { ADMIN_API_BASE, mapAdminError } from '../../../composables/admin/useAdminResource';
+import { api } from '../../../api/client';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
 import type { FormValues } from '../../../components/admin/types';
@@ -20,10 +29,12 @@ import {
   REGISTRATION_FIELDS,
   cancelInput,
   formatCents,
+  registrationCarsUrl,
   registrationsApi,
   toForm,
   toInput,
   type Registration,
+  type RegistrationCarOption,
 } from './registrations';
 
 const list = useAdminList<Registration>({
@@ -37,10 +48,107 @@ const { confirm } = useConfirm();
 const editing = ref<Registration | null>(null);
 const formOpen = ref(false);
 const busyId = ref<number | null>(null);
+const carOptions = ref<RegistrationCarOption[]>([]);
+const creating = ref(false);
+const guestFor = ref<Registration | null>(null);
+const guestOpen = ref(false);
+const extraFor = ref<Registration | null>(null);
+const extraOpen = ref(false);
+const extraFields = ref<AdminField[]>([]);
+const extrasApi = useAdminResource<Extra>('extras');
 
-function openEdit(registration: Registration): void {
+function onCreated(): void {
+  toast.success('Registration created.');
+  void list.reload();
+}
+
+function openAddGuest(registration: Registration): void {
+  guestFor.value = registration;
+  guestOpen.value = true;
+}
+
+function addGuest(values: FormValues): Promise<unknown> {
+  return registrationGuestsApi.create({ ...toGuestInput(values), registration_id: (guestFor.value as Registration).id });
+}
+
+function onGuestAdded(): void {
+  toast.success(`Guest added to registration #${guestFor.value?.invoice_id ?? ''}.`);
+  void list.reload();
+}
+
+async function openAddExtra(registration: Registration): Promise<void> {
+  extraFor.value = registration;
+  try {
+    const extras = await extrasApi.list({ per_page: 100, sort: 'name', direction: 'asc', filter: { show_id: String(registration.show_id) } });
+    extraFields.value = [
+      { name: 'show_extra_id', label: 'Extra', type: 'select', required: true, options: extras.data.map((extra) => ({ value: String(extra.id), label: extra.name })) },
+      { name: 'num_extras', label: 'Quantity', type: 'number', required: true },
+    ];
+  } catch (error) {
+    toast.error(mapAdminError(error, 'The event’s extras could not be loaded.').message);
+    return;
+  }
+  extraOpen.value = true;
+}
+
+function addExtra(values: FormValues): Promise<unknown> {
+  return extraRegistrationsApi.create({
+    registration_id: (extraFor.value as Registration).id,
+    show_extra_id: Number(values.show_extra_id),
+    num_extras: typeof values.num_extras === 'number' ? values.num_extras : null,
+  });
+}
+
+function onExtraAdded(): void {
+  toast.success(`Extra added to registration #${extraFor.value?.invoice_id ?? ''}.`);
+  void list.reload();
+}
+
+async function remove(registration: Registration): Promise<void> {
+  const ok = await confirm({
+    title: 'Delete registration',
+    message: `Delete registration #${registration.invoice_id} of ${registration.user_name ?? 'this member'} with its cars, guests, shirts and extras? This cannot be undone.`,
+    confirmLabel: 'Delete',
+    danger: true,
+    typedConfirmation: 'DELETE',
+  });
+  if (!ok) return;
+  busyId.value = registration.id;
+  try {
+    await registrationsApi.remove(registration.id);
+    toast.success(`Registration #${registration.invoice_id} deleted.`);
+    await list.reload();
+  } catch (error) {
+    toast.error(mapAdminError(error, 'The registration could not be deleted.').message);
+  } finally {
+    busyId.value = null;
+  }
+}
+
+async function loadCars(registration: Registration, userId?: number): Promise<boolean> {
+  try {
+    carOptions.value = (await api.get<{ data: RegistrationCarOption[] }>(registrationCarsUrl(registration.id, userId))).data;
+    return true;
+  } catch (error) {
+    toast.error(mapAdminError(error, 'The member’s cars could not be loaded.').message);
+    return false;
+  }
+}
+
+async function openEdit(registration: Registration): Promise<void> {
   editing.value = registration;
-  formOpen.value = true;
+  if (await loadCars(registration)) formOpen.value = true;
+}
+
+/** Reassigning: the car choices become the new member's cars (plus those already on the registration). */
+function onMember(userId: number | null, setValue: (value: unknown) => void): void {
+  setValue(userId);
+  if (userId !== null && editing.value !== null) void loadCars(editing.value, userId);
+}
+
+function toggleCar(selected: unknown, id: number, on: boolean): number[] {
+  const ids = Array.isArray(selected) ? selected.map(Number).filter((carId) => carId !== id) : [];
+  return on ? [...ids, id] : ids;
 }
 
 function save(values: FormValues): Promise<Registration> {
@@ -160,6 +268,15 @@ function showFilterValue(): number | null {
         </div>
       </template>
 
+      <template #toolbar-end>
+        <BaseButton
+          variant="primary"
+          @click="creating = true"
+        >
+          New registration
+        </BaseButton>
+      </template>
+
       <template #cell-total_cents="{ row }">
         <span>{{ formatCents(row.total_cents) }}</span>
         <span
@@ -185,12 +302,42 @@ function showFilterValue(): number | null {
           </BaseButton>
           <BaseButton
             size="sm"
+            :to="row.editor_path"
+            :aria-label="`Open the full editor for registration ${row.invoice_id}`"
+          >
+            Full editor
+          </BaseButton>
+          <BaseButton
+            size="sm"
+            :aria-label="`Add a guest to registration ${row.invoice_id}`"
+            @click="openAddGuest(row)"
+          >
+            Add guest
+          </BaseButton>
+          <BaseButton
+            size="sm"
+            :aria-label="`Add an extra to registration ${row.invoice_id}`"
+            @click="openAddExtra(row)"
+          >
+            Add extra
+          </BaseButton>
+          <BaseButton
+            size="sm"
             :variant="row.is_cancelled ? 'primary' : 'danger'"
             :loading="busyId === row.id"
             :aria-label="`${row.is_cancelled ? 'Reinstate' : 'Cancel'} registration ${row.invoice_id}`"
             @click="setCancelled(row, !row.is_cancelled)"
           >
             {{ row.is_cancelled ? 'Reinstate' : 'Cancel' }}
+          </BaseButton>
+          <BaseButton
+            size="sm"
+            variant="danger"
+            :loading="busyId === row.id"
+            :aria-label="`Delete registration ${row.invoice_id}`"
+            @click="remove(row)"
+          >
+            Delete
           </BaseButton>
         </div>
       </template>
@@ -204,6 +351,93 @@ function showFilterValue(): number | null {
       :submit="save"
       submit-label="Save changes"
       @saved="onSaved"
+    >
+      <template #field-user_id="{ id, value, errors, setValue }">
+        <label
+          :for="id"
+          class="block text-sm font-medium text-text"
+        >Member (required)</label>
+        <RelationSelect
+          :id="id"
+          :model-value="typeof value === 'number' ? value : null"
+          :endpoint="`${ADMIN_API_BASE}/users/lookup`"
+          placeholder="Search members"
+          @update:model-value="(picked: number | null) => onMember(picked, setValue)"
+        />
+        <p class="mt-1 text-sm text-muted">
+          Another member takes over the registration with its guests and shirts.
+        </p>
+        <p
+          v-for="(message, index) in errors"
+          :key="index"
+          class="text-sm text-danger-fg"
+        >
+          {{ message }}
+        </p>
+      </template>
+
+      <template #field-car_ids="{ id, value, errors, setValue }">
+        <fieldset :aria-describedby="errors.length > 0 ? `${id}-errors` : undefined">
+          <legend class="block text-sm font-medium text-text">
+            Cars
+          </legend>
+          <p
+            v-if="carOptions.length === 0"
+            class="mt-1 text-sm text-muted"
+          >
+            This member has no cars.
+          </p>
+          <label
+            v-for="car in carOptions"
+            :key="car.id"
+            class="mt-1 flex items-center gap-2 text-sm"
+          >
+            <input
+              type="checkbox"
+              :checked="Array.isArray(value) && value.includes(car.id)"
+              @change="setValue(toggleCar(value, car.id, ($event.target as HTMLInputElement).checked))"
+            >
+            {{ car.label }}
+          </label>
+          <div :id="`${id}-errors`">
+            <p
+              v-for="(message, index) in errors"
+              :key="index"
+              class="text-sm text-danger-fg"
+            >
+              {{ message }}
+            </p>
+          </div>
+        </fieldset>
+      </template>
+    </AdminFormModal>
+
+    <RegisterForEventModal
+      v-model:open="creating"
+      :member="null"
+      @registered="onCreated"
+    />
+
+    <AdminFormModal
+      v-model:open="guestOpen"
+      :title="guestFor === null ? 'Add guest' : `Add a guest to registration ${guestFor.invoice_id}`"
+      :fields="GUEST_FIELDS"
+      :initial="{ type_id: '1' }"
+      :submit="addGuest"
+      submit-label="Add guest"
+      size="md"
+      @saved="onGuestAdded"
+    />
+
+    <AdminFormModal
+      v-model:open="extraOpen"
+      :title="extraFor === null ? 'Add extra' : `Add an extra to registration ${extraFor.invoice_id}`"
+      :fields="extraFields"
+      :initial="{ num_extras: 1 }"
+      :submit="addExtra"
+      submit-label="Add extra"
+      size="md"
+      @saved="onExtraAdded"
     />
   </div>
 </template>

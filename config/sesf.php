@@ -39,6 +39,31 @@ return [
     'sponsor_image_root' => public_path('images/sponsor/'),
     'gallery_image_url' => 'images/gallery/',
     'gallery_image_root' => public_path('images/gallery/'),
+    // Legacy JitImage resize URLs: /images/{mode}/{w}/{h}[/{g}]/{source} (App\Services\Images\LegacyImages).
+    // source is resolved against base (legacy jitimage 'base' was public_path()), and the real path must be
+    // inside one of roots. sizes lists every "mode/w/h" the legacy templates and SPA request; anything else is
+    // a 404, so the cache cannot be filled with arbitrary sizes. Mode 2 also takes a gravity 1-9.
+    'legacy_images' => [
+        'base' => public_path(),
+        'roots' => [
+            public_path('images/'),
+            public_path('images/members/'),
+            public_path('images/cars/'),
+            public_path('images/shows/'),
+            public_path('images/sponsor/'),
+            public_path('images/gallery/'),
+            public_path('images/judging/'),
+        ],
+        'cache_dir' => storage_path('framework/legacy-images'),
+        'sizes' => [
+            '1/0/70', '1/1070/360',
+            '2/320/230', '2/640/460', '2/200/140', '2/400/280', '2/221/165',
+            '4/1070/800', '4/500/500', '4/200/150', '4/652/407', '4/0/60', '4/300/220', '4/228/0',
+            '4/100/100', '4/362/272', '4/150/60', '4/320/230', '4/459/367', '4/221/0', '4/250/65',
+            '4/240/240', '4/97/73',
+        ],
+    ],
+
     'schedule_pdf_url' => 'packet/',
     'schedule_pdf_root' => public_path('packet/'),
 
@@ -76,6 +101,9 @@ return [
             'version' => '1.0.0',
             'session_sample_rate' => 100,
             'session_replay_sample_rate' => 20,
+            'track_resources' => true,
+            'track_user_interactions' => true,
+            'track_long_tasks' => true,
         ],
         'logs' => [
             'enabled' => filter_var(env('DATADOG_LOGS_ENABLED', false), FILTER_VALIDATE_BOOLEAN),

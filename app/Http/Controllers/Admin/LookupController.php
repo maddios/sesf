@@ -38,6 +38,7 @@ final class LookupController extends Controller
             'data' => $rows->map(fn (CarShow $show) => [
                 'id' => $show->id,
                 'label' => $show->name.($show->date_start !== null ? ' ('.$show->date_start->format('Y').')' : ''),
+                'url_name' => $show->URLName,
             ])->values(),
         ]);
     }

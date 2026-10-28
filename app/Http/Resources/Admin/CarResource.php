@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Admin;
 
 use App\Models\Car;
+use App\Models\ShowRegistration;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -41,6 +42,12 @@ final class CarResource extends JsonResource
             'has_image' => (bool) $car->has_image,
             'image_url' => $car->imageURL,
             'registrations_count' => $registrations,
+            // Read-only (legacy car "registration" relation): cars are added or removed in the registration edit.
+            'shows' => $car->registrations->map(fn (ShowRegistration $registration): array => [
+                'registration_id' => (int) $registration->id,
+                'show_id' => (int) $registration->show_id,
+                'show_name' => $registration->carShow?->name,
+            ])->values()->all(),
             'in_use' => $registrations > 0,
             'created_at' => $car->created_at?->toIso8601String(),
             'updated_at' => $car->updated_at?->toIso8601String(),

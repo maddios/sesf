@@ -3,10 +3,16 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\AdminImageRequest;
 use App\Http\Requests\Admin\EventRequest;
+use App\Http\Requests\Admin\SchedulePdfRequest;
 use App\Http\Resources\Admin\EventResource;
 use App\Models\CarShow;
 use App\Services\CloneShowConfiguration;
+use App\Services\Events\SchedulePdfRejected;
+use App\Services\Events\SchedulePdfStore;
+use App\Services\Images\ImageStore;
+use App\Services\Images\ImageUploadException;
 use App\Support\Admin\AdminQuery;
 use App\Support\Admin\AuditLog;
 use Illuminate\Database\Eloquent\Builder;
@@ -89,7 +95,7 @@ final class EventController extends Controller
             return response()->json(['message' => $e->getMessage(), 'errors' => ['clone_from_show_id' => [$e->getMessage()]]], 422);
         }
 
-        AuditLog::record('event.create', self::RESOURCE, [$event->id], AuditLog::created($event), $cloneFrom === null ? [] : ['cloned_from_id' => $cloneFrom]);
+        AuditLog::record('event.create', self::RESOURCE, [$event->id], AuditLog::created($event->refresh()), $cloneFrom === null ? [] : ['cloned_from_id' => $cloneFrom]);
 
         return (new EventResource($this->find($event->id)))->response()->setStatusCode(201);
     }
@@ -112,6 +118,46 @@ final class EventController extends Controller
     public function deactivate(int $event): EventResource
     {
         return $this->setActive($event, false);
+    }
+
+    /**
+     * POST admin-api/events/{id}/image (multipart "file"): the event image at images/shows/{id}.jpg (legacy
+     * car-show-image-upload), re-encoded by ImageStore.
+     */
+    public function image(AdminImageRequest $request, int $event, ImageStore $images): JsonResponse
+    {
+        $model = $this->find($event);
+
+        try {
+            $images->storeAs($request->upload(), (string) config('sesf.show_image_root'), $model->id.'.jpg');
+        } catch (ImageUploadException $e) {
+            return response()->json(['message' => $e->getMessage(), 'errors' => ['file' => [$e->getMessage()]]], 422);
+        }
+
+        $model->forceFill(['has_image' => true])->save();
+        AuditLog::record('event.image', self::RESOURCE, [$model->id], ['image' => AuditLog::REDACTED]);
+
+        return (new EventResource($this->find($model->id)))->response();
+    }
+
+    /**
+     * POST admin-api/events/{id}/schedule-pdf (multipart "file"): the schedule at packet/{id}.pdf (legacy
+     * car-show-schedule-upload); turns is_schedule_pdf on.
+     */
+    public function schedulePdf(SchedulePdfRequest $request, int $event, SchedulePdfStore $store): JsonResponse
+    {
+        $model = $this->find($event);
+
+        try {
+            $store->store($request->upload(), $model->id);
+        } catch (SchedulePdfRejected $e) {
+            return response()->json(['message' => $e->getMessage(), 'errors' => ['file' => [$e->getMessage()]]], 422);
+        }
+
+        $model->forceFill(['is_schedule_pdf' => true])->save();
+        AuditLog::record('event.schedule_pdf', self::RESOURCE, [$model->id], AuditLog::diff($model) + ['file' => AuditLog::REDACTED]);
+
+        return (new EventResource($this->find($model->id)))->response();
     }
 
     /**
@@ -150,7 +196,7 @@ final class EventController extends Controller
             return $this->conflict($references);
         }
 
-        AuditLog::record('event.delete', self::RESOURCE, [$model->id]);
+        AuditLog::record('event.delete', self::RESOURCE, [$model->id], AuditLog::deleted($model));
 
         return response()->json(null, 204);
     }

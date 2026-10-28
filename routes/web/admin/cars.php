@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 // Cars (legacy frozennode car.php). Loaded by routes/web/admin.php.
 
 Route::get('cars', [CarController::class, 'index'])->name('cars.index');
+Route::post('cars', [CarController::class, 'store'])->name('cars.store');
 Route::get('cars/options', [CarController::class, 'options'])->name('cars.options');
 Route::get('cars/{car}', [CarController::class, 'show'])->whereNumber('car')->name('cars.show');
 Route::put('cars/{car}', [CarController::class, 'update'])->whereNumber('car')->name('cars.update');

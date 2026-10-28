@@ -32,6 +32,7 @@ function onImageError(): void {
       >
         <SafeImage
           :src="imageSrc"
+          resize="directoryCard"
           :alt="title"
           img-class="aspect-[4/3] w-full object-cover"
           @error="onImageError"

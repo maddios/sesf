@@ -13,9 +13,10 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Admins pass. A judge passes only when assigned to the show (judge-for-show gate).
  *
- * The show id comes from the route parameter `show` (a bound CarShow or a numeric id), then the
- * route parameter `show_id`, then the input `show_id`. The first one present is used and the rest
- * are ignored. The path is never matched. A missing or non-numeric id is denied.
+ * The show id comes only from the route parameter `show` (a bound CarShow or a numeric id), or
+ * `show_id` when there is no `show`. Query and body input are never read, so a request cannot
+ * choose the show it is checked against. A route without such a parameter, or a missing or
+ * non-numeric id, is denied.
  */
 class EnsureJudgeForShow
 {
@@ -36,10 +37,6 @@ class EnsureJudgeForShow
     private function showId(Request $request): ?int
     {
         $raw = $request->route('show') ?? $request->route('show_id');
-
-        if ($raw === null) {
-            $raw = $request->input('show_id');
-        }
 
         if ($raw instanceof CarShow) {
             $raw = $raw->getKey();

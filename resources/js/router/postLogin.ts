@@ -5,7 +5,7 @@ import { getForumUrl } from '../config';
 export const SAFE_INTERNAL_PATH = /^\/[A-Za-z0-9_/\-:.?=&%]*$/;
 
 /** Paths that legacy served as full page loads, not hash routes. */
-const FULL_PAGE_PREFIXES = ['/waiver/', '/judging/'] as const;
+const FULL_PAGE_PREFIXES = ['/waiver/', '/judging/', '/judging_answers/', '/judging_draw/'] as const;
 
 export const HOME_PATH = '/';
 
@@ -23,7 +23,7 @@ export function firstQueryString(value: unknown): string | undefined {
 
 /**
  * Turns a post-login `redirect` value into a navigation target, following the legacy rules:
- * 'forum' goes to the forum (full page load); /waiver/ and /judging/ paths are full page loads;
+ * 'forum' goes to the forum (full page load); /waiver/, /judging/, /judging_answers/ and /judging_draw/ paths are full page loads;
  * other safe internal paths are hash routes; anything else goes home.
  */
 export function resolvePostLoginRedirect(redirect?: string, forumUrl: string = getForumUrl()): PostLoginTarget {

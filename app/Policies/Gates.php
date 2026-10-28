@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\Gate;
  *   car id is given, the car must be entered in that show and must not belong to the judge.
  * - judge-car (User, ShowRegistrationCar): admin, or a judge assigned to the car's show who does not
  *   own the car (registration.user_id).
+ * - judging-answers (User, ShowRegistrationCar): judge-car, or the car's owner once the show's results
+ *   are visible (CarShow::judgingResultsVisible). Legacy let any judge, and the owner at any time, in.
  *
  * Admins bypass the ownership rule, as the spec and the middleware require. The ownership rule
  * applies to judges only.
@@ -61,6 +63,20 @@ final class Gates
 
             return $car->registration !== null
                 && self::judgesCar($user, $car, $car->registration->show_id);
+        });
+
+        Gate::define('judging-answers', function (User $user, ShowRegistrationCar $car): bool {
+            if (Gate::forUser($user)->allows('judge-car', $car)) {
+                return true;
+            }
+
+            $car->loadMissing('registration.carShow');
+            $registration = $car->registration;
+
+            return $registration !== null
+                && (int) $registration->user_id === $user->id
+                && $registration->carShow !== null
+                && $registration->carShow->judgingResultsVisible();
         });
     }
 

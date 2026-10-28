@@ -30,6 +30,7 @@ function car(overrides: Partial<Car> = {}): Car {
     has_image: true,
     image_url: 'images/cars/7/profile.jpg?v=1',
     registrations_count: 0,
+    shows: [],
     in_use: false,
     created_at: null,
     updated_at: null,
@@ -44,7 +45,7 @@ const OPTIONS = {
 
 const Page = defineComponent({ render: () => [h(CarsPage), h(AdminConfirmHost), h(AdminToastRegion)] });
 
-function stubCars(rows: Car[] = [car(), car({ id: 8, model: 'Mustang', is_confirmed: true, in_use: true, registrations_count: 2, has_image: false })], extra: (request: SeenRequest) => Response | undefined = () => undefined) {
+function stubCars(rows: Car[] = [car(), car({ id: 8, model: 'Mustang', is_confirmed: true, in_use: true, registrations_count: 2, shows: [{ registration_id: 3, show_id: 4, show_name: 'Spring Show' }, { registration_id: 5, show_id: 6, show_name: 'Fall Show' }], has_image: false })], extra: (request: SeenRequest) => Response | undefined = () => undefined) {
   return stubAdminFetch((request) => {
     const handled = extra(request);
     if (handled !== undefined) return handled;
@@ -76,6 +77,12 @@ describe('CarsPage', () => {
     expect(within(table()).getByRole('button', { name: 'Delete car 8' }).hasAttribute('disabled')).toBe(true);
     expect(seen.some((r) => r.path === '/admin-api/cars/options')).toBe(true);
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('lists the shows a car is entered in, read-only', async () => {
+    stubCars();
+    await renderAt(Page, '/admin/cars');
+    expect(await screen.findByText('Spring Show, Fall Show')).toBeTruthy();
   });
 
   it('confirms a car and reloads the list', async () => {
@@ -118,6 +125,53 @@ describe('CarsPage', () => {
     await user.type(within(dialog).getByLabelText(/Type DELETE/), 'DELETE');
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(seen.some((r) => r.method === 'DELETE')).toBe(true));
+  });
+
+  it('shows the VIN and a profile link per car', async () => {
+    stubCars([car({ VIN: 'WBA123' })]);
+    await renderAt(Page, '/admin/cars');
+    expect(await within(table()).findByText('WBA123')).toBeTruthy();
+    const link = within(table()).getByRole('link', { name: /Car 7/ });
+    expect(link.getAttribute('href')).toBe('/#/car/7');
+    expect(link.getAttribute('target')).toBe('_blank');
+  });
+
+  it('filters by type, body and owner and keeps them in the URL', async () => {
+    const { seen } = stubCars(undefined, (r) =>
+      r.path === '/admin-api/users/lookup' ? jsonResponse(200, { data: [{ id: 3, label: 'Bo Gone <bo@example.test>' }] }) : undefined,
+    );
+    const user = userEvent.setup();
+    const { router } = await renderAt(Page, '/admin/cars');
+    await within(table()).findByText('1969 Camaro');
+    await user.selectOptions(await screen.findByLabelText('Type'), '2');
+    await user.selectOptions(screen.getByLabelText('Body'), '2');
+    await user.type(screen.getByRole('combobox', { name: 'Owner' }), 'bo');
+    await user.click(await screen.findByRole('option', { name: 'Bo Gone <bo@example.test>' }));
+
+    await waitFor(() => expect(router.currentRoute.value.query['f.user_id']).toBe('3'));
+    expect(router.currentRoute.value.query['f.type_id']).toBe('2');
+    expect(router.currentRoute.value.query['f.body_id']).toBe('2');
+    await waitFor(() => {
+      const last = seen.filter((r) => r.method === 'GET' && r.path === '/admin-api/cars').at(-1);
+      expect([last?.params.get('filter[type_id]'), last?.params.get('filter[body_id]'), last?.params.get('filter[user_id]')]).toEqual(['2', '2', '3']);
+    });
+  });
+
+  it('creates a car', async () => {
+    const { seen } = stubCars(undefined, (r) => (r.method === 'POST' && r.path === '/admin-api/cars' ? jsonResponse(201, { data: car({ id: 30 }) }) : undefined));
+    const user = userEvent.setup();
+    await renderAt(Page, '/admin/cars');
+    await within(table()).findByText('1969 Camaro');
+    await user.click(screen.getByRole('button', { name: 'Add car' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add car' });
+    await user.selectOptions(within(dialog).getByLabelText('Type (required)'), '2');
+    await user.selectOptions(within(dialog).getByLabelText('Body (required)'), '2');
+    await user.type(within(dialog).getByLabelText('Model'), 'R75');
+    await user.click(within(dialog).getByRole('button', { name: 'Create car' }));
+
+    await waitFor(() => expect(seen.some((r) => r.method === 'POST' && r.path === '/admin-api/cars')).toBe(true));
+    expect(seen.find((r) => r.method === 'POST' && r.path === '/admin-api/cars')?.body).toEqual({ user_id: null, type_id: 2, body_id: 2, year: null, model: 'R75', nickname: null, VIN: null });
+    expect(await screen.findByText('Car 30 created.')).toBeTruthy();
   });
 });
 

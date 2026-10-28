@@ -58,6 +58,12 @@ describe('home api normalisers', () => {
     expect(legacyImageUrl(42)).toBe('');
   });
 
+  it('keeps the cache-busting query on legacy image paths', () => {
+    expect(legacyImageUrl('images/sponsor/45.jpg?v=1792976406')).toBe('/images/sponsor/45.jpg?v=1792976406');
+    expect(legacyImageUrl('images/shows/36.jpg?1792976406')).toBe('/images/shows/36.jpg?1792976406');
+    expect(legacyImageUrl('images/sponsor/45.jpg?<script>')).toBe('');
+  });
+
   it('only accepts http(s) sponsor links', () => {
     expect(safeExternalUrl('https://blueridgebmwcca.org/')).toBe('https://blueridgebmwcca.org/');
     expect(safeExternalUrl('javascript:alert(1)')).toBe('');

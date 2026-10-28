@@ -15,7 +15,7 @@ import { useToast } from '../../../composables/admin/useToast';
 import type { FormValues } from '../../../components/admin/types';
 import {
   GUEST_COLUMNS,
-  GUEST_FIELDS,
+  GUEST_EDIT_FIELDS,
   GUEST_TYPES,
   registrationGuestsApi,
   toForm,
@@ -169,7 +169,7 @@ function showFilterValue(): number | null {
     <AdminFormModal
       v-model:open="formOpen"
       :title="editing === null ? 'Edit guest' : `Edit ${editing.first} ${editing.last}`"
-      :fields="GUEST_FIELDS"
+      :fields="GUEST_EDIT_FIELDS"
       :initial="toForm(editing)"
       :submit="save"
       submit-label="Save changes"

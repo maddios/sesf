@@ -6,7 +6,7 @@ use App\Rules\Latin1Text;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * PUT admin-api/cars/{id}: the editable car fields. Widths are the car table columns
+ * POST admin-api/cars and PUT admin-api/cars/{id}: the editable car fields. Widths are the car table columns
  * (docs/legacy/schema-sesf_dev.sql). user_id is guarded on the model and is written with forceFill().
  * is_confirmed is not editable here: it has its own confirm/unconfirm actions.
  */

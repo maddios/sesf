@@ -128,6 +128,7 @@ function reloadAll(): void {
                   >
                     <SafeImage
                       :src="sponsor.logoUrl"
+                      resize="agendaSponsor"
                       :alt="sponsor.name"
                       :placeholder="sponsor.name"
                       img-class="mx-auto h-14 w-auto object-contain"
@@ -137,6 +138,7 @@ function reloadAll(): void {
                   <SafeImage
                     v-else
                     :src="sponsor.logoUrl"
+                    resize="agendaSponsor"
                     :alt="sponsor.name"
                     :placeholder="sponsor.name"
                     img-class="mx-auto h-14 w-auto object-contain"

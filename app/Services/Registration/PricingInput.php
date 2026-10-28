@@ -8,8 +8,10 @@ use InvalidArgumentException;
 
 /**
  * Everything the calculator needs, already loaded and converted to integer cents.
- * Construction validates: negative counts, quantities or amounts are rejected
- * (legacy accepted them; that is a defect we do not carry over).
+ * Construction validates: negative counts, quantities, prices or donation are rejected
+ * (legacy accepted them; that is a defect we do not carry over). Discount and received are
+ * signed ledger values: a refund can make received negative, and legacy rows hold negative
+ * discounts (docs/pricing.md, row N).
  */
 final readonly class PricingInput
 {
@@ -36,8 +38,6 @@ final readonly class PricingInput
             'Child price' => $childPriceCents,
             'Car count' => $carCount,
             'Donation' => $donationCents,
-            'Discount' => $discountCents,
-            'Amount received' => $receivedCents,
         ] as $name => $value) {
             if ($value < 0) {
                 throw new InvalidArgumentException("{$name} must not be negative.");
@@ -93,8 +93,8 @@ final readonly class PricingInput
             shirtPricesCents: array_map(Money::toCents(...), $shirtPrices),
             extras: $extras,
             donationCents: Money::toCents(is_int($donation) ? (string) $donation : $donation),
-            discountCents: Money::toCents($discount),
-            receivedCents: Money::toCents($received),
+            discountCents: Money::toSignedCents($discount),
+            receivedCents: Money::toSignedCents($received),
         );
     }
 }

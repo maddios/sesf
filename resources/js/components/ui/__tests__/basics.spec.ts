@@ -147,6 +147,11 @@ describe('SafeImage and PlaceholderImage', () => {
     expect(img.getAttribute('loading')).toBe('lazy');
   });
 
+  it('requests a legacy resized copy when given a size preset', () => {
+    render(SafeImage, { props: { src: '/images/sponsor/4.jpg?v=9', alt: 'Odometer Gears', resize: 'homeSponsor' } });
+    expect(screen.getByRole('img', { name: 'Odometer Gears' }).getAttribute('src')).toBe('/images/4/250/65/images/sponsor/4.jpg?v=9');
+  });
+
   it('swaps a broken image for a tile with the name as text, not raw alt text', async () => {
     const { container, emitted } = render(SafeImage, { props: { src: '/images/missing.jpg', alt: 'Angry Ass' } });
     await fireEvent.error(container.querySelector('img') as HTMLImageElement);

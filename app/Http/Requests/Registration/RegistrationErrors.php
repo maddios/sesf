@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Registration;
 
+use App\Services\Registration\Writer\RegistrationRejected;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -46,6 +47,17 @@ final class RegistrationErrors
     public static function response(array $errors): JsonResponse
     {
         return response()->json(self::sections($errors), 400);
+    }
+
+    /**
+     * The admin API shape (docs/admin-conventions.md): 422 {message, errors: {key: [msg]}}.
+     */
+    public static function adminResponse(RegistrationRejected $e): JsonResponse
+    {
+        return response()->json([
+            'message' => $e->getMessage(),
+            'errors' => array_map(fn (string $message): array => [$message], $e->errors()),
+        ], 422);
     }
 
     /**

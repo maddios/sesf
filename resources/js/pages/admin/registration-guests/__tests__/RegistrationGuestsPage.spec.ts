@@ -83,8 +83,24 @@ describe('RegistrationGuestsPage', () => {
       last: 'Hopper',
       email: 'grace@example.test',
       type_id: 2,
+      registration_id: 1,
     });
     expect(screen.getByRole('status', { name: 'Notifications' }).textContent).toContain('Guest “Grace Hopper” saved.');
+  });
+
+  it('moves a guest to another registration and shows registration id and date added', async () => {
+    const { seen } = stubGuests(undefined, (r) => (r.method === 'PUT' ? jsonResponse(200, { data: {} }) : undefined));
+    const user = userEvent.setup();
+    await renderAt(Page, '/admin/registration-guests');
+    expect(await within(table()).findByRole('columnheader', { name: /Registration ID/ })).toBeTruthy();
+    expect(within(table()).getByRole('columnheader', { name: /Date added/ })).toBeTruthy();
+    await user.click(await within(table()).findByRole('button', { name: 'Edit guest Grace Hopper' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit Grace Hopper' });
+    const registration = within(dialog).getByLabelText('Registration ID (required)');
+    await user.clear(registration);
+    await user.type(registration, '7');
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect((seen.find((r) => r.method === 'PUT')?.body as { registration_id: number }).registration_id).toBe(7));
   });
 
   it('maps a registrant-email 422 to the email field', async () => {
@@ -118,6 +134,6 @@ describe('RegistrationGuestsPage', () => {
   });
 
   it('trims guest input and leaves an empty email null', () => {
-    expect(toInput({ first: ' Ann ', last: ' Guest ', email: '  ', type_id: '1' })).toEqual({ first: 'Ann', last: 'Guest', email: null, type_id: 1 });
+    expect(toInput({ first: ' Ann ', last: ' Guest ', email: '  ', type_id: '1' })).toEqual({ first: 'Ann', last: 'Guest', email: null, type_id: 1, registration_id: null });
   });
 });

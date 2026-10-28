@@ -39,6 +39,7 @@ final class EventResource extends JsonResource
             'date_registration_deactivation' => $event->date_registration_deactivation?->format('Y-m-d H:i:s'),
             'is_active' => (bool) $event->is_active,
             'is_judging_released' => (bool) $event->is_judging_released,
+            'waiver_id' => $event->waiver_id,
             'has_image' => (bool) $event->has_image,
             'image_url' => $event->imageURL,
             'primary_sponsor_id' => $event->primary_sponsor_id === null ? null : (int) $event->primary_sponsor_id,

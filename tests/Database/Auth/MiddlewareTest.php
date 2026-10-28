@@ -15,6 +15,7 @@ beforeEach(function () {
     Route::middleware('judge_or_admin')->get('/_test/judge', fn () => 'judge-ok');
     Route::middleware('judge_for_show')->get('/_test/shows/{show}', fn () => 'show-ok');
     Route::middleware('judge_for_show')->get('/_test/query', fn () => 'query-ok');
+    Route::middleware('judge_for_show')->post('/_test/query', fn () => 'body-ok');
 });
 
 /**
@@ -143,27 +144,30 @@ test('judge_for_show: a route parameter wins over a query parameter with the sam
     expect(mwGet('/_test/shows/'.$otherShow->id.'?show_id='.$show->id, $judge)->getStatusCode())->toBe(403);
 });
 
-test('judge_for_show: the show id comes from the query when there is no route parameter', function () {
+test('judge_for_show: a show id in the query or body is ignored without a route parameter', function () {
     $show = CarShow::factory()->create();
     $judge = mwJudgeAssignedTo($show);
-    $otherShow = CarShow::factory()->create();
+    $admin = User::factory()->admin()->create();
 
-    expect(mwGet('/_test/query?show_id='.$show->id, $judge)->getStatusCode())->toBe(200);
-    expect(mwGet('/_test/query?show_id='.$otherShow->id, $judge)->getStatusCode())->toBe(403);
+    expect(mwGet('/_test/query?show_id='.$show->id, $judge)->getStatusCode())->toBe(403);
+    expect(mwGet('/_test/query?show_id='.$show->id, $admin)->getStatusCode())->toBe(403);
+
+    Auth::forgetGuards();
+    Auth::guard()->setUser($judge);
+    $response = app(Kernel::class)->handle(Request::create('/_test/query', 'POST', ['show_id' => $show->id], server: ['HTTP_ACCEPT' => 'application/json']));
+    expect($response->getStatusCode())->toBe(403);
 });
 
-test('judge_for_show: a missing, zero, negative, or non-numeric show id is denied', function (string $query) {
+test('judge_for_show: a zero, negative, or non-numeric route show id is denied', function (string $id) {
     $judge = mwJudgeAssignedTo(CarShow::factory()->create());
 
-    expect(mwGet('/_test/query'.$query, $judge)->getStatusCode())->toBe(403);
+    expect(mwGet('/_test/shows/'.$id, $judge)->getStatusCode())->toBe(403);
 })->with([
-    'missing' => [''],
-    'zero' => ['?show_id=0'],
-    'negative' => ['?show_id=-1'],
-    'text' => ['?show_id=abc'],
-    'leading space' => ['?show_id=%201'],
-    'array' => ['?show_id[]=1'],
-    'decimal' => ['?show_id=1.5'],
+    'zero' => ['0'],
+    'negative' => ['-1'],
+    'text' => ['abc'],
+    'leading space' => ['%201'],
+    'decimal' => ['1.5'],
 ]);
 
 test('judge_for_show: an administrator passes for any show, with or without an assignment', function () {
@@ -171,7 +175,6 @@ test('judge_for_show: an administrator passes for any show, with or without an a
     $show = CarShow::factory()->create();
 
     expect(mwGet('/_test/shows/'.$show->id, $admin)->getStatusCode())->toBe(200);
-    expect(mwGet('/_test/query?show_id='.$show->id, $admin)->getStatusCode())->toBe(200);
 });
 
 test('judge_for_show: a regular member assigned to the show is still refused', function () {

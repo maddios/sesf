@@ -61,7 +61,7 @@ class DashboardTest extends AdminTestCase
         $admin = $this->admin();
 
         $this->actingAs($admin)->getJson('/admin-api/lookups/events?search=spring')
-            ->assertOk()->assertJsonPath('data', [['id' => $a->id, 'label' => 'Sharkfest Spring (2024)']]);
+            ->assertOk()->assertJsonPath('data', [['id' => $a->id, 'label' => 'Sharkfest Spring (2024)', 'url_name' => 'SharkfestSpring']]);
         $this->actingAs($admin)->getJson('/admin-api/lookups/events?search=%25')->assertJsonCount(1, 'data');
         $this->actingAs($admin)->getJson('/admin-api/lookups/events?ids='.$a->id.',x')->assertJsonPath('data.0.id', $a->id)->assertJsonCount(1, 'data');
         $this->actingAs($this->actor('member'))->getJson('/admin-api/lookups/events')->assertForbidden();

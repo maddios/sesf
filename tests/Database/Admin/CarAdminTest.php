@@ -11,6 +11,7 @@ use App\Models\User;
 use Database\Factories\CarBodyFactory;
 use Database\Factories\CarFactory;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -125,6 +126,36 @@ class CarAdminTest extends AdminTestCase
         $this->assertSame(['Pending'], $this->models($admin->getJson(self::BASE.'?filter[is_confirmed]=0')));
         $this->assertSame(['Entered'], $this->models($admin->getJson(self::BASE.'?filter[model][like]=Entered')));
         $this->assertSame(['Entered'], $this->models($admin->getJson(self::BASE.'?filter[body_id][in]='.CarBodyFactory::E24.'&filter[model][like]=Entered')));
+    }
+
+    #[Test]
+    public function each_car_lists_the_shows_it_is_entered_in_without_a_query_per_row(): void
+    {
+        $show = CarShow::factory()->create(['name' => 'Spring Show']);
+        $car = Car::factory()->create();
+        $registration = ShowRegistration::factory()->create(['show_id' => $show->id]);
+        ShowRegistrationCar::factory()->create(['car_id' => $car->id, 'registration_id' => $registration->id]);
+        $admin = $this->actingAs($this->admin());
+
+        $admin->getJson(self::BASE.'/'.$car->id)
+            ->assertOk()
+            ->assertJsonPath('data.shows', [['registration_id' => $registration->id, 'show_id' => $show->id, 'show_name' => 'Spring Show']]);
+
+        $count = function () use ($admin): int {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $admin->getJson(self::BASE.'?per_page=100')->assertOk();
+            $queries = count(DB::getQueryLog());
+            DB::disableQueryLog();
+
+            return $queries;
+        };
+        $one = $count();
+        for ($i = 0; $i < 4; $i++) {
+            $other = Car::factory()->create();
+            ShowRegistrationCar::factory()->create(['car_id' => $other->id, 'registration_id' => ShowRegistration::factory()->create(['show_id' => $show->id])->id]);
+        }
+        $this->assertSame($one, $count());
     }
 
     /**

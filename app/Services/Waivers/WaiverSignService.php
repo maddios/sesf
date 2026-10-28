@@ -108,8 +108,9 @@ class WaiverSignService
         }
 
         $limiterKey = 'waiver-adhoc-create|'.$ip;
-        $max = max(1, (int) config('waivers.adhoc_creates_per_ip_per_hour', 30));
+        $max = max(1, (int) config('waivers.adhoc_creates_per_ip_per_hour'));
         if (RateLimiter::tooManyAttempts($limiterKey, $max)) {
+            Log::warning('Walk-in waiver hourly limit reached', ['show_id' => (int) $show->id, 'limit' => $max]);
             throw new AdhocLimitReached(RateLimiter::availableIn($limiterKey));
         }
         RateLimiter::hit($limiterKey, 3600);
@@ -189,8 +190,9 @@ class WaiverSignService
     }
 
     /**
-     * Prefill for the signing form: first, last and a masked email. Unknown link: WaiverNotFound
-     * (404); signed: WaiverAlreadySigned (409).
+     * Prefill for the signing form: first, last and the full email on file. The tracking id is the
+     * bearer secret and the link is emailed to that address, so the email is shown in full (legacy
+     * behaviour). Unknown link: WaiverNotFound (404); signed: WaiverAlreadySigned (409).
      *
      * @return array{first: string, last: string, email: string}
      */
@@ -204,7 +206,7 @@ class WaiverSignService
         return [
             'first' => $context->first,
             'last' => $context->last,
-            'email' => self::maskEmail($context->email),
+            'email' => $context->email,
         ];
     }
 
@@ -376,21 +378,6 @@ class WaiverSignService
     public function blankPdf(CarShow $show): string
     {
         return $this->pdf->render($this->pdf->blankHtml($show));
-    }
-
-    /** "j***@example.com": the first character of the local part and the domain. */
-    public static function maskEmail(string $email): string
-    {
-        $email = trim($email);
-        if ($email === '') {
-            return '';
-        }
-        $at = strrpos($email, '@');
-        if ($at === false || $at === 0) {
-            return '***';
-        }
-
-        return mb_substr($email, 0, 1).'***'.substr($email, $at);
     }
 
     /** Keyed hash of the signer's IP (HMAC-SHA256 with the app key); the IP itself is not stored. */

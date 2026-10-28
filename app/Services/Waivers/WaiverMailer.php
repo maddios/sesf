@@ -26,7 +26,8 @@ class WaiverMailer
 
     /**
      * Sends a sign request to each registrant (ShowRegistration) or guest (UserGuest), creating
-     * the pending waiver when needed. Signed waivers, empty emails and recent repeats are skipped.
+     * the pending waiver when needed. Cancelled registrations, disabled registrants, signed waivers,
+     * empty emails and recent repeats are skipped.
      *
      * @param  iterable<ShowRegistration|UserGuest>  $people
      * @return array{sent: int, skipped: int, failed: int}
@@ -50,7 +51,7 @@ class WaiverMailer
             }
 
             $show = $registration !== null ? CarShow::query()->find($registration->show_id) : null;
-            if ($registration === null || $show === null || $email === '') {
+            if ($registration === null || $registration->is_cancelled || $show === null || $email === '') {
                 $result['skipped']++;
 
                 continue;
@@ -78,16 +79,70 @@ class WaiverMailer
     }
 
     /**
-     * Reminds each primary registrant of the show whose party (registrant or any guest) has not
-     * signed. Returns the number of emails sent.
+     * Registration ids of the show whose party (registrant or any guest) has not signed.
+     *
+     * @return list<int>
+     */
+    public function reminderRecipients(CarShow $show): array
+    {
+        return array_map(
+            fn (object $row): int => (int) $row->registration_id,
+            $this->incompleteParties((int) $show->id, null),
+        );
+    }
+
+    /**
+     * Reminds one primary registrant if their party is still incomplete at send time and no reminder
+     * went out within the dedupe window. Returns true when an email was sent.
+     */
+    public function sendReminder(int $registrationId, CarShow $show): bool
+    {
+        $row = $this->incompleteParties((int) $show->id, $registrationId)[0] ?? null;
+        $lock = 'waiver-reminder|'.$registrationId;
+        if ($row === null || ! Cache::add($lock, true, $this->dedupeSeconds())) {
+            return false;
+        }
+
+        $portalUrl = rtrim((string) config('app.url'), '/').'/waiver/'.(int) $show->id;
+        try {
+            Mail::to(trim((string) $row->email))->send(new WaiverReminderMail($portalUrl, (string) $row->first, (string) $show->name));
+
+            return true;
+        } catch (Throwable $e) {
+            Cache::forget($lock);
+            Log::error('Waiver reminder email failed', ['registration' => $registrationId, 'error' => $e->getMessage()]);
+
+            return false;
+        }
+    }
+
+    /**
+     * Sends a reminder to every incomplete party of the show. Returns the number of emails sent.
      */
     public function sendReminders(CarShow $show): int
     {
-        $rows = DB::select(
+        return count(array_filter(
+            $this->reminderRecipients($show),
+            fn (int $registrationId): bool => $this->sendReminder($registrationId, $show),
+        ));
+    }
+
+    /**
+     * Primary registrants of active registrations with an enabled account and a reachable email whose
+     * party (registrant or guest) has not signed. $registrationId narrows the check to one registration.
+     *
+     * @return list<object{registration_id: int, email: string, first: string}>
+     */
+    private function incompleteParties(int $showId, ?int $registrationId): array
+    {
+        return DB::select(
             'SELECT r.id AS registration_id, u.email, u.first
                FROM show_registration r
                JOIN user u ON u.id = r.user_id
               WHERE r.show_id = ?
+                AND (? IS NULL OR r.id = ?)
+                AND COALESCE(r.is_cancelled, 0) = 0
+                AND u.deleted_at IS NULL
                 AND u.email IS NOT NULL
                 AND TRIM(u.email) != \'\'
                 AND (
@@ -100,26 +155,8 @@ class WaiverMailer
                              AND (g.waiver_id IS NULL OR COALESCE(w.has_signed, 0) != 1)
                      )
                 )',
-            [(int) $show->id],
+            [$showId, $registrationId, $registrationId],
         );
-
-        $portalUrl = rtrim((string) config('app.url'), '/').'/waiver/'.(int) $show->id;
-        $sent = 0;
-        foreach ($rows as $row) {
-            $lock = 'waiver-reminder|'.(int) $row->registration_id;
-            if (! Cache::add($lock, true, $this->dedupeSeconds())) {
-                continue;
-            }
-            try {
-                Mail::to(trim((string) $row->email))->send(new WaiverReminderMail($portalUrl, (string) $row->first, (string) $show->name));
-                $sent++;
-            } catch (Throwable $e) {
-                Cache::forget($lock);
-                Log::error('Waiver reminder email failed', ['registration' => (int) $row->registration_id, 'error' => $e->getMessage()]);
-            }
-        }
-
-        return $sent;
     }
 
     private function dedupeSeconds(): int

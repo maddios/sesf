@@ -21,8 +21,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
- * admin-api/cars: the owner's cars (legacy frozennode car.php config). Cars are created by members, so there is
- * no store route here. Confirm/unconfirm is the car's is_confirmed flag. A car entered in any show cannot be
+ * admin-api/cars: the owner's cars (legacy frozennode car.php config). Admins can create a car for a member, as
+ * frozennode allowed. Confirm/unconfirm is the car's is_confirmed flag. A car entered in any show cannot be
  * deleted (409 with the count): it stays in the show history.
  */
 final class CarController extends Controller
@@ -73,6 +73,18 @@ final class CarController extends Controller
         ]]);
     }
 
+    public function store(CarRequest $request): JsonResponse
+    {
+        $fields = $request->fields();
+        $model = new Car;
+        $model->fill($fields);
+        $model->forceFill(['user_id' => $fields['user_id']])->save();
+
+        AuditLog::record('car.create', self::RESOURCE, [$model->id], AuditLog::created($model, self::REDACT));
+
+        return (new CarResource($this->find($model->id)))->response()->setStatusCode(201);
+    }
+
     public function update(CarRequest $request, int $car): CarResource
     {
         $model = $this->find($car);
@@ -111,7 +123,7 @@ final class CarController extends Controller
         }
 
         $images->delete($model->id);
-        AuditLog::record('car.delete', self::RESOURCE, [$model->id]);
+        AuditLog::record('car.delete', self::RESOURCE, [$model->id], AuditLog::deleted($model, self::REDACT));
 
         return response()->json(null, 204);
     }
@@ -169,7 +181,7 @@ final class CarController extends Controller
     private function query(): Builder
     {
         return Car::query()
-            ->with(['user:id,first,last,email', 'type:id,name', 'body:id,name'])
+            ->with(['user:id,first,last,email', 'type:id,name', 'body:id,name', 'registrations:id,show_id', 'registrations.carShow:id,name'])
             ->withCount('registrations');
     }
 

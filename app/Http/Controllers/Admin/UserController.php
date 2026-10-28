@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\RegisterUserForShowRequest;
+use App\Http\Requests\Admin\UserPasswordRequest;
 use App\Http\Requests\Admin\UserRequest;
 use App\Http\Requests\Registration\RegistrationErrors;
 use App\Http\Resources\Admin\UserResource;
@@ -24,6 +25,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -32,7 +34,9 @@ use Throwable;
  * config. Impersonation lives in ImpersonationController.
  *
  * The list shows active members by default. filter[status]=disabled|all changes that, and any other value is a
- * 422. Passwords are never set here: a reset sends the normal reset mail (PasswordResetController's flow).
+ * 422. Like legacy, an admin can create a member with a password and set a member's password directly; the
+ * reset mail (PasswordResetController's flow) is still offered. Another administrator's password, email or reset
+ * cannot be touched (403).
  */
 final class UserController extends Controller
 {
@@ -97,15 +101,36 @@ final class UserController extends Controller
         ]);
     }
 
-    public function update(UserRequest $request, int $user): UserResource
+    /**
+     * POST admin-api/users: creates a member with a password (legacy frozennode create). No welcome mail is sent,
+     * as in legacy. The observer creates the preferences row.
+     */
+    public function store(UserRequest $request): JsonResponse
+    {
+        $model = new User;
+        $model->fill($request->fields());
+        $model->forceFill(['type_id' => $request->typeId()]);
+        $this->applyPassword($model, $request->password(), (string) $request->input('password_confirmation'));
+        $model->save();
+
+        AuditLog::record('user.create', self::RESOURCE, [$model->id], AuditLog::created($model, self::REDACT));
+
+        return (new UserResource($this->find($model->id)))->response()->setStatusCode(201);
+    }
+
+    public function update(UserRequest $request, int $user): UserResource|JsonResponse
     {
         $model = $this->find($user);
+        $fields = $request->fields();
+        if ($fields['email'] !== $model->email && $this->isOtherAdmin($request, $model)) {
+            return response()->json(['message' => "You cannot change another administrator's email."], 403);
+        }
         $typeId = $request->typeId();
         if ($typeId !== null && $typeId !== $model->type_id && $request->user()?->is($model)) {
             throw ValidationException::withMessages(['type_id' => ['You cannot change the account type of your own account.']]);
         }
 
-        $model->fill($request->fields());
+        $model->fill($fields);
         if ($typeId !== null) {
             $model->forceFill(['type_id' => $typeId]);
         }
@@ -151,11 +176,40 @@ final class UserController extends Controller
     }
 
     /**
-     * POST admin-api/users/{id}/password-reset: sends the member the same reset mail as "forgot password".
+     * POST admin-api/users/{id}/password: sets the member's password (legacy user.php password + confirm_password).
+     * Rotating the remember token ends the member's "remember me" cookies; AuthenticateSession ends their other
+     * sessions because the stored password hash changes.
      */
-    public function sendPasswordReset(int $user): JsonResponse
+    public function setPassword(UserPasswordRequest $request, int $user): JsonResponse
     {
         $model = $this->find($user);
+        if ($this->isOtherAdmin($request, $model)) {
+            return response()->json(['message' => "You cannot set another administrator's password."], 403);
+        }
+
+        $this->applyPassword($model, $request->password(), (string) $request->input('password_confirmation'));
+        $model->setRememberToken(Str::random(60));
+        $model->save();
+        if ($request->user()?->is($model)) {
+            // AuthenticateSession stores the signed-in user's hash after the response; keep this session valid.
+            $request->user()->refresh();
+            $request->session()->regenerate();
+        }
+
+        AuditLog::record('user.set_password', self::RESOURCE, [$model->id], ['password' => AuditLog::REDACTED]);
+
+        return response()->json(['message' => 'The password has been changed.']);
+    }
+
+    /**
+     * POST admin-api/users/{id}/password-reset: sends the member the same reset mail as "forgot password".
+     */
+    public function sendPasswordReset(Request $request, int $user): JsonResponse
+    {
+        $model = $this->find($user);
+        if ($this->isOtherAdmin($request, $model)) {
+            return response()->json(['message' => 'You cannot send a password reset for another administrator.'], 403);
+        }
         if ($model->trashed()) {
             return response()->json(['message' => 'Restore this account before sending a password reset.'], 409);
         }
@@ -241,6 +295,20 @@ final class UserController extends Controller
             'disabled' => $query->whereNotNull('deleted_at'),
             default => $query,
         };
+    }
+
+    /** The model's legacy rule (blank or whitespace-only passwords are refused); validation already ran. */
+    private function applyPassword(User $model, string $password, string $confirmation): void
+    {
+        if (! $model->setPasswordWithConfirmation($password, $confirmation)) {
+            throw ValidationException::withMessages(['password' => ['The password is not valid.']]);
+        }
+    }
+
+    /** Each administrator manages their own sign-in details; another admin's email or reset could take the account over. */
+    private function isOtherAdmin(Request $request, User $model): bool
+    {
+        return $model->isAdmin() && ! $request->user()?->is($model);
     }
 
     private function find(int $id): User

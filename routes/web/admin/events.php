@@ -13,3 +13,5 @@ Route::put('events/{event}', [EventController::class, 'update'])->whereNumber('e
 Route::delete('events/{event}', [EventController::class, 'destroy'])->whereNumber('event')->name('events.destroy');
 Route::post('events/{event}/activate', [EventController::class, 'activate'])->whereNumber('event')->name('events.activate');
 Route::post('events/{event}/deactivate', [EventController::class, 'deactivate'])->whereNumber('event')->name('events.deactivate');
+Route::post('events/{event}/image', [EventController::class, 'image'])->whereNumber('event')->name('events.image');
+Route::post('events/{event}/schedule-pdf', [EventController::class, 'schedulePdf'])->whereNumber('event')->name('events.schedule-pdf');

@@ -6,7 +6,8 @@
  *   docker compose -p sesf-e2e exec -T e2eapp php scripts/e2e-seed.php
  *
  * Refuses to run unless the default connection is mysql on host "e2edb" with database exactly
- * "sesf_e2e", and the live session reports sesf_e2e. It then DROPS and recreates sesf_e2e, loads
+ * "sesf_e2e", the PayPal verify URL is not a real paypal.com host, and the live session reports
+ * sesf_e2e. It then DROPS and recreates sesf_e2e, loads
  * the legacy schema + database/sql + lookup fixture (Tests\Support\LegacyTestDatabase::ensureSchema,
  * whose own sesf_test guard is untouched), seeds with the model factories, clears sandbox sessions
  * and cache, writes e2e/.state/seed.json for the Playwright specs and prints the logins.
@@ -76,6 +77,12 @@ if ($default !== 'mysql' || ! is_array($config)
         E2E_HOST,
         E2E_DATABASE,
     ));
+}
+
+// The sandbox must never talk to real PayPal: the IPN postback goes to the paypalstub container.
+$verifyHost = strtolower((string) parse_url((string) config('sesf.paypal.verify_url'), PHP_URL_HOST));
+if ($verifyHost === '' || $verifyHost === 'paypal.com' || str_ends_with($verifyHost, '.paypal.com')) {
+    e2e_fail("PayPal verify_url host [{$verifyHost}] is not allowed; point PAYPAL_IPN_VERIFY_URL at the paypalstub container.");
 }
 
 $connection = DB::connection();

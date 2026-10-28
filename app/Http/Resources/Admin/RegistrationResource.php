@@ -9,7 +9,9 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * A registration as the admin sees it. Amounts are integer cents. The summary is the stored one for
- * ended shows and computed from the current prices otherwise (amount_source says which).
+ * ended shows and computed from the current prices otherwise (amount_source says which);
+ * stored_owed_cents is always the amount_owed column. Expects cars, guests, shirts and extras eager
+ * loaded (RegistrationController::query) so the list does not query per row.
  *
  * @mixin ShowRegistration
  */
@@ -31,6 +33,8 @@ final class RegistrationResource extends JsonResource
             'show_name' => $registration->show_name,
             'user_id' => (int) $registration->user_id,
             'user_name' => $registration->user?->fullName,
+            // The full on-behalf editor (legacy "Edit Registration" action), a hash route of the SPA.
+            'editor_path' => '/'.$registration->carShow?->URLName.'/e'.$registration->show_id.'/register?user_id='.$registration->user_id,
             'donation_cents' => (int) $registration->donation * 100,
             'arrival_date' => $registration->arrival_date?->format('Y-m-d'),
             'arrival_time' => $registration->arrival_time,
@@ -41,9 +45,13 @@ final class RegistrationResource extends JsonResource
             'owed_cents' => RegistrationPricing::signedCents($totals['owed']),
             'received_cents' => RegistrationPricing::signedCents($totals['received']),
             'discount_cents' => RegistrationPricing::signedCents($totals['discount']),
-            'cars_count' => (int) ($registration->getAttribute('cars_count') ?? 0),
-            'guests_count' => (int) ($registration->getAttribute('guests_count') ?? 0),
-            'shirts_count' => (int) ($registration->getAttribute('shirts_count') ?? 0),
+            'stored_owed_cents' => RegistrationPricing::signedCents((string) $registration->amount_owed),
+            'received_actual_cents' => $registration->amount_received_actual === null ? null : RegistrationPricing::signedCents((string) $registration->amount_received_actual),
+            'discount_note' => $registration->discount_note,
+            'car_ids' => $registration->cars->modelKeys(),
+            'cars_count' => $registration->cars->count(),
+            'guests_count' => $registration->guests->count(),
+            'shirts_count' => $registration->shirts->count(),
             'created_at' => $registration->created_at?->toIso8601String(),
             'updated_at' => $registration->updated_at?->toIso8601String(),
         ];

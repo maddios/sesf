@@ -111,6 +111,7 @@ function safeHref(value: string): string | undefined {
         <div class="w-full max-w-md shrink-0 sm:w-1/2">
           <SafeImage
             :src="car.imageUrl"
+            resize="carProfile"
             :alt="`Photo of ${heading}`"
             :placeholder="heading"
             img-class="aspect-[4/3] w-full rounded-md border border-border object-cover"

@@ -4,7 +4,7 @@
 
     Trusted HTML (built by LegalDocument from our own data): $css, $legalPrefix, $liability.
     Everything the signer entered is escaped here with {{ }}: $firstName, $lastName, $email,
-    $guardianName, $typedText. $signatureDataUri is a data:image/png;base64 URI of a re-encoded PNG
+    $guardianName. $signatureDataUri is a data:image/png;base64 URI of a re-encoded PNG
     (base64 alphabet only), or null.
 --}}
 <!DOCTYPE html>
@@ -49,9 +49,6 @@
 <div class="sesf-waiver-pdf-sig-block" style="margin:0.25em 0 0;padding:0;line-height:1.2;">
 <strong>Signature:</strong><br/>
 <img src="{{ $signatureDataUri }}" style="max-width:360px;height:auto;" alt="Signature"/>
-@if ($typedText !== '')
-<div style="margin:2px 0 0;padding:0;font-size:8pt;">(typed signature: {{ $typedText }})</div>
-@endif
 <div style="margin:4px 0 0;padding:0;"><strong>Signed electronically:</strong> {{ $signedAtText }}</div>
 </div>
 @else

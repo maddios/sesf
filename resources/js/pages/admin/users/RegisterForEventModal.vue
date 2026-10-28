@@ -1,14 +1,16 @@
 <script setup lang="ts">
 /**
- * "Register for event" on a member: pick an event and the member's cars, then POST admin-api/users/{id}/registrations.
- * The cars are the member's own (loaded from admin-api/cars filtered by owner). Errors map onto the fields.
+ * "Register for event": pick an event and the member's cars, then POST admin-api/users/{id}/registrations.
+ * Without a `member` (the registrations page) the member is picked first. The cars are the member's own (loaded
+ * from admin-api/cars filtered by owner). Errors map onto the fields. Once member and event are known, a link opens
+ * the full on-behalf registration editor (/:event/e:id/register?user_id=, legacy admin_register_user).
  */
 import { computed, ref, watch } from 'vue';
 import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
-import RelationSelect from '../../../components/admin/RelationSelect.vue';
+import RelationSelect, { type RelationOption } from '../../../components/admin/RelationSelect.vue';
 import type { AdminField, FormValues } from '../../../components/admin/types';
 import { ADMIN_API_BASE, mapAdminError, useAdminResource } from '../../../composables/admin/useAdminResource';
-import { api } from '../../../api/client';
+import { api, ApiError } from '../../../api/client';
 import type { Car } from '../cars/cars';
 import type { AdminUser } from './users';
 
@@ -19,17 +21,40 @@ const carsApi = useAdminResource<Car, Record<string, unknown>>('cars');
 const cars = ref<Car[]>([]);
 const carsError = ref<string | null>(null);
 
-const FIELDS: AdminField[] = [
+const chosenMemberId = ref<number | null>(null);
+/** lookups/events options carry url_name (the legacy URL form of the event name). */
+const chosenEvent = ref<(RelationOption & { url_name: string }) | null>(null);
+const memberId = computed(() => props.member?.id ?? chosenMemberId.value);
+
+const FIELDS = computed<AdminField[]>(() => [
+  ...(props.member === null ? [{ name: 'user_id', label: 'Member', required: true }] : []),
   { name: 'show_id', label: 'Event', required: true },
   { name: 'car_ids', label: 'Cars entered', hint: 'The member’s cars that go into this event.' },
-];
+]);
 
-const initial = computed<FormValues>(() => ({ show_id: null, car_ids: [] }));
+const initial = computed<FormValues>(() => ({ user_id: null, show_id: null, car_ids: [] }));
+
+/** The full on-behalf editor for the chosen member and event (hash route). */
+const editorHref = computed(() => {
+  const event = chosenEvent.value;
+  return event === null || memberId.value === null ? null : `#/${event.url_name}/e${event.id}/register?user_id=${memberId.value}`;
+});
 
 watch(
-  () => [props.open, props.member?.id] as const,
+  () => props.open,
+  (open) => {
+    if (open) {
+      chosenMemberId.value = null;
+      chosenEvent.value = null;
+    }
+  },
+);
+
+watch(
+  () => [props.open, memberId.value] as const,
   async ([open, id]) => {
-    if (!open || id === undefined) return;
+    cars.value = [];
+    if (!open || id === null) return;
     carsError.value = null;
     try {
       const list = await carsApi.list({ per_page: 100, sort: 'model', direction: 'asc', filter: { user_id: String(id) } });
@@ -43,8 +68,13 @@ watch(
 );
 
 function submit(values: FormValues): Promise<unknown> {
-  const body = { show_id: Number(values.show_id), car_ids: (values.car_ids as number[]) ?? [] };
-  return api.post(`${ADMIN_API_BASE}/users/${props.member?.id}/registrations`, body);
+  // Only cars of the current member: ticks made before the member was changed are dropped.
+  const owned = new Set(cars.value.map((car) => car.id));
+  const body = { show_id: Number(values.show_id), car_ids: ((values.car_ids as number[]) ?? []).filter((id) => owned.has(id)) };
+  if (memberId.value === null) {
+    return Promise.reject(new ApiError(422, { message: 'Choose a member.', errors: { user_id: ['Choose a member.'] } }));
+  }
+  return api.post(`${ADMIN_API_BASE}/users/${memberId.value}/registrations`, body);
 }
 
 function onSaved(result: unknown): void {
@@ -68,6 +98,27 @@ function toggleCar(current: number[], setValue: (value: unknown) => void, id: nu
     @update:open="(value: boolean) => emit('update:open', value)"
     @saved="onSaved"
   >
+    <template #field-user_id="{ id, value, setValue, errors }">
+      <label
+        :for="id"
+        class="block text-sm font-medium text-text"
+      >Member (required)</label>
+      <RelationSelect
+        :id="id"
+        :model-value="typeof value === 'number' ? value : null"
+        :endpoint="`${ADMIN_API_BASE}/users/lookup`"
+        placeholder="Search members"
+        @update:model-value="(picked: number | null) => { chosenMemberId = picked; setValue(picked); }"
+      />
+      <p
+        v-for="message in errors"
+        :key="message"
+        class="mt-1 text-sm text-danger"
+      >
+        {{ message }}
+      </p>
+    </template>
+
     <template #field-show_id="{ id, value, setValue, errors }">
       <label
         :for="id"
@@ -79,7 +130,13 @@ function toggleCar(current: number[], setValue: (value: unknown) => void, id: nu
         :endpoint="`${ADMIN_API_BASE}/lookups/events`"
         placeholder="Search events"
         @update:model-value="(id: number | null) => setValue(id)"
+        @change="(option: RelationOption | null) => (chosenEvent = option as (RelationOption & { url_name: string }) | null)"
       />
+      <a
+        v-if="editorHref !== null"
+        class="mt-1 inline-block text-sm underline"
+        :href="editorHref"
+      >Open the full registration editor (guests, shirts, extras)</a>
       <p
         v-for="message in errors"
         :key="message"

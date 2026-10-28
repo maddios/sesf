@@ -26,6 +26,8 @@ class AppServiceProvider extends ServiceProvider
         // exists and implements the contract, otherwise the documented stored amount_owed fallback.
         $this->app->bind(IpnMailer::class, IpnMailerImpl::class);
         $pricing = 'App\\Services\\Registration\\RegistrationPricing';
+        // One instance per request, so its per-show car_body_show cache serves a whole admin list.
+        $this->app->scoped($pricing);
         $this->app->bind(
             RegistrationBalance::class,
             class_exists($pricing) && in_array(RegistrationBalance::class, class_implements($pricing) ?: [], true)

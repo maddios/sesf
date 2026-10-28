@@ -89,10 +89,13 @@ export function toBool(value: unknown): boolean {
   return value === true || value === 1;
 }
 
-/** Legacy relative image paths ("images/sponsor/45.jpg") become root-relative URLs; anything odd is dropped. */
+/**
+ * Legacy relative image paths ("images/sponsor/45.jpg?v=1792976406") become root-relative URLs; anything odd is
+ * dropped. The cache-busting query that Sponsor and CarShow imageURL carry is kept.
+ */
 export function legacyImageUrl(path: unknown): string {
   const text = toText(path).replace(/^\/+/, '');
-  return /^images\/[A-Za-z0-9_\-./ ]+$/.test(text) && !text.includes('..') ? `/${text}` : '';
+  return /^images\/[A-Za-z0-9_\-./ ]+(\?[A-Za-z0-9=&_-]*)?$/.test(text) && !text.includes('..') ? `/${text}` : '';
 }
 
 /** External links must be http(s). */

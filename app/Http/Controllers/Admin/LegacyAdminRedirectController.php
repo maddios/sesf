@@ -15,12 +15,12 @@ final class LegacyAdminRedirectController extends Controller
     /** Legacy /admin2 section => SPA admin path. */
     public const ADMIN2_SECTIONS = [
         'judging_list' => 'judging',
-        'checkin_list' => 'check-in',
+        'checkin_list' => 'checkin',
         'tshirt_list' => 'tshirts',
         'waivers_list' => 'waivers',
-        'member_list' => 'members-report',
-        'event_summary' => 'events-report',
-        'extra_list' => 'extras-report',
+        'member_list' => 'reports/members',
+        'event_summary' => 'reports/event-summary',
+        'extra_list' => 'reports/extras',
     ];
 
     public function admin(Request $request): RedirectResponse

@@ -2,6 +2,7 @@
 
 namespace Tests\Database\Admin;
 
+use App\Models\ShowExtra;
 use App\Models\Sponsor;
 use App\Models\User;
 use App\Support\Admin\AuditLog;
@@ -97,6 +98,32 @@ class AuditLogTest extends AdminTestCase
         $this->assertSame('admin-api.test.things', $entry['resource']);
         $this->assertSame([42], $entry['ids']);
         $this->assertStringNotContainsString('hunter2-secret', $this->auditText());
+    }
+
+    #[Test]
+    public function money_columns_are_logged_as_decimal_strings(): void
+    {
+        $extra = ShowExtra::factory()->create(['price' => '12.30']);
+        $extra = ShowExtra::query()->findOrFail($extra->id);
+        $extra->price = '15.5';
+        $extra->save();
+
+        $this->assertSame(['old' => '12.30', 'new' => '15.50'], AuditLog::diff($extra)['price']);
+        $this->assertSame(['old' => null, 'new' => '15.50'], AuditLog::created($extra)['price']);
+    }
+
+    #[Test]
+    public function a_delete_records_the_deleted_row_without_sensitive_values(): void
+    {
+        $sponsor = Sponsor::factory()->create(['name' => 'Gone Inc', 'internal_notes' => 'private-note-value']);
+
+        $this->actingAs($this->admin())->deleteJson('/admin-api/sponsors/'.$sponsor->id)->assertNoContent();
+
+        $entry = $this->auditEntries()[0];
+        $this->assertSame('sponsor.delete', $entry['action']);
+        $this->assertSame(['old' => 'Gone Inc', 'new' => null], $entry['changes']['name']);
+        $this->assertSame(AuditLog::REDACTED, $entry['changes']['internal_notes']);
+        $this->assertStringNotContainsString('private-note-value', $this->auditText());
     }
 
     #[Test]

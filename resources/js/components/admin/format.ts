@@ -29,3 +29,12 @@ export function toDateInput(value: string | null | undefined): string {
   const match = /^(\d{4}-\d{2}-\d{2})/.exec(value ?? '');
   return match === null ? '' : (match[1] as string);
 }
+
+/** ISO timestamp -> "Oct 26, 2026" in Eastern time (the event timezone); "" when empty or malformed. */
+export function formatAdminDate(value: string | null | undefined): string {
+  const date = new Date(value ?? '');
+  if (value === null || value === undefined || value === '' || Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return date.toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric' });
+}

@@ -8,9 +8,10 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * PUT admin-api/users/{id}: the editable member fields. Passwords are not editable here: a reset goes
- * through the reset mail (UserController::sendPasswordReset). Widths are the user table columns
- * (docs/legacy/schema-sesf_dev.sql). type_id is guarded on the model and is written with forceFill().
+ * POST admin-api/users (create) and PUT admin-api/users/{id}: the editable member fields. A create also takes the
+ * password (registration rules: at least 6 characters, confirmed); an existing member's password is set with
+ * UserPasswordRequest. Widths are the user table columns (docs/legacy/schema-sesf_dev.sql). type_id is guarded on
+ * the model and is written with forceFill().
  */
 final class UserRequest extends FormRequest
 {
@@ -25,8 +26,9 @@ final class UserRequest extends FormRequest
     public function rules(): array
     {
         $userId = (int) $this->route('user');
+        $creating = $this->isMethod('post');
 
-        return [
+        $rules = [
             'first' => ['nullable', 'string', 'max:20', new Latin1Text],
             'last' => ['nullable', 'string', 'max:20', new Latin1Text],
             'email' => ['required', 'string', 'email', 'max:60', Rule::unique('user', 'email')->ignore($userId), new Latin1Text],
@@ -38,8 +40,19 @@ final class UserRequest extends FormRequest
             'city' => ['required', 'string', 'max:60', new Latin1Text],
             'state' => ['required', 'string', 'max:10', new Latin1Text],
             'zip' => ['required', 'string', 'max:10', new Latin1Text],
-            'type_id' => ['sometimes', 'integer', Rule::enum(UserType::class)],
+            'type_id' => [$creating ? 'required' : 'sometimes', 'integer', Rule::enum(UserType::class)],
         ];
+
+        if ($creating) {
+            $rules['password'] = UserPasswordRequest::PASSWORD_RULES;
+        }
+
+        return $rules;
+    }
+
+    public function password(): string
+    {
+        return (string) $this->validated('password');
     }
 
     /**

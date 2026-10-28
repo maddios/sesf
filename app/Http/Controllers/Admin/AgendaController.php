@@ -72,7 +72,7 @@ final class AgendaController extends Controller
         $model = $this->find($agenda);
         $model->delete();
 
-        AuditLog::record('agenda.delete', self::RESOURCE, [$model->id]);
+        AuditLog::record('agenda.delete', self::RESOURCE, [$model->id], AuditLog::deleted($model));
 
         return response()->json(null, 204);
     }

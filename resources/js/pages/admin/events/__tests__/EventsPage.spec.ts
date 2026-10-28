@@ -7,10 +7,10 @@ import EventsPage from '../EventsPage.vue';
 import AdminConfirmHost from '../../../../components/admin/AdminConfirmHost.vue';
 import AdminToastRegion from '../../../../components/admin/AdminToastRegion.vue';
 import { renderAt, jsonResponse } from '../../../../test/helpers';
-import { listBody, stubAdminFetch, type SeenRequest } from '../../../../test/admin';
+import { listBody, stubAdminFetch, stubXhr, type SeenRequest } from '../../../../test/admin';
 import { useToast } from '../../../../composables/admin/useToast';
 import { useConfirm } from '../../../../composables/admin/useConfirm';
-import { toCreateInput, type Event } from '../events';
+import { toCreateInput, toInput, type Event } from '../events';
 
 function event(overrides: Partial<Event> = {}): Event {
   return {
@@ -30,6 +30,7 @@ function event(overrides: Partial<Event> = {}): Event {
     date_registration_deactivation: null,
     is_active: true,
     is_judging_released: false,
+    waiver_id: null,
     has_image: false,
     image_url: 'images/shows/generic-show.jpg',
     primary_sponsor_id: null,
@@ -179,6 +180,75 @@ describe('EventsPage', () => {
 });
 
 describe('toCreateInput', () => {
+  it('releases judging results from the row action', async () => {
+    const { seen } = stubEvents(undefined, (r) =>
+      r.method === 'PUT' && r.path === '/admin-api/judging/shows/1/release' ? jsonResponse(200, { data: { id: 1, is_judging_released: true } }) : undefined,
+    );
+    const user = userEvent.setup();
+    await renderAt(Page, '/admin/events');
+    await user.click(await within(table()).findByRole('button', { name: 'Release judging results for Spring Show' }));
+    await waitFor(() => expect(seen.find((r) => r.path === '/admin-api/judging/shows/1/release')?.body).toEqual({ released: true }));
+    expect(await screen.findByText('Judging results for “Spring Show” released.')).toBeTruthy();
+  });
+
+  it('sends judging results for a released event after confirming', async () => {
+    const { seen } = stubEvents([event({ is_judging_released: true })], (r) =>
+      r.method === 'POST' && r.path === '/admin-api/judging/shows/1/results-mail' ? jsonResponse(200, { data: { sent: 3 } }) : undefined,
+    );
+    const user = userEvent.setup();
+    await renderAt(Page, '/admin/events');
+    await user.click(await within(table()).findByRole('button', { name: 'Send judging results for Spring Show' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Send judging results' });
+    expect(seen.some((r) => r.path.endsWith('/results-mail'))).toBe(false);
+    await user.click(within(dialog).getByRole('button', { name: 'Send results' }));
+    expect(await screen.findByText('Judging results for “Spring Show” sent (3).')).toBeTruthy();
+  });
+
+  it('uploads the event image through the image modal', async () => {
+    stubEvents();
+    const xhrs = stubXhr();
+    const user = userEvent.setup();
+    await renderAt(Page, '/admin/events');
+    await user.click(await within(table()).findByRole('button', { name: 'Upload image for Spring Show' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Image for Spring Show' });
+    await user.upload(within(dialog).getByLabelText('Choose an image'), new File(['x'], 's.png', { type: 'image/png' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Upload' }));
+    expect(xhrs[0]?.url).toBe('/admin-api/events/1/image');
+    xhrs[0]!.respond(200, { data: event({ has_image: true }) });
+    expect(await screen.findByText('Image for “Spring Show” uploaded.')).toBeTruthy();
+  });
+
+  it('uploads a schedule PDF and reports a rejected file', async () => {
+    stubEvents();
+    const xhrs = stubXhr();
+    const user = userEvent.setup();
+    await renderAt(Page, '/admin/events');
+    await user.click(await within(table()).findByRole('button', { name: 'Upload schedule PDF for Spring Show' }));
+    await user.upload(screen.getByLabelText('Schedule PDF file'), new File(['%PDF-'], 'schedule.pdf', { type: 'application/pdf' }));
+    await waitFor(() => expect(xhrs[0]?.url).toBe('/admin-api/events/1/schedule-pdf'));
+    xhrs[0]!.respond(200, { data: event({ is_schedule_pdf: true }) });
+    expect(await screen.findByText('Schedule PDF for “Spring Show” uploaded.')).toBeTruthy();
+
+    await user.click(within(table()).getByRole('button', { name: 'Upload schedule PDF for Spring Show' }));
+    await user.upload(screen.getByLabelText('Schedule PDF file'), new File(['<html>'], 'fake.pdf', { type: 'application/pdf' }));
+    await waitFor(() => expect(xhrs[1]).toBeDefined());
+    xhrs[1]!.respond(422, { message: 'The file must be a PDF.', errors: { file: ['The file must be a PDF.'] } });
+    expect(await screen.findByText('Please correct the highlighted fields.')).toBeTruthy();
+  });
+
+  it('shows the id and links each event to its expense tracker', async () => {
+    stubEvents();
+    await renderAt(Page, '/admin/events');
+    expect(await within(table()).findByRole('columnheader', { name: /ID/ })).toBeTruthy();
+    const link = await within(table()).findByRole('link', { name: 'Expense tracker for Spring Show' });
+    expect(link.getAttribute('href')).toContain('/admin/expenses?show_id=1');
+  });
+
+  it('sends the waiver switch trimmed, blank as null', () => {
+    expect(toInput({ name: 'A', short_name: 'a', waiver_id: ' tpl ' }).waiver_id).toBe('tpl');
+    expect(toInput({ name: 'A', short_name: 'a', waiver_id: '' }).waiver_id).toBeNull();
+  });
+
   it('leaves the clone source out when none is chosen', () => {
     expect(toCreateInput({ name: 'A', short_name: 'a', clone_from_show_id: '' })).not.toHaveProperty('clone_from_show_id');
   });

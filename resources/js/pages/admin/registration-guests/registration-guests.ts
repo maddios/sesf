@@ -25,6 +25,8 @@ export interface RegistrationGuestInput {
   last: string;
   email: string | null;
   type_id: number;
+  /** Moves the guest to another registration of the same event (edit only). */
+  registration_id?: number | null;
 }
 
 export const registrationGuestsApi = useAdminResource<RegistrationGuest, RegistrationGuestInput>('registration-guests');
@@ -43,12 +45,20 @@ export const GUEST_FIELDS: AdminField[] = [
   { name: 'type_id', label: 'Type', type: 'select', required: true, options: GUEST_TYPES },
 ];
 
+/** The edit form: the guest fields plus the registration it belongs to (legacy reassign). */
+export const GUEST_EDIT_FIELDS: AdminField[] = [
+  ...GUEST_FIELDS,
+  { name: 'registration_id', label: 'Registration ID', type: 'number', required: true, hint: 'Another registration of the same event moves the guest there.' },
+];
+
 export const GUEST_COLUMNS: AdminColumn<RegistrationGuest>[] = [
   { key: 'last', label: 'Name', sortable: true, format: (row) => `${row.last}, ${row.first}` },
   { key: 'email', label: 'Email' },
   { key: 'type', label: 'Type' },
   { key: 'show_name', label: 'Event' },
   { key: 'member_name', label: 'Registered by' },
+  { key: 'registration_id', label: 'Registration ID', sortable: true, align: 'right' },
+  { key: 'created_at', label: 'Date added', sortable: true, format: (row) => (row.created_at ?? '').slice(0, 10) },
 ];
 
 export function toForm(guest: RegistrationGuest | null): FormValues {
@@ -57,6 +67,7 @@ export function toForm(guest: RegistrationGuest | null): FormValues {
     last: guest?.last ?? '',
     email: guest?.email ?? '',
     type_id: String(guest?.type_id ?? 1),
+    registration_id: guest?.registration_id ?? null,
   };
 }
 
@@ -71,5 +82,6 @@ export function toInput(values: FormValues): RegistrationGuestInput {
     last: typeof values.last === 'string' ? values.last.trim() : '',
     email: blankToNull(values.email),
     type_id: Number(values.type_id),
+    registration_id: typeof values.registration_id === 'number' ? values.registration_id : null,
   };
 }

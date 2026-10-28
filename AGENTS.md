@@ -57,7 +57,18 @@ docker-compose bind-mounts it read-write over these repo paths. Compose fails if
 is missing (`create_host_path: false`); run `scripts/dev-setup.sh` to see which ones are absent:
 
 - `public/images/{members,cars,shows,sponsor,gallery,judging}`
-- `public/packet`, `public/waivers`
+- `public/packet`
 - `storage/waivers`
+- the store's `public/waivers` (legacy signed PDFs) is mounted at `storage/legacy-waivers`, never under `public/`
 
 These paths are git-ignored. Do not commit files into them.
+
+## Queue worker and scheduler (queued mail)
+
+- Bulk waiver request and reminder mail, waiver PDF regeneration and the other queued jobs run on the database queue.
+  `.env` needs `QUEUE_CONNECTION=database` and `DB_QUEUE_TABLE=queue_jobs` (both in `.env.example`).
+- The queue does NOT use the legacy `jobs` table: the old app still runs against this database and drains `jobs` with its
+  own cron worker. Apply `database/sql/001_queue_tables.sql` by hand first; it creates `queue_jobs` and `failed_jobs`.
+- Start the consumers with `docker compose up -d worker scheduler`. `worker` is `queue:work` (continuous); `scheduler` runs
+  `schedule:work`, which drains the queue every minute as the legacy ProcessDbQueue cron did.
+- Logs: `docker compose logs -f worker`. Tests use `QUEUE_CONNECTION=sync` (phpunit.xml) and never need a worker.

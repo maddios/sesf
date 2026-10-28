@@ -1,12 +1,13 @@
 <script setup lang="ts">
 /**
  * Events admin (car_show). List with search and status filter (URL-synced), create with an optional clone of the
- * car bodies and judging setup from an earlier event, edit, activate/deactivate, per-event sponsors (dialog), and
- * delete. An event with registrations, sponsors or setup is a 409: the page says to deactivate it instead.
+ * car bodies and judging setup from an earlier event, edit, activate/deactivate, release/withhold judging results,
+ * image and schedule PDF uploads, per-event sponsors (dialog), and delete. An event with registrations, sponsors or setup is a 409: the page says to deactivate it instead.
  */
 import { computed, ref } from 'vue';
 import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
 import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
+import ImageUploadModal from '../../../components/admin/ImageUploadModal.vue';
 import StatusBadge from '../../../components/admin/StatusBadge.vue';
 import BaseButton from '../../../components/ui/BaseButton.vue';
 import { useAdminList } from '../../../composables/admin/useAdminList';
@@ -21,6 +22,7 @@ import {
   cloneField,
   eventsApi,
   fetchCloneSources,
+  judgingResultsApi,
   toCreateInput,
   toForm,
   toInput,
@@ -42,6 +44,10 @@ const cloneSources = ref<CloneSource[]>([]);
 const sponsorsFor = ref<Event | null>(null);
 const sponsorsOpen = ref(false);
 const busyId = ref<number | null>(null);
+const imageFor = ref<Event | null>(null);
+const imageOpen = ref(false);
+const pdfFor = ref<Event | null>(null);
+const pdfInput = ref<HTMLInputElement | null>(null);
 
 const formFields = computed(() => (editing.value === null ? [cloneField(cloneSources.value), ...EVENT_FIELDS] : EVENT_FIELDS));
 
@@ -78,6 +84,74 @@ async function setActive(event: Event, active: boolean): Promise<void> {
     await list.reload();
   } catch (error) {
     toast.error(mapAdminError(error).message);
+  } finally {
+    busyId.value = null;
+  }
+}
+
+async function setJudgingReleased(event: Event, released: boolean): Promise<void> {
+  busyId.value = event.id;
+  try {
+    await judgingResultsApi.setReleased(event.id, released);
+    toast.success(`Judging results for “${event.name}” ${released ? 'released' : 'withheld'}.`);
+    await list.reload();
+  } catch (error) {
+    toast.error(mapAdminError(error).message);
+  } finally {
+    busyId.value = null;
+  }
+}
+
+async function sendResults(event: Event): Promise<void> {
+  const ok = await confirm({
+    title: 'Send judging results',
+    message: `Email every owner of a judged car in “${event.name}” a link to their results?`,
+    confirmLabel: 'Send results',
+  });
+  if (!ok) return;
+  busyId.value = event.id;
+  try {
+    const { data } = await judgingResultsApi.mail(event.id);
+    toast.success(`Judging results for “${event.name}” sent (${data.sent}).`);
+  } catch (error) {
+    toast.error(mapAdminError(error, 'The judging results could not be sent.').message);
+  } finally {
+    busyId.value = null;
+  }
+}
+
+function openImage(event: Event): void {
+  imageFor.value = event;
+  imageOpen.value = true;
+}
+
+function uploadImage(file: File, onProgress: (percent: number) => void): Promise<Event> {
+  return eventsApi.upload((imageFor.value as Event).id, file, { onProgress });
+}
+
+function onImageUploaded(): void {
+  toast.success(`Image for “${imageFor.value?.name ?? 'the event'}” uploaded.`);
+  void list.reload();
+}
+
+function choosePdf(event: Event): void {
+  pdfFor.value = event;
+  pdfInput.value?.click();
+}
+
+async function onPdfChosen(change: globalThis.Event): Promise<void> {
+  const input = change.target as HTMLInputElement;
+  const file = input.files?.[0];
+  const event = pdfFor.value;
+  input.value = '';
+  if (file === undefined || event === null) return;
+  busyId.value = event.id;
+  try {
+    await eventsApi.upload(event.id, file, { path: 'schedule-pdf' });
+    toast.success(`Schedule PDF for “${event.name}” uploaded.`);
+    await list.reload();
+  } catch (error) {
+    toast.error(mapAdminError(error, 'The schedule PDF could not be uploaded.').message);
   } finally {
     busyId.value = null;
   }
@@ -198,6 +272,44 @@ async function remove(event: Event): Promise<void> {
           </BaseButton>
           <BaseButton
             size="sm"
+            :loading="busyId === row.id"
+            :aria-label="`${row.is_judging_released ? 'Withhold' : 'Release'} judging results for ${row.name}`"
+            @click="setJudgingReleased(row, !row.is_judging_released)"
+          >
+            {{ row.is_judging_released ? 'Withhold results' : 'Release results' }}
+          </BaseButton>
+          <BaseButton
+            v-if="row.is_judging_released"
+            size="sm"
+            :loading="busyId === row.id"
+            :aria-label="`Send judging results for ${row.name}`"
+            @click="sendResults(row)"
+          >
+            Send results
+          </BaseButton>
+          <BaseButton
+            size="sm"
+            :aria-label="`Upload image for ${row.name}`"
+            @click="openImage(row)"
+          >
+            Image
+          </BaseButton>
+          <BaseButton
+            size="sm"
+            :aria-label="`Upload schedule PDF for ${row.name}`"
+            @click="choosePdf(row)"
+          >
+            Schedule PDF
+          </BaseButton>
+          <BaseButton
+            size="sm"
+            :to="`/admin/expenses?show_id=${row.id}`"
+            :aria-label="`Expense tracker for ${row.name}`"
+          >
+            Expenses
+          </BaseButton>
+          <BaseButton
+            size="sm"
             :aria-label="`Sponsors for ${row.name}`"
             @click="openSponsors(row)"
           >
@@ -224,6 +336,24 @@ async function remove(event: Event): Promise<void> {
       :submit-label="editing === null ? 'Create event' : 'Save changes'"
       @saved="onSaved"
     />
+
+    <ImageUploadModal
+      v-model:open="imageOpen"
+      :title="imageFor === null ? 'Event image' : `Image for ${imageFor.name}`"
+      :current-src="imageFor?.has_image ? imageFor.image_url : null"
+      :upload="uploadImage"
+      @uploaded="onImageUploaded"
+    />
+
+    <input
+      ref="pdfInput"
+      type="file"
+      class="sr-only"
+      accept="application/pdf"
+      aria-label="Schedule PDF file"
+      tabindex="-1"
+      @change="onPdfChosen"
+    >
 
     <EventSponsorsDialog
       v-model:open="sponsorsOpen"

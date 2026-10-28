@@ -58,10 +58,24 @@ class PortalEndpointTest extends WaiverTestCase
     {
         $show = $this->show();
         for ($i = 0; $i < 25; $i++) {
-            $this->postJson('/waiver/'.$show->id.'/login', ['email' => 'nobody@example.test', 'password' => 'x'])->assertStatus(401);
+            $this->postJson('/waiver/'.$show->id.'/login', ['email' => 'nobody'.$i.'@example.test', 'password' => 'x'])->assertStatus(401);
         }
 
-        $this->postJson('/waiver/'.$show->id.'/login', ['email' => 'nobody@example.test', 'password' => 'x'])->assertStatus(429);
+        $this->postJson('/waiver/'.$show->id.'/login', ['email' => 'nobody-last@example.test', 'password' => 'x'])->assertStatus(429);
+    }
+
+    #[Test]
+    public function portal_login_shares_the_per_email_login_limit_with_the_main_login(): void
+    {
+        $show = $this->show();
+        $email = 'target@example.test';
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/login/login', ['email' => $email, 'password' => 'guess'.$i])->assertStatus(401);
+            $this->postJson('/waiver/'.$show->id.'/login', ['email' => $email, 'password' => 'guess'.$i])->assertStatus(401);
+        }
+
+        $this->postJson('/waiver/'.$show->id.'/login', ['email' => $email, 'password' => 'guess'])->assertStatus(429);
+        $this->postJson('/waiver/'.$show->id.'/login', ['email' => 'someone-else@example.test', 'password' => 'guess'])->assertStatus(401);
     }
 
     #[Test]

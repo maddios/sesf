@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /**
  * Members admin (see docs/admin-conventions.md). Lists active members by default; the status filter shows disabled
- * or all. Per row: edit, register for an event, log in as the member (audited; a banner shows the way back), send a
- * password reset mail, disable or restore. Disabled members cannot be logged in as, and admin accounts cannot be
+ * or all. "Add member" creates an account with a password. Per row: edit, register for an event, log in as the member
+ * (audited; a banner shows the way back), set the password, send a password reset mail, disable or restore. Another
+ * administrator's password cannot be set or reset (the server answers 403), so those buttons are hidden. Disabled members cannot be logged in as, and admin accounts cannot be
  * impersonated (the server answers 403 and the page shows that message).
  */
 import { ref } from 'vue';
@@ -14,9 +15,23 @@ import { useAdminList } from '../../../composables/admin/useAdminList';
 import { mapAdminError } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
+import { USER_TYPE_ADMIN, useAuthStore } from '../../../stores/auth';
 import type { FormValues } from '../../../components/admin/types';
 import RegisterForEventModal from './RegisterForEventModal.vue';
-import { USER_COLUMNS, USER_FIELDS, USER_TYPE_OPTIONS, goToSite, toForm, toInput, usersApi, type AdminUser } from './users';
+import {
+  CREATE_USER_FIELDS,
+  PASSWORD_FIELDS,
+  USER_COLUMNS,
+  USER_FIELDS,
+  USER_TYPE_OPTIONS,
+  goToSite,
+  toCreateInput,
+  toForm,
+  toInput,
+  toPasswordInput,
+  usersApi,
+  type AdminUser,
+} from './users';
 
 const list = useAdminList<AdminUser>({
   fetch: (query) => usersApi.list(query),
@@ -25,9 +40,12 @@ const list = useAdminList<AdminUser>({
 });
 const toast = useToast();
 const { confirm } = useConfirm();
+const auth = useAuthStore();
 
 const editing = ref<AdminUser | null>(null);
 const formOpen = ref(false);
+const passwordFor = ref<AdminUser | null>(null);
+const passwordOpen = ref(false);
 const registerFor = ref<AdminUser | null>(null);
 const registerOpen = ref(false);
 const busyId = ref<number | null>(null);
@@ -38,18 +56,41 @@ const STATUS_OPTIONS = [
   { value: 'all', label: 'All' },
 ];
 
+function openCreate(): void {
+  editing.value = null;
+  formOpen.value = true;
+}
+
 function openEdit(member: AdminUser): void {
   editing.value = member;
   formOpen.value = true;
 }
 
 function save(values: FormValues): Promise<AdminUser> {
-  return usersApi.update((editing.value as AdminUser).id, toInput(values));
+  return editing.value === null ? usersApi.create(toCreateInput(values)) : usersApi.update(editing.value.id, toInput(values));
 }
 
 function onSaved(result: unknown): void {
-  toast.success(`Member “${(result as AdminUser).full_name}” saved.`);
+  toast.success(`Member “${(result as AdminUser).full_name}” ${editing.value === null ? 'created' : 'saved'}.`);
   void list.reload();
+}
+
+/** Each administrator manages their own sign-in details. */
+function managesSignIn(member: AdminUser): boolean {
+  return member.type_id !== USER_TYPE_ADMIN || member.id === auth.userId;
+}
+
+function openPassword(member: AdminUser): void {
+  passwordFor.value = member;
+  passwordOpen.value = true;
+}
+
+function savePassword(values: FormValues): Promise<AdminUser> {
+  return usersApi.action((passwordFor.value as AdminUser).id, 'password', toPasswordInput(values));
+}
+
+function onPasswordSaved(): void {
+  toast.success(`Password changed for ${passwordFor.value?.full_name ?? 'the member'}.`);
 }
 
 function openRegister(member: AdminUser): void {
@@ -186,6 +227,24 @@ async function restore(member: AdminUser): Promise<void> {
         </div>
       </template>
 
+      <template #toolbar-end>
+        <BaseButton
+          variant="primary"
+          @click="openCreate"
+        >
+          Add member
+        </BaseButton>
+      </template>
+
+      <template #cell-profile_url="{ row }">
+        <a
+          :href="row.profile_url"
+          target="_blank"
+          rel="noopener"
+          class="text-link underline"
+        >Profile<span class="sr-only"> of {{ row.full_name }} (opens in a new tab)</span></a>
+      </template>
+
       <template #cell-is_disabled="{ row }">
         <StatusBadge
           :label="row.is_disabled ? 'Disabled' : 'Active'"
@@ -220,7 +279,15 @@ async function restore(member: AdminUser): Promise<void> {
             Log in as
           </BaseButton>
           <BaseButton
-            v-if="!row.is_disabled"
+            v-if="managesSignIn(row)"
+            size="sm"
+            :aria-label="`Set password for ${row.full_name}`"
+            @click="openPassword(row)"
+          >
+            Set password
+          </BaseButton>
+          <BaseButton
+            v-if="!row.is_disabled && managesSignIn(row)"
             size="sm"
             :loading="busyId === row.id"
             :aria-label="`Send password reset to ${row.full_name}`"
@@ -253,12 +320,22 @@ async function restore(member: AdminUser): Promise<void> {
 
     <AdminFormModal
       v-model:open="formOpen"
-      :title="editing === null ? 'Edit member' : `Edit ${editing.full_name}`"
-      :fields="USER_FIELDS"
+      :title="editing === null ? 'Add member' : `Edit ${editing.full_name}`"
+      :fields="editing === null ? CREATE_USER_FIELDS : USER_FIELDS"
       :initial="toForm(editing)"
       :submit="save"
-      submit-label="Save changes"
+      :submit-label="editing === null ? 'Create member' : 'Save changes'"
       @saved="onSaved"
+    />
+
+    <AdminFormModal
+      v-model:open="passwordOpen"
+      :title="`Set password for ${passwordFor?.full_name ?? 'member'}`"
+      :fields="PASSWORD_FIELDS"
+      :initial="{ password: '', password_confirmation: '' }"
+      :submit="savePassword"
+      submit-label="Set password"
+      @saved="onPasswordSaved"
     />
 
     <RegisterForEventModal

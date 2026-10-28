@@ -4,11 +4,10 @@ namespace Tests\Unit\Waivers;
 
 use App\Mail\WaiverReminderMail;
 use App\Mail\WaiverRequestMail;
-use App\Services\Waivers\WaiverSignService;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
-/** Mail rendering escapes hostile names; masking of prefill emails. */
+/** Mail rendering escapes hostile names and links. */
 class WaiverMailRenderTest extends TestCase
 {
     #[Test]
@@ -38,14 +37,5 @@ class WaiverMailRenderTest extends TestCase
         $this->assertStringNotContainsString('<i>Show</i>', $html);
         $this->assertStringContainsString('https://sesf.example.test/waiver/9', $html);
         $mail->assertHasSubject('Reminder: complete waivers for <i>Show</i>');
-    }
-
-    #[Test]
-    public function emails_are_masked_for_prefill(): void
-    {
-        $this->assertSame('j***@example.com', WaiverSignService::maskEmail('jane.doe@example.com'));
-        $this->assertSame('', WaiverSignService::maskEmail(''));
-        $this->assertSame('***', WaiverSignService::maskEmail('no-at-sign'));
-        $this->assertSame('***', WaiverSignService::maskEmail('@example.com'));
     }
 }

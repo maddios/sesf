@@ -38,6 +38,7 @@ function stubRows(rows: ExtraRegistration[] = ROWS, extra: (request: SeenRequest
     if (handled !== undefined) return handled;
     if (request.method === 'GET' && request.path === '/admin-api/extra-registrations') return jsonResponse(200, listBody(rows));
     if (request.path === '/admin-api/lookups/events') return jsonResponse(200, { data: [{ id: 4, label: 'Spring Show (2026)' }] });
+    if (request.method === 'GET' && request.path === '/admin-api/extras') return jsonResponse(200, listBody([{ id: 5, name: 'Dinner' }, { id: 6, name: 'Breakfast' }]));
     return undefined;
   });
 }
@@ -79,16 +80,55 @@ describe('ExtraRegistrationsPage', () => {
     );
     const user = userEvent.setup();
     await renderAt(Page, '/admin/extra-registrations');
-    await user.click(await within(await screen.findByRole('table', { name: 'Extra registrations' })).findByRole('button', { name: 'Edit quantity for Ada Lovelace' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Edit quantity' });
+    await user.click(await within(await screen.findByRole('table', { name: 'Extra registrations' })).findByRole('button', { name: 'Edit purchase for Ada Lovelace' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit purchase' });
     const quantity = within(dialog).getByLabelText('Quantity (required)');
     await user.clear(quantity);
     await user.type(quantity, '3');
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(seen.find((r) => r.method === 'PUT')?.body).toEqual({ num_extras: 3 });
+    expect(seen.find((r) => r.method === 'PUT')?.body).toEqual({ num_extras: 3, show_extra_id: 5 });
     expect(screen.getByRole('status', { name: 'Notifications' }).textContent).toContain('Quantity for Ada Lovelace saved.');
+  });
+
+  it('removes a purchase when the quantity is set to 0', async () => {
+    stubRows(ROWS, (r) => (r.method === 'PUT' && r.path === '/admin-api/extra-registrations/1' ? new Response(null, { status: 204 }) : undefined));
+    const user = userEvent.setup();
+    await renderAt(Page, '/admin/extra-registrations');
+    await user.click(await within(await screen.findByRole('table', { name: 'Extra registrations' })).findByRole('button', { name: 'Edit purchase for Ada Lovelace' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit purchase' });
+    const quantity = within(dialog).getByLabelText('Quantity (required)');
+    await user.clear(quantity);
+    await user.type(quantity, '0');
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+    expect(await screen.findByText('Extra purchase for Ada Lovelace removed.')).toBeTruthy();
+  });
+
+  it('moves a purchase to another extra of the event', async () => {
+    const { seen } = stubRows(ROWS, (r) =>
+      r.method === 'PUT' && r.path === '/admin-api/extra-registrations/1' ? jsonResponse(200, { data: row({ show_extra_id: 6, extra_name: 'Breakfast' }) }) : undefined,
+    );
+    const user = userEvent.setup();
+    await renderAt(Page, '/admin/extra-registrations');
+    await user.click(await within(await screen.findByRole('table', { name: 'Extra registrations' })).findByRole('button', { name: 'Edit purchase for Ada Lovelace' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit purchase' });
+    expect(seen.find((r) => r.path === '/admin-api/extras')?.params.get('filter[show_id]')).toBe('4');
+    await user.selectOptions(within(dialog).getByLabelText('Extra (required)'), '6');
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(seen.find((r) => r.method === 'PUT')?.body).toEqual({ num_extras: 2, show_extra_id: 6 }));
+  });
+
+  it('filters by registration id through the URL', async () => {
+    const { seen } = stubRows();
+    const user = userEvent.setup();
+    const { router } = await renderAt(Page, '/admin/extra-registrations');
+    await screen.findByRole('table', { name: 'Extra registrations' });
+    await user.type(screen.getByLabelText('Registration ID'), '10{Enter}');
+    await user.tab();
+    await waitFor(() => expect(router.currentRoute.value.query['f.registration_id']).toBe('10'));
+    await waitFor(() => expect(seen.filter((r) => r.path === '/admin-api/extra-registrations').at(-1)?.params.get('filter[registration_id]')).toBe('10'));
   });
 
   it('maps a server quantity error onto the field', async () => {
@@ -99,8 +139,8 @@ describe('ExtraRegistrationsPage', () => {
     );
     const user = userEvent.setup();
     await renderAt(Page, '/admin/extra-registrations');
-    await user.click(await within(await screen.findByRole('table', { name: 'Extra registrations' })).findByRole('button', { name: 'Edit quantity for Ada Lovelace' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Edit quantity' });
+    await user.click(await within(await screen.findByRole('table', { name: 'Extra registrations' })).findByRole('button', { name: 'Edit purchase for Ada Lovelace' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit purchase' });
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
 
     expect(await within(dialog).findByText('The num extras field must be at least 0.')).toBeTruthy();

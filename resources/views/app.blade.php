@@ -8,6 +8,9 @@
         <title>Southeast Sharkfest</title>
         <link rel="icon" href="/images/favicon.ico" sizes="any">
         <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+        <meta property="og:image" content="{{ rtrim((string) config('app.url'), '/') }}/images/sesf_final_logo_v2.jpg">
+        <meta name="google-site-verification" content="Qw0JT0-fLK0PD-KsmkhYErrfOSPSePY_EmflO7WI1mI">
+        @include('partials.datadog_rum')
         @vite(['resources/css/app.css', 'resources/js/app.ts'])
     </head>
     <body class="min-h-screen antialiased">

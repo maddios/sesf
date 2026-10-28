@@ -345,7 +345,7 @@ class RegistrationReadTest extends RegistrationTestCase
     }
 
     #[Test]
-    public function a_negative_stored_discount_on_an_open_show_is_422_not_a_500(): void
+    public function a_negative_stored_discount_on_an_open_show_is_priced_as_a_signed_value(): void
     {
         $show = $this->show();
         $user = $this->member();
@@ -353,7 +353,8 @@ class RegistrationReadTest extends RegistrationTestCase
 
         $this->signIn($user)
             ->getJson(self::REGISTRATION.'?show_id='.$show->id)
-            ->assertStatus(422);
+            ->assertOk()
+            ->assertJsonPath('registration.discount', '-30.00');
     }
 
     #[Test]

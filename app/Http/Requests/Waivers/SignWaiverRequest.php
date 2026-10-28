@@ -50,7 +50,7 @@ class SignWaiverRequest extends FormRequest
         return [
             'first_name' => ['required', 'string', 'max:60', 'regex:'.self::NAME_PATTERN],
             'last_name' => ['required', 'string', 'max:60', 'regex:'.self::NAME_PATTERN],
-            'email' => ['required', 'string', 'max:128', 'email:rfc'],
+            'email' => ['nullable', 'string', 'max:128', 'email:rfc'],
             'signature_mode' => ['nullable', 'in:draw,type'],
             'signature_base64' => ['required', 'string', 'max:'.$maxSignature],
             'signature_text' => ['nullable', 'string', 'max:'.(int) config('waivers.signature.typed_text_max_chars', 80), 'regex:'.self::TYPED_PATTERN],
@@ -73,7 +73,6 @@ class SignWaiverRequest extends FormRequest
         return [
             'first_name.required' => 'First and last name are required.',
             'last_name.required' => 'First and last name are required.',
-            'email.required' => 'Email is required.',
             'email.email' => 'Enter a valid email address.',
             'signature_base64.required' => 'Signature is required.',
             'signature_base64.max' => 'Signature image is too large.',

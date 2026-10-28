@@ -30,6 +30,7 @@ const summary = computed(() => plainText(props.show.shortDescription));
     >
       <SafeImage
         :src="show.imageUrl"
+        resize="eventCard"
         alt=""
         :placeholder="show.shortName || show.name"
         width="200"

@@ -68,7 +68,7 @@ preflight() {
     fi
     # Mount points for the sandbox's tmpfs upload dirs. Created as the invoking user, so Docker never
     # creates root-owned directories in the repo (same paths scripts/dev-setup.sh prepares).
-    mkdir -p public/images/{members,cars,shows,sponsor,gallery,judging} public/packet public/waivers storage/waivers \
+    mkdir -p public/images/{members,cars,shows,sponsor,gallery,judging} public/packet storage/legacy-waivers storage/waivers \
         storage/framework/{sessions,cache,views} storage/logs e2e/.state e2e/artifacts
 }
 

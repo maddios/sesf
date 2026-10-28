@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 /**
- * Copies the car body and judging setup from one show to another.
+ * Copies the car body and judging setup (and the waiver_id switch) from one show to another.
  * Port of legacy CarShowCopyPreviousConfig. The legacy code read the clone source from the
  * request inside a model boot hook. Here the caller passes both shows explicitly.
  */
@@ -28,7 +28,8 @@ class CloneShowConfiguration
     }
 
     /**
-     * Copies car_body_show and judging_show_body rows from $source to $target in one transaction.
+     * Copies car_body_show and judging_show_body rows, and waiver_id when the target has none, from
+     * $source to $target in one transaction.
      *
      * Every check runs inside the transaction, after both car_show rows are locked (in id order,
      * so two clones cannot deadlock on them). The checks are locking reads, so they see the latest
@@ -54,7 +55,8 @@ class CloneShowConfiguration
                 ->whereKey([$targetId, $sourceId])
                 ->orderBy('id')
                 ->lockForUpdate()
-                ->pluck('id');
+                ->get(['id', 'waiver_id'])
+                ->keyBy('id');
 
             if ($locked->count() !== 2) {
                 throw new InvalidArgumentException('Source or target event was not found.');
@@ -88,6 +90,11 @@ class CloneShowConfiguration
                 .'SELECT judging_type_id, car_body_id, ?, NOW(), NOW() FROM judging_show_body WHERE car_show_id = ?',
                 [$targetId, $sourceId],
             );
+
+            // The waiver switch follows the source unless the new event already has one.
+            DB::table('car_show')->where('id', $targetId)->whereNull('waiver_id')->update([
+                'waiver_id' => $locked[$sourceId]->waiver_id,
+            ]);
         });
     }
 }

@@ -36,6 +36,22 @@ describe('member and car routes', () => {
     expect(router.resolve('/car/new').matched).toHaveLength(0);
   });
 
+  it('resolves the legacy car address /:carName/c:carId to the car profile', () => {
+    const router = routerWithOwnRoutes();
+    const resolved = router.resolve('/1972-BMW-2002/c78');
+    expect(resolved.name).toBe('car-profile-alias');
+    expect(resolved.params).toEqual({ carName: '1972-BMW-2002', carId: '78' });
+    const props = lastRecord('/1972-BMW-2002/c78')?.props.default as (r: typeof resolved) => Record<string, unknown>;
+    expect(props(resolved)).toEqual({ carId: 78 });
+  });
+
+  it('does not match the legacy car address without digits after c', () => {
+    const router = routerWithOwnRoutes();
+    expect(router.resolve('/Some-Car/cabc').matched).toHaveLength(0);
+    expect(router.resolve('/Some-Car/c').matched).toHaveLength(0);
+    expect(router.resolve('/ShawnB/u44').name).toBe('member-profile');
+  });
+
   it('does not register the car settings route, which another module owns', () => {
     expect(routerWithOwnRoutes().resolve('/car/78/settings').matched).toHaveLength(0);
   });

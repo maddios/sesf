@@ -6,6 +6,7 @@ use App\Enums\SponsorType;
 use App\Enums\UserType;
 use App\Models\Casts\Money2;
 use App\Models\Concerns\HasLegacyDates;
+use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Database\Factories\CarShowFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -95,6 +96,16 @@ class CarShow extends Model
     }
 
     /**
+     * Owners may see their judging sheet once results are released or the show's end date has
+     * passed (legacy CarProfile::getProfile: date_end < date('Y-m-d')).
+     */
+    public function judgingResultsVisible(): bool
+    {
+        return $this->is_judging_released === true
+            || ($this->date_end !== null && $this->date_end->lessThan(Carbon::today()));
+    }
+
+    /**
      * Legacy: date_active < now < date_registration_deactivation.
      * A missing or zero activation date counts as already started (legacy strtotime(null) is 0).
      * A missing or zero deactivation date counts as closed (legacy strtotime(null) is 0, not in the future).
@@ -109,11 +120,20 @@ class CarShow extends Model
         return $started && $notDeactivated;
     }
 
+    /**
+     * Legacy show image URL. New: '?<filemtime>' is appended when the file exists, as for cars, members and
+     * gallery items, so long-cached resized copies change when the image is replaced.
+     */
     public function getImageURLAttribute(): string
     {
-        return $this->has_image
-            ? config('sesf.show_image_url').$this->id.'.jpg'
-            : config('sesf.image_url').'generic-show.jpg';
+        if (! $this->has_image) {
+            return config('sesf.image_url').'generic-show.jpg';
+        }
+
+        $name = $this->id.'.jpg';
+        $mtime = @filemtime(config('sesf.show_image_root').$name);
+
+        return config('sesf.show_image_url').$name.($mtime === false ? '' : '?'.$mtime);
     }
 
     /**

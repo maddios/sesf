@@ -315,6 +315,20 @@ class ImageStoreTest extends TestCase
         ];
     }
 
+    #[Test]
+    public function the_decoder_is_pinned_to_the_validated_format(): void
+    {
+        $source = $this->root.'/upload.bin';
+        file_put_contents($source, F::png(3, 2));
+        $reencode = new \ReflectionMethod(ImageStore::class, 'reencode');
+
+        $this->assertNotSame('', $reencode->invoke($this->storer(), $source, 'png'));
+
+        // The same bytes through another coder must fail rather than let ImageMagick sniff the real format.
+        $this->expectException(ImageUploadException::class);
+        $reencode->invoke($this->storer(), $source, 'gif');
+    }
+
     private function storer(): ImageStore
     {
         return new ImageStore;

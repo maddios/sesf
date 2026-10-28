@@ -4,6 +4,8 @@ namespace App\Http\Resources\Cars;
 
 use App\Models\Car;
 use App\Models\ShowRegistration;
+use App\Models\ShowRegistrationCar;
+use App\Services\Judging\JudgingResults;
 use App\Support\Privacy\ViewerPrivacy;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -15,8 +17,9 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Everyone else: the reduced legacy array (CarProfile::getProfile). No VIN, no nickname,
  * no owner email or contact fields, and the owner is shown as "First L" only.
  *
- * judgingLink is always null for now: the legacy link needs the judging-ID codec, which is a
- * later phase (TODO).
+ * judgingLink (owner only) is the /judging_answers/{JudgingId} URL once the show's results are
+ * visible (released, or the end date has passed) and the car was judged with at least one answer;
+ * otherwise null.
  *
  * Requires body, type, registrations.carShow and user (with trashed) to be loaded.
  *
@@ -91,22 +94,38 @@ class CarProfileResource extends JsonResource
      */
     private function shows(Car $car, bool $withJudgingLink): array
     {
+        $links = $withJudgingLink ? $this->judgingLinks($car) : [];
+
         return $car->registrations
             ->filter(fn (ShowRegistration $registration) => $registration->carShow !== null)
             ->sortByDesc(fn (ShowRegistration $registration): int => $registration->carShow->date_start === null ? 0 : $registration->carShow->date_start->getTimestamp())
             ->values()
-            ->map(function (ShowRegistration $registration) use ($withJudgingLink): array {
+            ->map(function (ShowRegistration $registration) use ($withJudgingLink, $links): array {
                 $show = $registration->carShow;
                 $row = ['name' => $show->name, 'shortDate' => $registration->shortDate, 'profileURL' => $show->profileURL];
 
                 if ($withJudgingLink) {
-                    // TODO(judging-id codec, later phase): legacy set judgingLink when judging was
-                    // released (or the show ended) and the car had judging answers.
-                    $row['judgingLink'] = null;
+                    $row['judgingLink'] = $show->judgingResultsVisible() ? ($links[$registration->id] ?? null) : null;
                 }
 
                 return $row;
             })
+            ->all();
+    }
+
+    /**
+     * Judging answer URLs by registration id, for this car's judged entries that have answers.
+     *
+     * @return array<int, string>
+     */
+    private function judgingLinks(Car $car): array
+    {
+        return ShowRegistrationCar::query()
+            ->where('car_id', $car->id)
+            ->whereNotNull('judging_type_id')
+            ->whereHas('judgingAnswers')
+            ->get(['id', 'registration_id'])
+            ->mapWithKeys(fn (ShowRegistrationCar $entry): array => [$entry->registration_id => JudgingResults::answersUrl($entry->id)])
             ->all();
     }
 }

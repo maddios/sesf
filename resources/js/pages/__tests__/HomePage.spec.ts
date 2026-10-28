@@ -52,7 +52,7 @@ describe('HomePage', () => {
     expect(primary.getAttribute('rel')).toBe('noopener noreferrer');
 
     const e31 = await screen.findByRole('link', { name: /BMWCCA E31 Chapter/ });
-    expect(e31.querySelector('img')?.getAttribute('src')).toBe('/images/sponsor/45.jpg');
+    expect(e31.querySelector('img')?.getAttribute('src')).toBe('/images/4/250/65/images/sponsor/45.jpg');
     // No URL: the logo is shown without a link.
     expect(screen.getByRole('img', { name: 'Blueridge Chapter - BMWCCA' }).closest('a')).toBeNull();
     expect(screen.getByRole('link', { name: 'See all sponsors' }).getAttribute('href')).toBe('/show/e36/sponsors');

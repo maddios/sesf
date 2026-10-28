@@ -9,13 +9,15 @@ import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
 import RelationSelect, { type RelationOption } from '../../../components/admin/RelationSelect.vue';
 import BaseButton from '../../../components/ui/BaseButton.vue';
 import { useAdminList } from '../../../composables/admin/useAdminList';
-import { ADMIN_API_BASE, mapAdminError } from '../../../composables/admin/useAdminResource';
+import { ADMIN_API_BASE, mapAdminError, useAdminResource } from '../../../composables/admin/useAdminResource';
+import type { Extra } from '../extras/extras';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
-import type { FormValues } from '../../../components/admin/types';
+import type { AdminField, FormValues } from '../../../components/admin/types';
 import {
   EXTRA_REGISTRATION_COLUMNS,
   EXTRA_REGISTRATION_FIELDS,
+  editFields,
   extraRegistrationsApi,
   toForm,
   toInput,
@@ -25,7 +27,7 @@ import {
 const list = useAdminList<ExtraRegistration>({
   fetch: (query) => extraRegistrationsApi.list(query),
   defaults: { sort: 'created_at', direction: 'desc' },
-  filterKeys: ['show_id'],
+  filterKeys: ['show_id', 'registration_id'],
 });
 const toast = useToast();
 const { confirm } = useConfirm();
@@ -38,8 +40,21 @@ const eventId = computed<number | null>(() => {
 const editing = ref<ExtraRegistration | null>(null);
 const formOpen = ref(false);
 
-function openEdit(row: ExtraRegistration): void {
+const fields = ref<AdminField[]>(EXTRA_REGISTRATION_FIELDS);
+const extrasApi = useAdminResource<Extra>('extras');
+
+async function openEdit(row: ExtraRegistration): Promise<void> {
   editing.value = row;
+  fields.value = EXTRA_REGISTRATION_FIELDS;
+  if (row.show_id !== null) {
+    try {
+      const extras = await extrasApi.list({ per_page: 100, sort: 'name', direction: 'asc', filter: { show_id: String(row.show_id) } });
+      fields.value = editFields(extras.data);
+    } catch (error) {
+      toast.error(mapAdminError(error, 'The event’s extras could not be loaded.').message);
+      return;
+    }
+  }
   formOpen.value = true;
 }
 
@@ -47,8 +62,10 @@ function save(values: FormValues): Promise<ExtraRegistration> {
   return extraRegistrationsApi.update((editing.value as ExtraRegistration).id, toInput(values));
 }
 
-function onSaved(): void {
-  toast.success(`Quantity for ${editing.value?.user_name ?? 'the member'} saved.`);
+/** A quantity of 0 removes the purchase (204, no body: the result is undefined). */
+function onSaved(result: unknown): void {
+  const who = editing.value?.user_name ?? 'the member';
+  toast.success(result === undefined ? `Extra purchase for ${who} removed.` : `Quantity for ${who} saved.`);
   void list.reload();
 }
 
@@ -114,13 +131,27 @@ async function remove(row: ExtraRegistration): Promise<void> {
             />
           </div>
         </div>
+        <div class="sm:w-40">
+          <label
+            for="extra-registration-filter-registration"
+            class="block text-sm font-medium text-text"
+          >Registration ID</label>
+          <input
+            id="extra-registration-filter-registration"
+            class="form-control mt-1 w-full"
+            type="search"
+            inputmode="numeric"
+            :value="list.state.value.filters.registration_id ?? ''"
+            @change="list.setFilter('registration_id', ($event.target as HTMLInputElement).value)"
+          >
+        </div>
       </template>
 
       <template #actions="{ row }">
         <div class="inline-flex flex-wrap justify-end gap-1">
           <BaseButton
             size="sm"
-            :aria-label="`Edit quantity for ${row.user_name ?? row.id}`"
+            :aria-label="`Edit purchase for ${row.user_name ?? row.id}`"
             @click="openEdit(row)"
           >
             Edit
@@ -139,8 +170,8 @@ async function remove(row: ExtraRegistration): Promise<void> {
 
     <AdminFormModal
       v-model:open="formOpen"
-      title="Edit quantity"
-      :fields="EXTRA_REGISTRATION_FIELDS"
+      title="Edit purchase"
+      :fields="fields"
       :initial="toForm(editing)"
       :submit="save"
       submit-label="Save changes"

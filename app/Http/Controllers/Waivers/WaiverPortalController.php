@@ -12,10 +12,11 @@ use App\Models\UserGuest;
 use App\Models\Waiver;
 use App\Services\Waivers\WaiverNotFound;
 use App\Services\Waivers\WaiverSignService;
+use App\Support\Admin\ImpersonationSession;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\Response;
 
 /**
  * JSON endpoints for the waiver portal page (legacy WaiverPortalController; the page is rendered
@@ -45,6 +46,40 @@ class WaiverPortalController extends Controller
         return response()->json(['ok' => true, 'redirect' => '/waiver/'.$showId]);
     }
 
+    /**
+     * Share page for the member's own sign link (legacy share.blade.php). Only the signed-in member
+     * with a registration for the show reaches it, and only for an unsigned waiver.
+     */
+    public function share(Request $request, int $showId): Response|RedirectResponse
+    {
+        $user = $request->user();
+        $show = CarShow::query()->find($showId);
+        if (! $user instanceof User || $show === null) {
+            return redirect('/waiver/'.$showId);
+        }
+        $registration = $this->registrationFor($show, $user);
+        if ($registration === null) {
+            return redirect('/waiver/'.$showId);
+        }
+
+        try {
+            $guest = $this->guestFromRequest($request, $registration);
+            $waiver = $this->waivers->ensurePending($registration, $guest);
+        } catch (WaiverNotFound) {
+            return redirect('/waiver/'.$showId);
+        }
+        if ($waiver->has_signed) {
+            return redirect('/waiver/'.$showId);
+        }
+
+        return response()->view('waiver.share', [
+            'config' => ['page' => 'share'],
+            'show' => $show,
+            'personName' => $guest !== null ? trim($guest->first.' '.$guest->last) : trim($user->first.' '.$user->last),
+            'signUrl' => $waiver->signUrl(),
+        ]);
+    }
+
     /** Sign link for the member (no guest_id) or one of their guests. */
     public function signUrl(Request $request, int $showId): JsonResponse
     {
@@ -61,15 +96,10 @@ class WaiverPortalController extends Controller
             return response()->json(['error' => 'not_registered', 'message' => 'You are not registered for this event.'], 403);
         }
 
-        $guest = null;
-        $guestId = $request->query('guest_id');
-        if ($guestId !== null && $guestId !== '') {
-            $guest = is_string($guestId) && ctype_digit($guestId)
-                ? UserGuest::query()->where('registration_id', $registration->id)->whereKey((int) $guestId)->first()
-                : null;
-            if ($guest === null) {
-                return response()->json(['error' => 'prepare', 'message' => 'Invalid guest.'], 400);
-            }
+        try {
+            $guest = $this->guestFromRequest($request, $registration);
+        } catch (WaiverNotFound) {
+            return response()->json(['error' => 'prepare', 'message' => 'Invalid guest.'], 400);
         }
 
         try {
@@ -126,6 +156,7 @@ class WaiverPortalController extends Controller
 
         return response()->json([
             'show' => ['id' => (int) $show->id, 'name' => (string) $show->name],
+            'signedInAs' => (string) $user->email,
             'people' => $people,
         ]);
     }
@@ -137,9 +168,7 @@ class WaiverPortalController extends Controller
      */
     public function logout(Request $request, int $showId): JsonResponse|RedirectResponse
     {
-        Auth::guard('web')->logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        ImpersonationSession::logout($request);
 
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json(['message' => 'Logged out']);
@@ -151,6 +180,23 @@ class WaiverPortalController extends Controller
         }
 
         return redirect('/waiver/'.$showId);
+    }
+
+    /** The guest named by ?guest_id= (must belong to the registration), or null for the member. */
+    private function guestFromRequest(Request $request, ShowRegistration $registration): ?UserGuest
+    {
+        $guestId = $request->query('guest_id');
+        if ($guestId === null || $guestId === '') {
+            return null;
+        }
+        $guest = is_string($guestId) && ctype_digit($guestId)
+            ? UserGuest::query()->where('registration_id', $registration->id)->whereKey((int) $guestId)->first()
+            : null;
+        if ($guest === null) {
+            throw new WaiverNotFound('Invalid guest.');
+        }
+
+        return $guest;
     }
 
     private function registrationFor(CarShow $show, User $user): ?ShowRegistration

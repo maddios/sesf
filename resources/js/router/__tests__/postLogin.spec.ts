@@ -21,6 +21,8 @@ describe('resolvePostLoginRedirect', () => {
     ['waiver goes by full page load', '/waiver/12', { kind: 'page', url: '/waiver/12' }],
     ['judging goes by full page load', '/judging/spring-e3', { kind: 'page', url: '/judging/spring-e3' }],
     ['judging prefix alone is a hash route', '/judging/', { kind: 'route', path: '/judging/' }],
+    ['judging answers go by full page load', '/judging_answers/IOgXHXRZVkIlpct3D', { kind: 'page', url: '/judging_answers/IOgXHXRZVkIlpct3D' }],
+    ['judging draw goes by full page load', '/judging_draw/12', { kind: 'page', url: '/judging_draw/12' }],
     ['member page is a hash route', '/fan/u7', { kind: 'route', path: '/fan/u7' }],
     ['query string is kept', '/members?tab=cars&x=1', { kind: 'route', path: '/members?tab=cars&x=1' }],
     ['percent-encoded text is allowed', '/cars%20list', { kind: 'route', path: '/cars%20list' }],

@@ -81,4 +81,29 @@ class WaiverMailerTest extends WaiverTestCase
         // Deduped within the window.
         $this->assertSame(0, $this->mailer()->sendReminders($show));
     }
+
+    #[Test]
+    public function reminders_skip_cancelled_registrations_and_disabled_registrants(): void
+    {
+        $show = $this->show();
+        $cancelled = $this->registration($show);
+        $cancelled->forceFill(['is_cancelled' => true])->save();
+        $disabled = $this->registration($show);
+        User::query()->findOrFail($disabled->user_id)->delete();
+
+        $this->assertSame([], $this->mailer()->reminderRecipients($show));
+        $this->assertSame(0, $this->mailer()->sendReminders($show));
+        Mail::assertNothingSent();
+    }
+
+    #[Test]
+    public function requests_skip_cancelled_registrations(): void
+    {
+        $registration = $this->registration();
+        $registration->forceFill(['is_cancelled' => true])->save();
+        $guest = $this->guest($registration);
+
+        $this->assertSame(['sent' => 0, 'skipped' => 2, 'failed' => 0], $this->mailer()->sendRequests([$registration, $guest]));
+        Mail::assertNothingSent();
+    }
 }

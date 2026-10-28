@@ -205,6 +205,33 @@ class EventAdminTest extends AdminTestCase
     }
 
     #[Test]
+    public function the_waiver_switch_is_edited_and_blank_turns_it_off(): void
+    {
+        $event = CarShow::factory()->create(['short_name' => 'waivers']);
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->putJson(self::BASE.'/'.$event->id, ['name' => 'W', 'short_name' => 'waivers', 'waiver_id' => ' internal '])
+            ->assertOk()
+            ->assertJsonPath('data.waiver_id', 'internal');
+        $this->actingAs($admin)->putJson(self::BASE.'/'.$event->id, ['name' => 'W', 'short_name' => 'waivers', 'waiver_id' => ''])
+            ->assertOk()
+            ->assertJsonPath('data.waiver_id', null);
+    }
+
+    #[Test]
+    public function a_clone_copies_the_waiver_switch_unless_one_is_given(): void
+    {
+        $this->source->forceFill(['waiver_id' => 'tpl-1'])->save();
+        $admin = $this->admin();
+
+        $copied = $this->actingAs($admin)->postJson(self::BASE, $this->validPayload())->assertCreated();
+        $this->assertSame('tpl-1', $copied->json('data.waiver_id'));
+
+        $kept = $this->actingAs($admin)->postJson(self::BASE, $this->validPayload(['waiver_id' => 'own']))->assertCreated();
+        $this->assertSame('own', $kept->json('data.waiver_id'));
+    }
+
+    #[Test]
     public function a_missing_event_is_a_json_404(): void
     {
         $admin = $this->admin();
@@ -234,6 +261,8 @@ class EventAdminTest extends AdminTestCase
             'date_active without time' => [['date_active' => '2027-03-01'], 'date_active'],
             'deactivation not a datetime' => [['date_registration_deactivation' => 'soon'], 'date_registration_deactivation'],
             'is_schedule_pdf not boolean' => [['is_schedule_pdf' => 'maybe'], 'is_schedule_pdf'],
+            'waiver_id too long (32)' => [['waiver_id' => str_repeat('a', 33)], 'waiver_id'],
+            'waiver_id not latin1' => [['waiver_id' => "w\u{1F988}"], 'waiver_id'],
         ];
     }
 

@@ -20,6 +20,7 @@ export interface Event {
   date_registration_deactivation: string | null;
   is_active: boolean;
   is_judging_released: boolean;
+  waiver_id: string | null;
   has_image: boolean;
   image_url: string;
   primary_sponsor_id: number | null;
@@ -43,6 +44,7 @@ export interface EventInput {
   date_end: string | null;
   date_active: string | null;
   date_registration_deactivation: string | null;
+  waiver_id: string | null;
 }
 
 /** One sponsor of an event. id is the show_sponsor link id; sponsor_id the sponsor. */
@@ -89,6 +91,13 @@ export async function fetchCloneSources(): Promise<CloneSource[]> {
   return body.data;
 }
 
+/** Judging results of an event (app/Http/Controllers/Admin/Judging/JudgingReleaseController.php). */
+export const judgingResultsApi = {
+  setReleased: (eventId: number, released: boolean) =>
+    api.put<{ data: { id: number; is_judging_released: boolean } }>(`${ADMIN_API_BASE}/judging/shows/${eventId}/release`, { released }),
+  mail: (eventId: number) => api.post<{ data: { sent: number } }>(`${ADMIN_API_BASE}/judging/shows/${eventId}/results-mail`, {}),
+};
+
 /** Per-event sponsor calls (app/Http/Controllers/Admin/EventSponsorController.php). */
 export function eventSponsorsApi(eventId: number) {
   const base = `${ADMIN_API_BASE}/events/${eventId}`;
@@ -120,7 +129,8 @@ export const EVENT_FIELDS: AdminField[] = [
   { name: 'price_child', label: 'Child guest fee', type: 'money' },
   { name: 'short_description', label: 'Short description', type: 'textarea', rows: 2, maxlength: 1024 },
   { name: 'description', label: 'Description', type: 'textarea', rows: 5, maxlength: 1000 },
-  { name: 'is_schedule_pdf', label: 'Schedule is a PDF', type: 'checkbox' },
+  { name: 'waiver_id', label: 'Waiver', maxlength: 32, hint: 'Any value turns the online waiver on for this event; blank turns it off.' },
+  { name: 'is_schedule_pdf', label: 'Schedule is a PDF', type: 'checkbox', hint: 'Uploading a schedule PDF turns this on.' },
   { name: 'schedule', label: 'Schedule', type: 'textarea', rows: 6 },
 ];
 
@@ -137,6 +147,7 @@ export function cloneField(sources: CloneSource[]): AdminField {
 }
 
 export const EVENT_COLUMNS: AdminColumn<Event>[] = [
+  { key: 'id', label: 'ID', sortable: true, align: 'right' },
   { key: 'name', label: 'Name', sortable: true },
   { key: 'short_name', label: 'Short name', sortable: true },
   { key: 'date_start', label: 'Starts', sortable: true },
@@ -159,6 +170,7 @@ export function toForm(event: Event | null): FormValues {
     description: event?.description ?? '',
     is_schedule_pdf: event?.is_schedule_pdf ?? false,
     schedule: event?.schedule ?? '',
+    waiver_id: event?.waiver_id ?? '',
     clone_from_show_id: '',
   };
 }
@@ -183,6 +195,7 @@ export function toInput(values: FormValues): EventInput {
     date_end: text(values.date_end),
     date_active: text(values.date_active),
     date_registration_deactivation: text(values.date_registration_deactivation),
+    waiver_id: text(values.waiver_id),
   };
 }
 

@@ -15,7 +15,6 @@ use App\Services\Registration\RegistrationPayloadBuilder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use InvalidArgumentException;
 
 /**
  * Registration page reads for the Vue event pages (legacy EventProfile::getRegistration,
@@ -119,11 +118,7 @@ class EventRegistrationReadController extends Controller
         $target = $this->targetUser($request);
         $registration = $target === null ? null : $this->payload->registrationFor($target, $show);
 
-        try {
-            $totals = $this->payload->totals($registration);
-        } catch (InvalidArgumentException) {
-            return response()->json(['message' => 'The registration amounts cannot be priced.'], 422);
-        }
+        $totals = $this->payload->totals($registration);
 
         $body = [
             'registration' => $registration === null

@@ -80,6 +80,40 @@ class ImpersonationGuardTest extends AdminTestCase
         $this->assertNotContains('impersonation.blocked', array_column($this->auditEntries(), 'action'));
     }
 
+    /**
+     * Acts the member cannot undo or that leave the site in their name.
+     *
+     * @return array<string, array{string, string, array<string, mixed>}>
+     */
+    public static function irrevocableActions(): array
+    {
+        return [
+            'vanilla forum sso' => ['login/vanilla', 'GET', []],
+            'waiver sign link' => ['waiver/1/sign-url', 'GET', []],
+            'waiver sign by tracking id' => ['waiver_sign/t/abcdef0123456789abcdef0123456789', 'POST', ['signature' => 'x']],
+            'walk-in waiver sign' => ['waiver_sign/s/1', 'POST', ['signature' => 'x']],
+            'private message' => ['member/message', 'POST', ['to' => 1, 'message' => 'hello']],
+            'sell car' => ['member/sell-car', 'POST', ['car_id' => 1]],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $body
+     */
+    #[Test]
+    #[DataProvider('irrevocableActions')]
+    public function acting_irrevocably_as_the_member_is_refused_while_impersonating(string $path, string $method, array $body): void
+    {
+        $this->impersonating();
+
+        $this->json($method, '/'.$path, $body, self::JSON)
+            ->assertStatus(403)
+            ->assertJsonPath('message', 'This change is not available while you are logged in as another user.');
+
+        $blocked = array_values(array_filter($this->auditEntries(), fn (array $e) => ($e['action'] ?? null) === 'impersonation.blocked'));
+        $this->assertCount(1, $blocked);
+    }
+
     #[Test]
     public function a_member_write_during_impersonation_is_audited_with_the_administrator_id(): void
     {

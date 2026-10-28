@@ -33,6 +33,7 @@ function onImageError(): void {
       >
         <SafeImage
           :src="imageSrc"
+          resize="directoryCard"
           :alt="member.fullName"
           img-class="aspect-square w-full object-cover"
           @error="onImageError"
@@ -41,6 +42,7 @@ function onImageError(): void {
       <SafeImage
         v-else
         :src="imageSrc"
+        resize="directoryCard"
         :alt="member.fullName"
         img-class="aspect-square w-full object-cover"
         @error="onImageError"

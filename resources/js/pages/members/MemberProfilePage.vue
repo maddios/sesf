@@ -122,6 +122,7 @@ function carTitle(car: CarSummary): string {
       <header class="flex flex-col gap-5 sm:flex-row sm:items-start">
         <SafeImage
           :src="imageSrc"
+          resize="memberPhoto"
           :alt="`Photo of ${profile.fullName}`"
           img-class="h-40 w-40 rounded-md border border-border object-cover"
           width="160"
@@ -174,6 +175,7 @@ function carTitle(car: CarSummary): string {
                   <!-- The visible title below is the link text, so the photo is decorative. -->
                   <SafeImage
                     :src="car.imageUrl"
+                    resize="memberCar"
                     alt=""
                     img-class="aspect-[4/3] w-full rounded-sm border border-border object-cover"
                   />

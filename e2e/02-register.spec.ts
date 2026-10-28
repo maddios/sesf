@@ -77,9 +77,7 @@ test.describe('create an account', () => {
     expect(notice.HTML).not.toMatch(/<script/i);
   });
 
-  // KI-1 (docs/e2e.md): RegisterRequest's name regex rejects apostrophes, so "O'Shea" cannot register, while the
-  // browser-side check accepts it and guest names allow it. When fixed, this also proves the HTML escaping of the name.
-  test.fixme("accepts an apostrophe in the last name (O'Shea) and escapes it in the admin mail", async ({ page }) => {
+  test("accepts an apostrophe in the last name (O'Shea) and escapes it in the admin mail", async ({ page }) => {
     const email = `oshea-${Date.now().toString(36)}@sesf.test`;
     const adminBefore = await mailIds(ADMIN_INBOX);
     await visit(page, '/register');

@@ -39,6 +39,7 @@ function member(overrides: Partial<AdminUser> = {}): AdminUser {
     image_url: 'images/generic.gif',
     is_disabled: false,
     disabled_at: null,
+    profile_url: '/#/AdaL/u1',
     cars_count: 2,
     date_registered: null,
     created_at: null,
@@ -152,5 +153,82 @@ describe('UsersPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(seen.find((r) => r.method === 'POST' && r.path === '/admin-api/users/1/registrations')?.body).toEqual({ show_id: 4, car_ids: [7] });
     expect(seen.find((r) => r.path === '/admin-api/cars')?.params.get('filter[user_id]')).toBe('1');
+  });
+
+  it('shows the date registered, date deleted and profile link columns', async () => {
+    stubUsers([member({ created_at: '2024-03-05T15:00:00+00:00' }), member({ id: 2, full_name: 'Bo Gone', is_disabled: true, disabled_at: '2026-01-02T15:00:00+00:00', profile_url: '/#/BoG/u2' })]);
+    await renderAt(Page, '/admin/users');
+    expect(await within(table()).findByText('Mar 5, 2024')).toBeTruthy();
+    expect(within(table()).getByText('Jan 2, 2026')).toBeTruthy();
+    const link = within(table()).getByRole('link', { name: /Profile.*Bo Gone/ });
+    expect(link.getAttribute('href')).toBe('/#/BoG/u2');
+    expect(link.getAttribute('target')).toBe('_blank');
+  });
+
+  it('creates a member with a password', async () => {
+    const { seen } = stubUsers(undefined, (r) =>
+      r.method === 'POST' && r.path === '/admin-api/users' ? jsonResponse(201, { data: member({ id: 5, full_name: 'New Person' }) }) : undefined,
+    );
+    const user = userEvent.setup();
+    await renderAt(Page, '/admin/users');
+    await within(table()).findByText('Ada Lovelace');
+    await user.click(screen.getByRole('button', { name: 'Add member' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add member' });
+    await user.type(within(dialog).getByLabelText('First name'), 'New');
+    await user.type(within(dialog).getByLabelText('Email (required)'), 'new@example.test');
+    await user.type(within(dialog).getByLabelText('Street (required)'), '2 Elm St');
+    await user.type(within(dialog).getByLabelText('City (required)'), 'Tampa');
+    await user.type(within(dialog).getByLabelText('State (required)'), 'FL');
+    await user.type(within(dialog).getByLabelText('Zip (required)'), '33601');
+    expect(within(dialog).getByLabelText(/^Password \(required\)/).getAttribute('type')).toBe('password');
+    expect(within(dialog).getByLabelText(/^Password \(required\)/).getAttribute('autocomplete')).toBe('new-password');
+    await user.type(within(dialog).getByLabelText(/^Password \(required\)/), ' secret1 ');
+    await user.type(within(dialog).getByLabelText('Confirm password (required)'), ' secret1 ');
+    await user.click(within(dialog).getByRole('button', { name: 'Create member' }));
+
+    await waitFor(() => expect(seen.some((r) => r.method === 'POST' && r.path === '/admin-api/users')).toBe(true));
+    expect(seen.find((r) => r.method === 'POST' && r.path === '/admin-api/users')?.body).toMatchObject({
+      first: 'New',
+      email: 'new@example.test',
+      type_id: 1,
+      password: ' secret1 ',
+      password_confirmation: ' secret1 ',
+    });
+    expect(await screen.findByText('Member “New Person” created.')).toBeTruthy();
+  });
+
+  it('sets a member password and shows the 422 on the field', async () => {
+    let attempts = 0;
+    const { seen } = stubUsers(undefined, (r) => {
+      if (r.method !== 'POST' || r.path !== '/admin-api/users/1/password') return undefined;
+      attempts += 1;
+      return attempts === 1
+        ? jsonResponse(422, { message: 'Invalid', errors: { password: ['The password field confirmation does not match.'] } })
+        : jsonResponse(200, { message: 'The password has been changed.' });
+    });
+    const user = userEvent.setup();
+    await renderAt(Page, '/admin/users');
+    await user.click(await within(table()).findByRole('button', { name: 'Set password for Ada Lovelace' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Set password for Ada Lovelace' });
+    await user.type(within(dialog).getByLabelText(/^Password \(required\)/), 'secret12');
+    await user.type(within(dialog).getByLabelText('Confirm password (required)'), 'secret13');
+    await user.click(within(dialog).getByRole('button', { name: 'Set password' }));
+    expect(await within(dialog).findByText('The password field confirmation does not match.')).toBeTruthy();
+
+    await user.clear(within(dialog).getByLabelText('Confirm password (required)'));
+    await user.type(within(dialog).getByLabelText('Confirm password (required)'), 'secret12');
+    await user.click(within(dialog).getByRole('button', { name: 'Set password' }));
+
+    expect(await screen.findByText('Password changed for Ada Lovelace.')).toBeTruthy();
+    expect(seen.filter((r) => r.path === '/admin-api/users/1/password').at(-1)?.body).toEqual({ password: 'secret12', password_confirmation: 'secret12' });
+  });
+
+  it("hides set password and reset for another administrator's account", async () => {
+    stubUsers([member(), member({ id: 9, full_name: 'Other Admin', type_id: 3, type_name: 'Administrator' })]);
+    await renderAt(Page, '/admin/users');
+    await within(table()).findByText('Other Admin');
+    expect(within(table()).queryByRole('button', { name: 'Set password for Other Admin' })).toBeNull();
+    expect(within(table()).queryByRole('button', { name: 'Send password reset to Other Admin' })).toBeNull();
+    expect(within(table()).getByRole('button', { name: 'Send password reset to Ada Lovelace' })).toBeTruthy();
   });
 });

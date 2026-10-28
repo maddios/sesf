@@ -257,6 +257,34 @@ class UserAdminTest extends AdminTestCase
     }
 
     #[Test]
+    public function another_administrators_email_cannot_be_changed_or_reset(): void
+    {
+        Mail::fake();
+        $other = User::factory()->admin()->create(['email' => 'other-admin@example.test']);
+        $admin = $this->actingAs($this->admin());
+
+        $admin->putJson(self::BASE.'/'.$other->id, $this->editable(['email' => 'takeover@example.test']))->assertForbidden();
+        $admin->postJson(self::BASE.'/'.$other->id.'/password-reset')->assertForbidden();
+
+        $this->assertSame('other-admin@example.test', $other->refresh()->email);
+        Mail::assertNothingSent();
+        $admin->putJson(self::BASE.'/'.$other->id, $this->editable(['email' => 'other-admin@example.test', 'first' => 'Renamed']))->assertOk();
+    }
+
+    #[Test]
+    public function an_administrator_can_change_their_own_email_and_reset_it(): void
+    {
+        Mail::fake();
+        $self = $this->admin();
+        $admin = $this->actingAs($self);
+
+        $admin->putJson(self::BASE.'/'.$self->id, $this->editable(['email' => 'me-new@example.test']))->assertOk();
+        $admin->postJson(self::BASE.'/'.$self->id.'/password-reset')->assertOk();
+
+        $this->assertSame('me-new@example.test', $self->refresh()->email);
+    }
+
+    #[Test]
     public function a_reset_is_refused_for_a_disabled_member(): void
     {
         Mail::fake();

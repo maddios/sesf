@@ -1,0 +1,542 @@
+/* Standalone waiver pages. Visual language follows the legacy sesf-waiver-widget.css (light, yellow
+   "tab" fields, large touch targets). No framework: the pages are shells around one small widget. */
+:root {
+    color-scheme: light;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+body.sesf-waiver-page {
+    margin: 0;
+    padding-bottom: 2rem;
+    background: #f5f5f5;
+    color: #222;
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    overscroll-behavior: contain;
+}
+
+.sesf-waiver-shell {
+    box-sizing: border-box;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 12px 16px;
+    overflow-x: hidden;
+}
+
+.sesf-waiver-event-title {
+    margin: 1rem 0;
+    font-size: 1.25rem;
+    text-align: center;
+}
+
+.sesf-waiver-section-title {
+    margin: 0 0 12px;
+    font-size: 1.05rem;
+}
+
+.sesf-waiver-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+.sesf-waiver-legal-wrap {
+    margin-bottom: 1rem;
+    padding: 16px;
+    border-radius: 4px;
+    background: #fff;
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.sesf-waiver-form {
+    box-sizing: border-box;
+    margin-bottom: 2rem;
+    padding: 16px;
+    border-radius: 4px;
+    background: #fff;
+}
+
+.sesf-waiver-form fieldset {
+    margin: 0 0 14px;
+    padding: 0;
+    border: 0;
+}
+
+.sesf-waiver-form legend {
+    padding: 0;
+    margin-bottom: 8px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.sesf-waiver-hint,
+.sesf-waiver-muted {
+    margin: 0 0 12px;
+    color: #555;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.sesf-waiver-muted {
+    color: #777;
+}
+
+.sesf-waiver-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.sesf-waiver-field {
+    flex: 1 1 160px;
+    min-width: 0;
+    margin-bottom: 14px;
+}
+
+.sesf-waiver-field label,
+.sesf-waiver-minor label {
+    display: block;
+    margin-bottom: 6px;
+    color: #444;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.sesf-waiver-minor label {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    font-weight: 400;
+    font-size: 15px;
+}
+
+.sesf-waiver-minor {
+    margin: 16px 0 8px;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"] {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 48px;
+    padding: 12px 10px;
+    border: 1px solid #f0e4b8;
+    border-radius: 4px;
+    background: #fffef6;
+    font: inherit;
+    font-size: 18px;
+}
+
+input:focus-visible,
+button:focus-visible,
+a:focus-visible,
+canvas:focus-visible {
+    outline: 3px solid #2a6496;
+    outline-offset: 2px;
+}
+
+.sesf-adult-block {
+    margin: 8px 0 18px;
+    padding: 14px;
+    border: 1px solid #f0e4b8;
+    border-radius: 4px;
+    background: #fffef6;
+}
+
+.sesf-waiver-sig {
+    margin: 18px 0 14px;
+}
+
+.sesf-sig-canvas {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    height: 200px;
+    margin-bottom: 8px;
+    border: 1px solid #c8c2b0;
+    border-radius: 4px;
+    background: #fff;
+    cursor: crosshair;
+    touch-action: none;
+}
+
+@media (min-width: 768px) {
+    .sesf-sig-canvas {
+        height: 280px;
+    }
+}
+
+.sesf-btn {
+    box-sizing: border-box;
+    min-height: 48px;
+    padding: 10px 18px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font: inherit;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.sesf-btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.sesf-btn-primary {
+    width: 100%;
+    background: #0d6efd;
+    color: #fff;
+}
+
+.sesf-btn-secondary {
+    background: #fff;
+    border-color: #8a8f98;
+    color: #222;
+}
+
+.sesf-waiver-alert {
+    margin-bottom: 12px;
+    padding: 12px 14px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-size: 15px;
+}
+
+.sesf-waiver-alert-error {
+    border-color: #f5c2c7;
+    background: #f8d7da;
+    color: #842029;
+}
+
+.sesf-waiver-alert-success {
+    border-color: #badbcc;
+    background: #d1e7dd;
+    color: #0f5132;
+}
+
+.sesf-waiver-alert-info {
+    border-color: #b6d4fe;
+    background: #cfe2ff;
+    color: #084298;
+}
+
+.sesf-waiver-show {
+    font-weight: 600;
+}
+
+.sesf-waiver-people {
+    margin: 0 0 16px;
+    padding: 0;
+    list-style: none;
+}
+
+.sesf-waiver-people li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.sesf-waiver-people button {
+    min-height: 40px;
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 4px;
+    background: #0d6efd;
+    color: #fff;
+    font: inherit;
+    cursor: pointer;
+}
+
+.sesf-waiver-people span:last-of-type {
+    color: #555;
+}
+
+.sesf-waiver-sig-caption {
+    margin: 0 0 8px;
+    font-size: 15px;
+}
+
+.sesf-waiver-modes {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.sesf-waiver-modes .sesf-btn[aria-pressed="true"] {
+    background: #0d6efd;
+    border-color: #0d6efd;
+    color: #fff;
+}
+
+.sesf-waiver-type-label {
+    display: block;
+    margin-bottom: 6px;
+    color: #444;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.sesf-sig-type-textarea {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 64px;
+    margin-bottom: 8px;
+    padding: 12px 14px;
+    border: 1px solid #f0e4b8;
+    border-radius: 4px;
+    background: #fffef6;
+    font: inherit;
+    font-size: 20px;
+    line-height: 1.35;
+    resize: vertical;
+}
+
+.sesf-type-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 120px;
+    margin-bottom: 12px;
+    border: 1px solid #c8c2b0;
+    border-radius: 4px;
+    background: #fff;
+}
+
+.sesf-type-preview-img {
+    max-width: 100%;
+    max-height: 140px;
+}
+
+.sesf-type-preview .sesf-waiver-muted {
+    margin: 0;
+    padding: 16px;
+    text-align: center;
+}
+
+/* Legacy canvas heights: 144 px on phones, 240 px default, 300 px from 768 px wide. */
+.sesf-sig-canvas { height: 240px; }
+@media (min-width: 768px) { .sesf-sig-canvas { height: 300px; } }
+@media (max-width: 767px) { .sesf-sig-canvas { height: 144px; } }
+
+.sesf-waiver-sig-preview-wrap {
+    position: relative;
+    min-height: 120px;
+    margin-bottom: 14px;
+    padding: 12px;
+    border: 1px solid #e0dcd0;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+}
+
+.sesf-open-sig {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    min-height: 40px;
+    padding: 8px 10px;
+}
+
+.sesf-sig-preview {
+    min-height: 88px;
+    text-align: center;
+}
+
+.sesf-sig-preview img {
+    max-width: 100%;
+    max-height: 160px;
+}
+
+.sesf-btn-link {
+    border: 0;
+    background: none;
+    color: #2a6496;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.sesf-btn-link:hover,
+.sesf-btn-link:focus-visible {
+    text-decoration: underline;
+}
+
+.sesf-sig-modal {
+    box-sizing: border-box;
+    width: min(560px, calc(100vw - 24px));
+    max-height: calc(100vh - 16px);
+    margin: 8px auto;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: #fff;
+    overflow-y: auto;
+    color-scheme: light;
+}
+
+.sesf-sig-modal::backdrop {
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.sesf-sig-modal-header,
+.sesf-sig-modal-footer {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 12px 16px;
+}
+
+.sesf-sig-modal-header {
+    justify-content: space-between;
+    border-bottom: 1px solid #eee;
+}
+
+.sesf-sig-modal-header h2 {
+    margin: 0;
+    font-size: 1.15rem;
+}
+
+.sesf-sig-modal-footer {
+    justify-content: flex-end;
+    border-top: 1px solid #eee;
+}
+
+#sesf-sig-clear {
+    margin-right: auto;
+}
+
+.sesf-sig-modal-body {
+    padding: 12px 16px;
+}
+
+.sesf-sig-mode-bar {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 6px 0;
+    background: #fff;
+}
+
+.sesf-sig-modal .sesf-btn {
+    min-height: 44px;
+    touch-action: manipulation;
+}
+
+.sesf-sig-modal .sesf-sig-mode-bar .sesf-btn[aria-pressed="true"] {
+    background: #0d6efd;
+    border-color: #0d6efd;
+    color: #fff;
+}
+
+.sesf-sig-modeline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.sesf-waiver-submit-pulse {
+    animation: sesf-waiver-submit-pulse 0.95s ease-out 3;
+}
+
+@keyframes sesf-waiver-submit-pulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+    50% { transform: scale(1.05); box-shadow: 0 0 0 14px rgba(245, 158, 11, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+.sesf-portal-tabs {
+    display: flex;
+    gap: 8px;
+    margin: 0 0 16px;
+    padding: 0;
+    list-style: none;
+}
+
+.sesf-portal-tabs [aria-selected="true"] {
+    background: #0d6efd;
+    border-color: #0d6efd;
+    color: #fff;
+}
+
+.sesf-waiver-badge {
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: #f8d7da;
+    color: #842029;
+    font-size: 13px;
+}
+
+.sesf-waiver-badge-signed {
+    background: #d1e7dd;
+    color: #0f5132;
+}
+
+.sesf-waiver-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.sesf-waiver-actions .sesf-btn {
+    flex: 1 1 0;
+    min-height: 44px;
+    text-align: center;
+    text-decoration: none;
+}
+
+.sesf-waiver-modal {
+    width: min(760px, calc(100vw - 16px));
+    max-height: calc(100vh - 16px);
+}
+
+.sesf-waiver-modal-iframe {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    height: min(70vh, 720px);
+    border: 0;
+}
+
+.sesf-waiver-modal #sesf-waiver-modal-foot {
+    margin: 0;
+    border-radius: 0;
+}
+
+.sesf-share-link {
+    box-sizing: border-box;
+    width: 100%;
+    margin-bottom: 12px;
+    padding: 10px;
+    border: 1px solid #c8c2b0;
+    border-radius: 4px;
+    font: 14px/1.4 ui-monospace, monospace;
+    word-break: break-all;
+}
+
+.sesf-waiver-share .sesf-btn {
+    width: 100%;
+    margin-bottom: 8px;
+}
+
+.sesf-waiver-share .sesf-btn-secondary {
+    background: #fff;
+}

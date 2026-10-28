@@ -11,7 +11,6 @@ use App\Services\Registration\InvoiceBuilder;
 use App\Services\Registration\RegistrationPricing;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use InvalidArgumentException;
 
 /**
  * Member invoices (legacy MemberProfile::getInvoice and getInvoiceList). Both routes require
@@ -83,13 +82,7 @@ class InvoiceController extends Controller
             return response()->json(['message' => 'Not found.'], 404);
         }
 
-        try {
-            $totals = $this->pricing->totalsFor($registration);
-        } catch (InvalidArgumentException) {
-            return response()->json(['message' => 'The registration amounts cannot be priced.'], 422);
-        }
-
-        return response()->json((new InvoiceResource($registration, $totals))->resolve($request));
+        return response()->json((new InvoiceResource($registration, $this->pricing->totalsFor($registration)))->resolve($request));
     }
 
     private function isAdmin(User $user): bool
