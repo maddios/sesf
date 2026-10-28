@@ -5,7 +5,6 @@ namespace App\Services\Admin;
 use App\Enums\UserGuestType;
 use App\Models\Car;
 use App\Models\CarShow;
-use App\Models\ShirtType;
 use App\Models\ShowExtra;
 use App\Models\ShowRegistration;
 use App\Models\User;
@@ -16,6 +15,9 @@ use App\Services\Registration\Writer\RegistrationData;
 use App\Services\Registration\Writer\RegistrationRejected;
 use App\Services\Registration\Writer\RegistrationRules;
 use App\Services\Registration\Writer\ShirtInput;
+use App\Services\Shirts\ShirtOffer;
+use App\Services\Shirts\ShowShirtCatalog;
+use App\Support\Money;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -35,6 +37,7 @@ final class OnSiteRegistration
     public function __construct(
         private readonly RegistrationWriter $writer,
         private readonly RegistrationRules $rules,
+        private readonly ShowShirtCatalog $shirtCatalog,
     ) {}
 
     /**
@@ -66,16 +69,11 @@ final class OnSiteRegistration
                 ->map(fn (UserGuestType $type): array => ['id' => $type->value, 'name' => $type->name])
                 ->values()
                 ->all(),
-            'shirt_types' => ShirtType::query()
-                ->orderBy('id')
-                ->get(['id', 'name', 'price'])
-                ->map(fn (ShirtType $type): array => [
-                    'id' => (int) $type->id,
-                    'name' => (string) $type->name,
-                    'price_cents' => self::cents($type->price),
-                ])
-                ->values()
-                ->all(),
+            'shirt_types' => array_map(fn (ShirtOffer $type): array => [
+                'id' => $type->id,
+                'name' => $type->name,
+                'price_cents' => self::cents($type->price),
+            ], $this->shirtCatalog->forShow((int) $show->id)->offered()),
             'extras' => ShowExtra::query()
                 ->where('show_id', $show->id)
                 ->where('is_enabled', true)
@@ -153,7 +151,7 @@ final class OnSiteRegistration
             $data = new RegistrationData(
                 cars: $this->cars($show, $member, $input['cars']),
                 guests: $this->guests($member, $input['guests']),
-                shirts: $this->shirts($input['shirts']),
+                shirts: $this->shirts($show, $input['shirts']),
                 extras: $this->extras($show, $input['extras']),
                 arrivalDate: $this->arrivalDate($show, $arrivalDate),
                 arrivalTime: $arrivalTime,
@@ -243,18 +241,21 @@ final class OnSiteRegistration
     }
 
     /**
+     * Each type must be offered by the event (ShowShirtCatalog).
+     *
      * @param  list<array{type_id: ?int}>  $rows
      * @return list<ShirtInput>
      */
-    private function shirts(array $rows): array
+    private function shirts(CarShow $show, array $rows): array
     {
+        $menu = $this->shirtCatalog->forShow((int) $show->id);
         $shirts = [];
         foreach ($rows as $row) {
             $typeId = (int) ($row['type_id'] ?? 0);
             if ($typeId < 1) {
                 self::reject('shirts', 'Each shirt row needs a size');
             }
-            if (! ShirtType::query()->whereKey($typeId)->exists()) {
+            if (! $menu->isOffered($typeId)) {
                 self::reject('shirts', 'Invalid shirt size selected');
             }
 
@@ -311,7 +312,7 @@ final class OnSiteRegistration
         $errors = [
             ...$this->rules->cars($show, $member, null, $data->cars, false),
             ...$this->rules->guests($member, null, $data->guests),
-            ...$this->rules->shirts(null, $data->shirts),
+            ...$this->rules->shirts($show, null, $data->shirts),
             ...$this->rules->extras($show, $extraItems, '', false),
         ];
         if ($errors !== []) {
@@ -354,7 +355,7 @@ final class OnSiteRegistration
 
     private static function cents(?string $price): ?int
     {
-        return $price === null ? null : (int) round((float) $price * 100);
+        return $price === null ? null : Money::toSignedCents($price);
     }
 
     private static function reject(string $key, string $message): never

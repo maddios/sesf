@@ -36,7 +36,8 @@ export type AdminIconName =
   | 'file'
   | 'dollar'
   | 'award'
-  | 'ban';
+  | 'ban'
+  | 'shirt';
 
 defineProps<{ name: AdminIconName }>();
 
@@ -77,6 +78,7 @@ const PATHS: Record<AdminIconName, string> = {
   dollar: 'M12 3v18 M16.5 7.5c0-1.7-2-3-4.5-3s-4.5 1.3-4.5 3 2 2.6 4.5 3 4.5 1.3 4.5 3-2 3-4.5 3-4.5-1.3-4.5-3',
   award: 'M12 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z M8.5 14 7 22l5-3 5 3-1.5-8',
   ban: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z M5.6 5.6l12.8 12.8',
+  shirt: 'M9 3a3 3 0 0 0 6 0l5 2.5-1.5 4.5H17v11H7V10H5.5L4 5.5Z',
 };
 </script>
 

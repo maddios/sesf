@@ -50,6 +50,9 @@ export interface RegisteredGuest {
 export interface RegisteredShirt {
   id: number;
   type: number | null;
+  /** The ordered type's name and the line's billed unit price; kept even when the event no longer offers the type. */
+  name: string;
+  price: string;
 }
 
 export interface RegisteredExtra {
@@ -94,6 +97,8 @@ export interface Payment {
 export interface LineItem {
   kind: string;
   label: string;
+  /** Which car, guest, shirt type or extra the line is; null when unknown. */
+  detail: string | null;
   quantity: number;
   unit: string;
   amount: string;
@@ -254,7 +259,7 @@ function toGuest(raw: Raw): RegisteredGuest | null {
 
 function toShirt(raw: Raw): RegisteredShirt | null {
   const id = toNumber(raw.id);
-  return id === null ? null : { id, type: toNumber(raw.type) };
+  return id === null ? null : { id, type: toNumber(raw.type), name: toText(raw.name), price: toMoney(raw.price) };
 }
 
 function toExtras(value: unknown): RegisteredExtra[] {
@@ -287,6 +292,7 @@ function toLineItem(raw: Raw): LineItem {
   return {
     kind: toText(raw.kind),
     label: toText(raw.label),
+    detail: toText(raw.detail) || null,
     quantity: toCount(raw.quantity),
     unit: toMoney(raw.unit),
     amount: toMoney(raw.amount),

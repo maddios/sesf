@@ -21,35 +21,36 @@ final class PricingCalculator
         $freeSlots = max(0, $input->carCount - 1);
         $carsCents = 0;
         for ($i = 0; $i < $input->carCount; $i++) {
-            $items[] = new LineItem(LineItemKind::Car, $input->carPriceCents);
+            $items[] = new LineItem(LineItemKind::Car, $input->carPriceCents, detail: $input->carDetails[$i] ?? null);
             $carsCents += $input->carPriceCents;
         }
 
         // Guests are free while slots remain, in registration order, whatever their type.
         $slotsLeft = $freeSlots;
         $guestsCents = 0;
-        foreach ($input->guests as $guest) {
+        foreach ($input->guests as $index => $guest) {
+            $detail = $input->guestDetails[$index] ?? null;
             if ($slotsLeft > 0) {
                 $slotsLeft--;
-                $items[] = new LineItem(LineItemKind::Guest, 0, free: true, label: $guest->name);
+                $items[] = new LineItem(LineItemKind::Guest, 0, free: true, label: $guest->name, detail: $detail);
 
                 continue;
             }
 
             $price = $guest === UserGuestType::Adult ? $input->adultPriceCents : $input->childPriceCents;
-            $items[] = new LineItem(LineItemKind::Guest, $price, label: $guest->name);
+            $items[] = new LineItem(LineItemKind::Guest, $price, label: $guest->name, detail: $detail);
             $guestsCents += $price;
         }
 
         $shirtsCents = 0;
-        foreach ($input->shirtPricesCents as $price) {
-            $items[] = new LineItem(LineItemKind::Shirt, $price);
+        foreach ($input->shirtPricesCents as $index => $price) {
+            $items[] = new LineItem(LineItemKind::Shirt, $price, detail: $input->shirtDetails[$index] ?? null);
             $shirtsCents += $price;
         }
 
         $extrasCents = 0;
         foreach ($input->extras as $extra) {
-            $item = new LineItem(LineItemKind::Extra, $extra->priceCents, $extra->quantity);
+            $item = new LineItem(LineItemKind::Extra, $extra->priceCents, $extra->quantity, detail: $extra->name);
             $items[] = $item;
             $extrasCents += $item->totalCents;
         }

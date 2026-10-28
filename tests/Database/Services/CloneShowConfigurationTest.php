@@ -138,7 +138,7 @@ test('copy refuses a target that already has car bodies and changes nothing', fu
     cloneSeedBodies($target->id, [1]);
 
     expect(fn () => (new CloneShowConfiguration)->copy($target, $source))
-        ->toThrow(InvalidArgumentException::class, 'already configured (1 car bodies, 0 judging rows)');
+        ->toThrow(InvalidArgumentException::class, 'already configured (1 car bodies, 0 judging rows, 0 shirt types)');
 
     expect(DB::table('car_body_show')->where('show_id', $target->id)->count())->toBe(1);
     expect(DB::table('judging_show_body')->where('car_show_id', $target->id)->count())->toBe(0);
@@ -152,7 +152,7 @@ test('copy refuses a target that has only judging rows (no unique key would stop
     cloneSeedJudging($target->id, 1, 1);
 
     expect(fn () => (new CloneShowConfiguration)->copy($target, $source))
-        ->toThrow(InvalidArgumentException::class, 'already configured (0 car bodies, 1 judging rows)');
+        ->toThrow(InvalidArgumentException::class, 'already configured (0 car bodies, 1 judging rows, 0 shirt types)');
 
     expect(DB::table('car_body_show')->where('show_id', $target->id)->count())->toBe(0);
     expect(DB::table('judging_show_body')->where('car_show_id', $target->id)->count())->toBe(1);
@@ -196,10 +196,68 @@ test('every check runs inside the copy transaction, after both shows are locked'
 
     (new CloneShowConfiguration)->copy($target, $source);
 
-    expect($selects)->toHaveCount(4);
+    expect($selects)->toHaveCount(5);
     expect($selects[0][0])->toContain('`car_show`')->toContain('order by `id` asc')->toEndWith('for update');
     foreach ($selects as [$sql, $level]) {
         expect($level)->toBe($outerLevel + 1);
         expect(str_ends_with($sql, 'for update') || str_ends_with($sql, 'lock in share mode'))->toBeTrue();
     }
+});
+
+test('copy duplicates the source shirt offer (types and price overrides) onto the target', function () {
+    $source = CarShow::factory()->create();
+    $target = CarShow::factory()->create();
+    $unrelated = CarShow::factory()->create();
+    cloneSeedBodies($source->id, [1]);
+    DB::table('show_shirt_type')->insert([
+        ['show_id' => $source->id, 'shirt_type_id' => 1, 'price' => 18.5],
+        ['show_id' => $source->id, 'shirt_type_id' => 3, 'price' => null],
+        ['show_id' => $unrelated->id, 'shirt_type_id' => 2, 'price' => 9],
+    ]);
+
+    (new CloneShowConfiguration)->copy($target, $source);
+
+    $rows = DB::table('show_shirt_type')->where('show_id', $target->id)->orderBy('shirt_type_id')->get()
+        ->map(fn ($row) => [(int) $row->shirt_type_id, $row->price === null ? null : number_format((float) $row->price, 2, '.', '')])
+        ->all();
+    expect($rows)->toBe([[1, '18.50'], [3, null]]);
+});
+
+test('copy of a source without a shirt offer leaves the target offering every type at its default', function () {
+    $source = CarShow::factory()->create();
+    $target = CarShow::factory()->create();
+    cloneSeedBodies($source->id, [1]);
+
+    (new CloneShowConfiguration)->copy($target, $source);
+
+    expect(DB::table('show_shirt_type')->where('show_id', $target->id)->count())->toBe(0);
+});
+
+test('copy onto a target that already has a shirt offer is refused and changes nothing', function () {
+    $source = CarShow::factory()->create();
+    $target = CarShow::factory()->create();
+    cloneSeedBodies($source->id, [1]);
+    DB::table('show_shirt_type')->insert(['show_id' => $target->id, 'shirt_type_id' => 2, 'price' => null]);
+
+    expect(fn () => (new CloneShowConfiguration)->copy($target, $source))
+        ->toThrow(InvalidArgumentException::class, 'already configured (0 car bodies, 0 judging rows, 1 shirt types)');
+    expect(DB::table('car_body_show')->where('show_id', $target->id)->count())->toBe(0);
+});
+
+test('a failing shirt copy rolls back the body and judging copy (one transaction)', function () {
+    $source = CarShow::factory()->create();
+    $target = CarShow::factory()->create();
+    cloneSeedBodies($source->id, [1]);
+    cloneSeedJudging($source->id, 1, 1);
+    DB::table('show_shirt_type')->insert(['show_id' => $source->id, 'shirt_type_id' => 1, 'price' => null]);
+    DB::listen(function (QueryExecuted $query): void {
+        if (str_contains($query->sql, 'INSERT INTO show_shirt_type')) {
+            throw new RuntimeException('shirt copy failed');
+        }
+    });
+
+    expect(fn () => (new CloneShowConfiguration)->copy($target, $source))->toThrow(RuntimeException::class, 'shirt copy failed');
+    expect(DB::table('car_body_show')->where('show_id', $target->id)->count())->toBe(0);
+    expect(DB::table('judging_show_body')->where('car_show_id', $target->id)->count())->toBe(0);
+    expect(DB::table('show_shirt_type')->where('show_id', $target->id)->count())->toBe(0);
 });

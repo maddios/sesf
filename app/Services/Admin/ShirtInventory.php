@@ -6,10 +6,12 @@ use App\Models\CarShow;
 use App\Models\Shirt;
 use App\Models\ShirtAdhocSale;
 use App\Models\ShirtAdhocSaleItem;
-use App\Models\ShirtType;
 use App\Models\ShowRegistration;
 use App\Models\User;
+use App\Services\Shirts\ShirtOffer;
+use App\Services\Shirts\ShowShirtCatalog;
 use App\Support\Admin\DisplayName;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -21,21 +23,30 @@ use Illuminate\Validation\ValidationException;
  * Stock is car_show.shirt_stock_json: type id => count. remaining = stock - handed out - ad hoc sold;
  * available for an ad hoc sale = stock - ordered - ad hoc sold (legacy rules). Every stock change and
  * every ad hoc sale locks the car_show row first, so two admins selling the last shirt cannot both win.
+ *
+ * Types listed: the ones the event offers (ShowShirtCatalog) plus any other type that has stock, orders or sales
+ * at this event, so nothing on hand disappears when the offer changes. price_cents is the event's price.
  */
 final class ShirtInventory
 {
+    public function __construct(private readonly ShowShirtCatalog $catalog = new ShowShirtCatalog) {}
+
     /**
      * @return array<string, mixed>
      */
     public function summary(CarShow $show): array
     {
         $counts = $this->counts($show);
-        $names = ShirtType::query()->orderBy('id')->get(['id', 'name', 'price']);
+        $menu = $this->catalog->forShow((int) $show->id);
+        $types = array_filter($menu->all(), fn (ShirtOffer $type): bool => $menu->isOffered($type->id)
+            || ($counts['stock'][$type->id] ?? 0) > 0
+            || ($counts['ordered'][$type->id] ?? 0) > 0
+            || ($counts['adhoc'][$type->id] ?? 0) > 0);
 
         return [
             'show' => ['id' => (int) $show->id, 'name' => (string) $show->name],
-            'types' => $names->map(function (ShirtType $type) use ($counts): array {
-                $id = (int) $type->id;
+            'types' => array_values(array_map(function (ShirtOffer $type) use ($counts, $menu): array {
+                $id = $type->id;
                 $stock = $counts['stock'][$id] ?? 0;
                 $ordered = $counts['ordered'][$id] ?? 0;
                 $handed = $counts['handed_out'][$id] ?? 0;
@@ -43,8 +54,9 @@ final class ShirtInventory
 
                 return [
                     'id' => $id,
-                    'name' => (string) $type->name,
-                    'price_cents' => $type->price === null ? null : (int) round((float) $type->price * 100),
+                    'name' => $type->name,
+                    'price_cents' => Money::toCents($type->price),
+                    'offered' => $menu->isOffered($id),
                     'stock' => $stock,
                     'ordered' => $ordered,
                     'handed_out' => $handed,
@@ -52,7 +64,7 @@ final class ShirtInventory
                     'remaining' => $stock - $handed - $adhoc,
                     'available_for_adhoc' => $stock - $ordered - $adhoc,
                 ];
-            })->values()->all(),
+            }, $types)),
             'registrations' => $this->registrations($show),
             'adhoc_sales' => $this->sales($show),
         ];
@@ -103,13 +115,13 @@ final class ShirtInventory
         return DB::transaction(function () use ($show, $typeIds, $seller): ShirtAdhocSale {
             $locked = CarShow::query()->whereKey($show->id)->lockForUpdate()->firstOrFail();
             $counts = $this->counts($locked);
-            $names = ShirtType::query()->whereIn('id', array_unique($typeIds))->pluck('name', 'id');
+            $menu = $this->catalog->forShow((int) $locked->id);
 
             $problems = [];
             foreach (array_count_values($typeIds) as $typeId => $wanted) {
                 $available = ($counts['stock'][$typeId] ?? 0) - ($counts['ordered'][$typeId] ?? 0) - ($counts['adhoc'][$typeId] ?? 0);
                 if ($wanted > $available) {
-                    $problems[] = ($names[$typeId] ?? 'Type #'.$typeId).' has only '.max(0, $available).' available.';
+                    $problems[] = ($menu->find($typeId)->name ?? 'Type #'.$typeId).' has only '.max(0, $available).' available.';
                 }
             }
             if ($problems !== []) {

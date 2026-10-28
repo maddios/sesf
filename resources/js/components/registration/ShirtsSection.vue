@@ -5,10 +5,13 @@ import SectionShell from './SectionShell.vue';
 import { messageList } from './fieldErrors';
 import { nextRowKey, type ShirtRow } from '../../composables/registration/form';
 import { useFormValues } from './formContext';
-import type { IndexedMessages, ShirtType } from '../../api/registration';
+import type { IndexedMessages, RegisteredShirt, ShirtType } from '../../api/registration';
 
 const props = defineProps<{
+  /** The types this event offers, at its prices. */
   shirtTypes: ShirtType[];
+  /** The shirts already ordered (saved), with their billed price. */
+  registeredShirts: RegisteredShirt[];
   readOnly: boolean;
   fieldError: (path: string) => string | undefined;
   touch: (path: string) => void;
@@ -40,8 +43,26 @@ function removeShirt(index: number): void {
   }
 }
 
-function priceOf(id: number | null): string {
-  const type = props.shirtTypes.find((item) => item.id === id);
+function savedShirt(row: ShirtRow): RegisteredShirt | undefined {
+  return row.id === null ? undefined : props.registeredShirts.find((shirt) => shirt.id === row.id);
+}
+
+/** The event's types, plus the saved type of this shirt when the event no longer offers it (it stays billed). */
+function optionsFor(row: ShirtRow): ShirtType[] {
+  const saved = savedShirt(row);
+  if (saved === undefined || saved.type === null || props.shirtTypes.some((type) => type.id === saved.type)) {
+    return props.shirtTypes;
+  }
+  return [...props.shirtTypes, { id: saved.type, name: `${saved.name} (no longer offered)`, price: saved.price }];
+}
+
+/** A saved shirt keeps the price it was ordered at; a new or changed one costs the event's price. */
+function priceOf(row: ShirtRow): string {
+  const saved = savedShirt(row);
+  if (saved !== undefined && saved.type === row.type) {
+    return ` ($${saved.price})`;
+  }
+  const type = props.shirtTypes.find((item) => item.id === row.type);
   return type === undefined ? '' : ` ($${type.price})`;
 }
 
@@ -89,14 +110,14 @@ const form = useFormValues();
             Please select
           </option>
           <option
-            v-for="type in shirtTypes"
+            v-for="type in optionsFor(item.row)"
             :key="type.id"
             :value="type.id"
           >
             {{ type.name }}
           </option>
         </select>
-        <span class="text-sm text-muted">{{ priceOf(item.row.type) }}</span>
+        <span class="text-sm text-muted">{{ priceOf(item.row) }}</span>
       </FormField>
       <button
         type="button"

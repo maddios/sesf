@@ -8,6 +8,8 @@ use App\Mail\RegistrationPayLinkMail;
 use App\Mail\WaiverReminderMail;
 use App\Models\Car;
 use App\Models\CarShow;
+use App\Models\Shirt;
+use App\Models\ShirtType;
 use App\Models\ShowExtra;
 use App\Models\ShowExtraRegistration;
 use App\Models\ShowRegistration;
@@ -19,6 +21,7 @@ use Database\Factories\ShirtTypeFactory;
 use Database\Factories\ShowExtraFactory;
 use Database\Factories\ShowRegistrationFactory;
 use Illuminate\Log\Events\MessageLogged;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
@@ -395,6 +398,40 @@ class CheckinAdminTest extends AdminTestCase
         $this->assertSame(500, $options['extras'][0]['price_cents']);
         $this->assertSame(0, $options['donations'][0]['id']);
         $this->assertNotEmpty($options['show_dates']);
+    }
+
+    #[Test]
+    public function the_options_offer_every_shirt_type_at_its_default_when_the_event_has_no_offer(): void
+    {
+        $show = $this->registrationShow();
+
+        $types = $this->actingAs($this->admin())->getJson(self::BASE."/shows/{$show->id}/registration-options")->assertOk()->json('data.shirt_types');
+
+        $this->assertCount(ShirtType::query()->count(), $types);
+        $this->assertSame(['id' => 1, 'name' => 'Mens S T-Shirt', 'price_cents' => 3500], $types[0]);
+    }
+
+    #[Test]
+    public function the_options_and_the_write_follow_the_event_shirt_offer_and_price(): void
+    {
+        Mail::fake();
+        $show = $this->registrationShow();
+        DB::table('show_shirt_type')->insert(['show_id' => $show->id, 'shirt_type_id' => ShirtTypeFactory::MENS_M_TSHIRT, 'price' => 21.5]);
+
+        $this->assertSame(
+            [['id' => ShirtTypeFactory::MENS_M_TSHIRT, 'name' => 'Mens M T-Shirt', 'price_cents' => 2150]],
+            $this->actingAs($this->admin())->getJson(self::BASE."/shows/{$show->id}/registration-options")->assertOk()->json('data.shirt_types'),
+        );
+
+        $member = $this->memberWithCar();
+        $car = Car::query()->where('user_id', $member->id)->firstOrFail();
+        $this->actingAs($this->admin())
+            ->postJson(self::BASE."/shows/{$show->id}/registrations", array_merge($this->payload($show, $member, $car), ['shirts' => [['type_id' => ShirtTypeFactory::MENS_S_TSHIRT]]]))
+            ->assertStatus(422)
+            ->assertSee('Invalid shirt size selected');
+
+        $this->actingAs($this->admin())->postJson(self::BASE."/shows/{$show->id}/registrations", $this->payload($show, $member, $car))->assertStatus(201);
+        $this->assertSame('21.50', Shirt::query()->where('user_id', $member->id)->value('price'));
     }
 
     #[Test]

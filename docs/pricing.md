@@ -11,7 +11,7 @@
 | Cars | `car_show.price_car` per car. Legacy counts only cars whose body is in `car_body_show` for that show (`carsByShow`). The caller passes that filtered count. |
 | Free guests | `free = max(0, cars - 1)`. The first car gives no free guest, and each further car gives one. With 0 cars there are 0 free guests. |
 | Guests | In registration order (`user_guest.id`), guests are free while slots remain, of any type. After that, Adult pays `price_adult` and every other type pays `price_child`. Unused slots are lost. |
-| Shirts | `shirt_type.price` per shirt. This is the current global price. The `shirt.price` column is not read. |
+| Shirts | Legacy: `shirt_type.price` per shirt (the current global price; `shirt.price` was not read). New: the line's `shirt.price` snapshot, else the type's effective price at the event (see Per-event shirts below). |
 | Extras | `show_extra.price × num_extras`. `ExtraType` does not affect the price. A NULL `num_extras` counts as 0. |
 | Donation | `show_registration.donation`, added to the total. |
 | Owed | `total − (amount_received + discount)`. Owed is signed: a negative value is a credit (overpaid, or the discount is bigger than the total). |
@@ -92,3 +92,29 @@ children beyond their free slots. The data cannot distinguish the two orders, so
 - `RegistrationPricing implements RegistrationBalance` (PayPal IPN). `owedCents()` reads the in-memory
   `amount_received` and `discount`. On ended shows it uses the ORIGINAL stored `amount_owed` minus the change in
   received and discount, so a payment after a show ended adjusts the stored owed. Such payments are rare.
+
+## Per-event shirts (show_shirt_type)
+
+Legacy had no per-event shirt list: every event offered every `shirt_type` row at its global price. Table
+`show_shirt_type` (`database/sql/003_show_shirt_type.sql`: show_id, shirt_type_id, price nullable) adds it, and
+`App\Services\Shirts\ShowShirtCatalog` is the only code that reads it:
+
+- An event with **no rows** offers every type at `shirt_type.price` (exactly the legacy behaviour; every existing
+  and ended event keeps working unchanged).
+- Once the admin saves a selection (Events > Actions > Shirts…, `PUT admin-api/events/{id}/shirts`), only the selected
+  types are offered. Effective price = `show_shirt_type.price ?? shirt_type.price`. An empty selection is refused (it
+  would mean "all"); "Select all" stores every row explicitly.
+- New or re-typed shirts must be offered (registration rules, writer, on-site registration) and snapshot the effective
+  price into `shirt.price`. Existing lines keep their snapshot, also when their type is later removed from the offer
+  (they stay valid and billed as ordered). A legacy line without a snapshot is priced at the type's effective price
+  at its event. Price changes never rewrite existing orders, and ended events keep their stored totals.
+- Used by: registration payload (`shirtTypes` per event; `registration.shirts[]` gain `name` and `price`), quote,
+  save, `RegistrationPricing` (reads and invoices), on-site registration options, the T-shirt inventory (offered types
+  plus any type with stock, orders or sales; `offered` flag, event price in `price_cents`).
+- Cloning an event (`CloneShowConfiguration`) copies the source's rows (types and prices) in the same transaction;
+  a source without rows leaves the new event without rows.
+- The legacy app (still running on the same database) does not know this table: registrations made there see every
+  type at the global price and write no snapshot.
+
+Line items (quote, registration totals, invoice) also carry `detail`: the car (`Nickname (1987 635CSi)`), guest name,
+shirt type name or extra name, shown as a small muted line under the label. Keys are additive; amounts are unchanged.

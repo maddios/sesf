@@ -64,6 +64,11 @@ describe('toRegistrationData', () => {
     expect(data.extras).toEqual([]);
   });
 
+  it('maps the saved shirts with their type name and billed price', () => {
+    const data = toRegistrationData({ registration: { shirts: [{ id: '7', type: '12', name: 'Mens S Polo shirt', price: 55 }] } });
+    expect(data.registration.shirts).toEqual([{ id: 7, type: 12, name: 'Mens S Polo shirt', price: '55.00' }]);
+  });
+
   it('defaults money and flags safely', () => {
     const data = toRegistrationData({ registration: { donation: 'abc', is_cancelled: '1', extras: { x: { num_extras: 2 } } } });
     expect(data.registration.donation).toBe(0);
@@ -85,7 +90,12 @@ describe('toQuote', () => {
     const quote = toQuote(QUOTE_RAW);
     expect(quote.total).toBe('170.00');
     expect(quote.lineItems).toHaveLength(2);
-    expect(quote.lineItems[0]).toEqual({ kind: 'car', label: 'Concours registration', quantity: 1, unit: '100.00', amount: '100.00' });
+    expect(quote.lineItems[0]).toEqual({ kind: 'car', label: 'Concours registration', detail: null, quantity: 1, unit: '100.00', amount: '100.00' });
+  });
+
+  it('keeps the line detail (which car, guest or shirt type)', () => {
+    const quote = toQuote({ payment: { total: '20.00', lineItems: [{ kind: 'shirt', label: 'Shirt', detail: 'Mens XXXL', quantity: 1, unit: '20.00', amount: '20.00' }] } });
+    expect(quote.lineItems[0]?.detail).toBe('Mens XXXL');
   });
 
   it('returns zero totals and no lines when the body is empty', () => {

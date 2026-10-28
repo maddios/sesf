@@ -231,7 +231,7 @@ class SaveRegistrationRequest extends FormRequest
                 $errors += $rules->guests($this->target, $this->existing, $this->guestInputs());
             }
             if (! isset($failed['shirt'])) {
-                $errors += $rules->shirts($this->existing, $this->shirtInputs());
+                $errors += $rules->shirts($this->show, $this->existing, $this->shirtInputs());
             }
             if (! isset($failed['extras'])) {
                 $errors += $rules->extras($this->show, $this->extraItems());

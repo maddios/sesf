@@ -1,11 +1,15 @@
 import { api } from '../../../api/client';
 import { ADMIN_API_BASE } from '../../../composables/admin/useAdminResource';
 
-/** One shirt type with its counts (app/Services/Admin/ShirtInventory.php). Money is integer cents. */
+/**
+ * One shirt type with its counts (app/Services/Admin/ShirtInventory.php). Money is integer cents (the event's price).
+ * The list holds the types the event offers plus any other type with stock, orders or sales here (offered false).
+ */
 export interface ShirtTypeRow {
   id: number;
   name: string;
   price_cents: number | null;
+  offered: boolean;
   stock: number;
   ordered: number;
   handed_out: number;

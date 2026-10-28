@@ -12,6 +12,7 @@ use App\Models\CarShow;
 use App\Models\ShowExtra;
 use App\Models\User;
 use App\Services\Registration\RegistrationPayloadBuilder;
+use App\Services\Shirts\ShirtOffer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -119,11 +120,12 @@ class EventRegistrationReadController extends Controller
         $registration = $target === null ? null : $this->payload->registrationFor($target, $show);
 
         $totals = $this->payload->totals($registration);
+        $shirts = $this->payload->shirtMenu($show);
 
         $body = [
             'registration' => $registration === null
                 ? RegistrationResource::emptyFor($show->id, (int) ($target === null ? ($this->requestedUserId($request) ?? 0) : $target->id), $totals)
-                : (new RegistrationResource($registration, $totals))->resolve($request),
+                : (new RegistrationResource($registration, $totals, $shirts))->resolve($request),
             'cars' => $target === null
                 ? []
                 : $this->payload->cars($target, $show)
@@ -135,14 +137,11 @@ class EventRegistrationReadController extends Controller
                 ->values()
                 ->all(),
             'guestTypes' => $this->payload->guestTypes(),
-            'shirtTypes' => $this->payload->shirtTypes()
-                ->map(fn ($type): array => [
-                    'id' => (int) $type->id,
-                    'name' => $type->name,
-                    'price' => (string) $type->price,
-                ])
-                ->values()
-                ->all(),
+            'shirtTypes' => array_map(fn (ShirtOffer $type): array => [
+                'id' => $type->id,
+                'name' => $type->name,
+                'price' => $type->price,
+            ], $shirts->offered()),
             'extras' => $this->extrasList($request, $show, $onlyExtra),
         ];
 

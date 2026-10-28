@@ -16,6 +16,8 @@ export type LineItemKind = 'car' | 'guest' | 'shirt' | 'extra' | 'donation' | (s
 export interface InvoiceLineItem {
   kind: LineItemKind;
   label: string;
+  /** Which car, guest, shirt type or extra the line is; null when unknown. */
+  detail: string | null;
   quantity: number;
   unit: string;
   amount: string;
@@ -146,6 +148,7 @@ function parseTotals(value: unknown): InvoiceTotals {
       return {
         kind: text(row.kind),
         label: text(row.label),
+        detail: text(row.detail) || null,
         quantity: num(row.quantity),
         unit: money(row.unit),
         amount: money(row.amount),

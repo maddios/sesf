@@ -7,6 +7,7 @@ use App\Models\CarShow;
 use App\Models\ShowExtra;
 use App\Models\ShowRegistration;
 use App\Models\User;
+use App\Services\Shirts\ShowShirtCatalog;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -19,6 +20,10 @@ final class RegistrationRules
 {
     /** The shared message for an id the target user does not own (no detail on why). */
     public const NOT_YOURS = 'This item is not part of your registration.';
+
+    public const SHIRT_NOT_OFFERED = 'This shirt is not available for this event.';
+
+    public function __construct(private readonly ShowShirtCatalog $catalog = new ShowShirtCatalog) {}
 
     /**
      * Cars: at least one unless cancelling an existing registration; each car belongs to the TARGET
@@ -104,21 +109,31 @@ final class RegistrationRules
     }
 
     /**
-     * Shirts: existing ids belong to THIS registration (the type is checked by the request).
+     * Shirts: existing ids belong to THIS registration (the type's existence is checked by the request); a new
+     * shirt, or a shirt changed to another type, must be offered by the event (ShowShirtCatalog). A shirt that
+     * keeps its type stays valid after the event stops offering it.
      *
      * @param  list<ShirtInput>  $shirts
      * @return array<string, string>
      */
-    public function shirts(?ShowRegistration $existing, array $shirts): array
+    public function shirts(CarShow $show, ?ShowRegistration $existing, array $shirts): array
     {
-        $ids = $existing === null
+        $types = $existing === null
             ? []
-            : array_flip($existing->shirts()->pluck('id')->map(fn ($id): int => (int) $id)->all());
+            : $existing->shirts()->pluck('type_id', 'id')->mapWithKeys(fn ($type, $id): array => [(int) $id => (int) $type])->all();
+        $menu = $this->catalog->forShow((int) $show->id);
 
         $errors = [];
         foreach ($shirts as $index => $shirt) {
-            if ($shirt->id !== null && ! isset($ids[$shirt->id])) {
+            if ($shirt->id !== null && ! isset($types[$shirt->id])) {
                 $errors["registration.shirts.{$index}.id"] = self::NOT_YOURS;
+
+                continue;
+            }
+
+            $unchanged = $shirt->id !== null && $types[$shirt->id] === $shirt->typeId;
+            if (! $shirt->deleted && ! $unchanged && ! $menu->isOffered($shirt->typeId)) {
+                $errors["registration.shirts.{$index}.type"] = self::SHIRT_NOT_OFFERED;
             }
         }
 

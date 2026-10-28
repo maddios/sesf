@@ -91,7 +91,8 @@ export function validateRegistration(values: FormValues, context: ValidationCont
     const quantity = values.extras[String(extra.id)] ?? 0;
     const bounds = extraBounds(extra);
     const max = bounds.max ?? Number.POSITIVE_INFINITY;
-    if (!Number.isInteger(quantity) || quantity < bounds.min || quantity > max) {
+    // 0 means "not chosen" and is always allowed (the server removes the row), whatever min_value says.
+    if (!Number.isInteger(quantity) || (quantity !== 0 && (quantity < bounds.min || quantity > max))) {
       errors[`extras.${extra.id}`] =
         bounds.max === null
           ? `Choose at least ${bounds.min}.`

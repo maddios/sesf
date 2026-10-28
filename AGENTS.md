@@ -50,6 +50,13 @@ and `SESSION_SECURE_COOKIE` defaults to on only when `APP_ENV=production`.
 - `.env` is local only. `.env.example` must not contain real hosts or credentials.
 - Do not install laravel/boost.
 
+## Per-event shirts
+
+- Shirt types offered per event and their prices live in `show_shirt_type` (`database/sql/003_show_shirt_type.sql`, must be
+  applied by hand before the app runs against a database). Read it only through `App\Services\Shirts\ShowShirtCatalog`
+  (no rows = every type at `shirt_type.price`, the legacy behaviour). Admin: Events > Actions > Shirts…
+  (`admin-api/events/{id}/shirts`). Rules and pricing: `docs/pricing.md` (Per-event shirts).
+
 ## File store
 
 Dev uploads and documents live outside git in `DEV_STORE_DIR` (default `/var/www/sesf-dev-store`).

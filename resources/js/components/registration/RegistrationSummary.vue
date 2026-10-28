@@ -72,11 +72,18 @@ const rows = computed(() => {
           :key="index"
           class="flex justify-between gap-3"
         >
-          <span>{{ line.label }}<span
-            v-if="line.quantity > 1"
-            class="text-muted"
-          > x {{ line.quantity }}</span></span>
-          <span class="tabular-nums">{{ money(line.amount) }}</span>
+          <span class="min-w-0">
+            <span>{{ line.label }}<span
+              v-if="line.quantity > 1"
+              class="text-muted"
+            > x {{ line.quantity }}</span></span>
+            <span
+              v-if="line.detail"
+              class="block truncate text-xs leading-tight text-muted"
+              :title="line.detail"
+            >{{ line.detail }}</span>
+          </span>
+          <span class="shrink-0 tabular-nums">{{ money(line.amount) }}</span>
         </li>
       </ul>
       <dl

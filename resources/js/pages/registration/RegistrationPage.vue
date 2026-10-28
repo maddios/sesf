@@ -4,7 +4,7 @@
  * summary beside it on desktop (below the form on mobile). Load, validation, quote and saving live in
  * useRegistrationEditor; this page only lays them out.
  */
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { RouterLink, useRouter, useRoute } from 'vue-router';
 import AsyncBlock from '../../components/events/AsyncBlock.vue';
 import ResponseBanner from '../../components/ResponseBanner.vue';
@@ -44,6 +44,7 @@ const {
   readOnly,
   hasRegistration,
   restoredDraft,
+  discardDraft,
   fieldError,
   touch,
   clientErrors,
@@ -105,6 +106,30 @@ const generalMessages = computed(() => [...(serverErrors.value?.general ?? []), 
 const returnTo = computed(() => route.fullPath);
 const eventLink = computed(() => ({ name: 'event-info', params: { eventName: props.eventName, eventId: props.eventId } }));
 const registrationDates = computed(() => eventInfo.value?.registrationCloseDate ?? '');
+
+/** Inline confirmation for "Discard changes" on the restored-draft banner (no browser confirm()). */
+const confirmingDiscard = ref(false);
+
+async function focusById(id: string): Promise<void> {
+  await nextTick();
+  document.getElementById(id)?.focus();
+}
+
+function askDiscard(): void {
+  confirmingDiscard.value = true;
+  void focusById('draft-discard-keep');
+}
+
+function keepDraft(): void {
+  confirmingDiscard.value = false;
+  void focusById('draft-discard');
+}
+
+function confirmDiscard(): void {
+  confirmingDiscard.value = false;
+  discardDraft();
+  void focusById(sectionDomId('cars'));
+}
 </script>
 
 <template>
@@ -159,7 +184,40 @@ const registrationDates = computed(() => eventInfo.value?.registrationCloseDate 
           v-if="restoredDraft && !readOnly"
           variant="info"
         >
-          <p>We restored your unsaved changes from earlier.</p>
+          <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <p>We restored your unsaved changes from earlier.</p>
+            <BaseButton
+              v-if="!confirmingDiscard"
+              id="draft-discard"
+              @click="askDiscard"
+            >
+              Discard changes
+            </BaseButton>
+            <div
+              v-else
+              role="group"
+              aria-labelledby="draft-discard-question"
+              class="flex flex-wrap items-center gap-2"
+            >
+              <span
+                id="draft-discard-question"
+                class="font-medium"
+              >Discard unsaved changes?</span>
+              <BaseButton
+                id="draft-discard-confirm"
+                variant="danger"
+                @click="confirmDiscard"
+              >
+                Yes, discard
+              </BaseButton>
+              <BaseButton
+                id="draft-discard-keep"
+                @click="keepDraft"
+              >
+                No, keep them
+              </BaseButton>
+            </div>
+          </div>
         </BaseAlert>
         <BaseAlert
           v-if="saved"
@@ -208,6 +266,7 @@ const registrationDates = computed(() => eventInfo.value?.registrationCloseDate 
               <ShirtsSection
                 :dom-id="sectionDomId('shirts')"
                 :shirt-types="payload.shirtTypes"
+                :registered-shirts="registration?.shirts ?? []"
                 :read-only="readOnly"
                 :field-error="fieldError"
                 :touch="touch"

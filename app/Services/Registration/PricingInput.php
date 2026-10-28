@@ -19,6 +19,9 @@ final readonly class PricingInput
      * @param  list<UserGuestType>  $guests  in registration order (free slots go to the first guests)
      * @param  list<int>  $shirtPricesCents  one entry per shirt (shirt_type.price)
      * @param  list<ExtraLine>  $extras
+     * @param  list<string|null>  $carDetails  optional, one per priced car (names only, never priced)
+     * @param  list<string|null>  $guestDetails  optional, one per guest
+     * @param  list<string|null>  $shirtDetails  optional, one per shirt
      */
     public function __construct(
         public int $carPriceCents,
@@ -31,6 +34,9 @@ final readonly class PricingInput
         public int $donationCents = 0,
         public int $discountCents = 0,
         public int $receivedCents = 0,
+        public array $carDetails = [],
+        public array $guestDetails = [],
+        public array $shirtDetails = [],
     ) {
         foreach ([
             'Car price' => $carPriceCents,
@@ -71,6 +77,9 @@ final readonly class PricingInput
      * @param  list<UserGuestType>  $guests
      * @param  list<string|float>  $shirtPrices
      * @param  list<ExtraLine>  $extras
+     * @param  list<string|null>  $carDetails
+     * @param  list<string|null>  $guestDetails
+     * @param  list<string|null>  $shirtDetails
      */
     public static function fromDecimals(
         string|float|null $carPrice,
@@ -83,6 +92,9 @@ final readonly class PricingInput
         string|float|int $donation = 0,
         string|float $discount = 0.0,
         string|float $received = 0.0,
+        array $carDetails = [],
+        array $guestDetails = [],
+        array $shirtDetails = [],
     ): self {
         return new self(
             carPriceCents: Money::toCents($carPrice ?? '0'),
@@ -95,6 +107,9 @@ final readonly class PricingInput
             donationCents: Money::toCents(is_int($donation) ? (string) $donation : $donation),
             discountCents: Money::toSignedCents($discount),
             receivedCents: Money::toSignedCents($received),
+            carDetails: $carDetails,
+            guestDetails: $guestDetails,
+            shirtDetails: $shirtDetails,
         );
     }
 }

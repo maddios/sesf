@@ -4,7 +4,6 @@ namespace App\Services\Registration;
 
 use App\Models\CarShow;
 use App\Models\Shirt;
-use App\Models\ShirtType;
 use App\Models\ShowExtra;
 use App\Models\ShowExtraRegistration;
 use App\Models\ShowRegistration;
@@ -15,6 +14,8 @@ use App\Services\Registration\Writer\RegistrationChanged;
 use App\Services\Registration\Writer\RegistrationData;
 use App\Services\Registration\Writer\RegistrationProjector;
 use App\Services\Registration\Writer\RegistrationRejected;
+use App\Services\Registration\Writer\RegistrationRules;
+use App\Services\Shirts\ShowShirtCatalog;
 use Illuminate\Database\Connection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
@@ -51,7 +52,10 @@ class RegistrationWriter
 
     public const CANCELLED_MESSAGE = 'This registration was cancelled; please contact us';
 
-    public function __construct(private readonly RegistrationProjector $projector) {}
+    public function __construct(
+        private readonly RegistrationProjector $projector,
+        private readonly ShowShirtCatalog $shirts = new ShowShirtCatalog,
+    ) {}
 
     /**
      * @param  bool  $byAdmin  an administrator acting on behalf: may edit a cancelled registration
@@ -248,6 +252,8 @@ class RegistrationWriter
 
     private function writeShirts(ShowRegistration $registration, RegistrationData $data): void
     {
+        $menu = $this->shirts->forShow((int) $registration->show_id);
+
         foreach ($data->shirts as $index => $input) {
             if ($input->id === null) {
                 if ($input->deleted) {
@@ -273,14 +279,14 @@ class RegistrationWriter
                 }
             }
 
-            $type = ShirtType::query()->find($input->typeId);
-            if ($type === null) {
-                throw RegistrationRejected::at("registration.shirts.{$index}.type", 'Unknown shirt type.');
+            if (! $menu->isOffered($input->typeId)) {
+                throw RegistrationRejected::at("registration.shirts.{$index}.type", RegistrationRules::SHIRT_NOT_OFFERED);
             }
 
-            // Price snapshot (docs/pricing.md decision 1): later shirt_type price changes do not alter this invoice.
+            // Price snapshot (docs/pricing.md decision 1): later price changes (shirt_type or the event's
+            // show_shirt_type) do not alter this invoice.
             $shirt->type_id = $input->typeId;
-            $shirt->forceFill(['price' => $type->price]);
+            $shirt->forceFill(['price' => $menu->priceOf($input->typeId)]);
             $shirt->save();
         }
     }

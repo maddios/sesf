@@ -3,18 +3,21 @@
 namespace App\Services\Registration\Writer;
 
 use App\Enums\UserGuestType;
+use App\Models\Car;
 use App\Models\CarShow;
-use App\Models\ShirtType;
 use App\Models\ShowExtra;
 use App\Models\ShowRegistration;
 use App\Models\UserGuest;
 use App\Services\Registration\ExtraLine;
+use App\Services\Registration\LineDetails;
 use App\Services\Registration\LineItem;
 use App\Services\Registration\PricingCalculator;
 use App\Services\Registration\PricingInput;
 use App\Services\Registration\PricingResult;
 use App\Services\Registration\RegistrationPricing;
+use App\Services\Shirts\ShowShirtCatalog;
 use App\Support\Money;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -27,11 +30,15 @@ use InvalidArgumentException;
  *
  * Both follow the rules of docs/pricing.md: cars only when their body is in car_body_show,
  * guests free in user_guest.id order (new guests come after existing ones, in posted order),
- * shirt price = shirt.price snapshot or else shirt_type.price, extras show_extra.price x num_extras.
+ * shirt price = shirt.price snapshot or else the event's price for the type (ShowShirtCatalog), extras
+ * show_extra.price x num_extras. Line items carry `detail` (car, guest name, shirt type, extra name).
  */
 final class RegistrationProjector
 {
-    public function __construct(private readonly PricingCalculator $calculator = new PricingCalculator) {}
+    public function __construct(
+        private readonly PricingCalculator $calculator = new PricingCalculator,
+        private readonly ShowShirtCatalog $shirts = new ShowShirtCatalog,
+    ) {}
 
     /**
      * @throws RegistrationRejected when a stored price cannot be priced (negative)
@@ -39,19 +46,19 @@ final class RegistrationProjector
     public function quote(CarShow $show, ?ShowRegistration $existing, RegistrationData $data): PricingResult
     {
         if ($existing !== null) {
-            $existing->loadMissing(['cars', 'guests', 'shirts.shirtType', 'extras']);
+            $existing->loadMissing(['cars', 'guests', 'shirts', 'extras']);
         }
 
-        $carCount = $data->keepsStoredCars() && $existing !== null
-            ? $this->allowedCarCount($show, $existing)
-            : count($data->cars);
+        $cars = $data->keepsStoredCars() && $existing !== null
+            ? $this->allowedCars($show, $existing)
+            : $this->postedCars($data);
 
         // Guests: existing (id order) with posted changes, then new guests in posted order.
-        /** @var array<int, UserGuestType> $guests */
+        /** @var array<int, array{UserGuestType, string|null}> $guests */
         $guests = [];
         foreach ($existing?->guests->sortBy('id') ?? [] as $guest) {
             /** @var UserGuest $guest */
-            $guests[(int) $guest->id] = $guest->type_id;
+            $guests[(int) $guest->id] = [$guest->type_id, LineDetails::guest($guest)];
         }
         $newGuests = [];
         foreach ($data->guests as $guest) {
@@ -59,33 +66,30 @@ final class RegistrationProjector
                 if ($guest->deleted) {
                     unset($guests[$guest->id]);
                 } elseif (array_key_exists($guest->id, $guests)) {
-                    $guests[$guest->id] = $guest->type;
+                    $guests[$guest->id] = [$guest->type, LineDetails::person($guest->first, $guest->last)];
                 }
             } elseif (! $guest->deleted) {
-                $newGuests[] = $guest->type;
+                $newGuests[] = [$guest->type, LineDetails::person($guest->first, $guest->last)];
             }
         }
 
-        // Shirts: existing keep their price unless the type changes; new ones take the type price.
-        $typePrices = $this->shirtTypePrices($data);
-        /** @var array<int, string> $shirts */
+        // Shirts: existing keep their price unless the type changes; new ones take the event's price for the type.
+        $menu = $this->shirts->forShow((int) $show->id);
+        /** @var array<int, array{int, string}> $shirts id => [type id, unit price] */
         $shirts = [];
-        /** @var array<int, int> $shirtTypes */
-        $shirtTypes = [];
         foreach ($existing?->shirts->sortBy('id') ?? [] as $shirt) {
-            $shirts[(int) $shirt->id] = $shirt->price ?? ($shirt->shirtType === null ? '0' : (string) $shirt->shirtType->price);
-            $shirtTypes[(int) $shirt->id] = (int) $shirt->type_id;
+            $shirts[(int) $shirt->id] = [(int) $shirt->type_id, $menu->linePrice($shirt->price, (int) $shirt->type_id)];
         }
         $newShirts = [];
         foreach ($data->shirts as $shirt) {
             if ($shirt->id !== null) {
                 if ($shirt->deleted) {
                     unset($shirts[$shirt->id]);
-                } elseif (array_key_exists($shirt->id, $shirts) && $shirtTypes[$shirt->id] !== $shirt->typeId) {
-                    $shirts[$shirt->id] = $typePrices[$shirt->typeId] ?? '0';
+                } elseif (array_key_exists($shirt->id, $shirts) && $shirts[$shirt->id][0] !== $shirt->typeId) {
+                    $shirts[$shirt->id] = [$shirt->typeId, $menu->priceOf($shirt->typeId) ?? '0.00'];
                 }
             } elseif (! $shirt->deleted) {
-                $newShirts[] = $typePrices[$shirt->typeId] ?? '0';
+                $newShirts[] = [$shirt->typeId, $menu->priceOf($shirt->typeId) ?? '0.00'];
             }
         }
 
@@ -104,9 +108,9 @@ final class RegistrationProjector
 
         return $this->price(
             $show,
-            $carCount,
+            $cars,
             array_merge(array_values($guests), $newGuests),
-            array_merge(array_values($shirts), $newShirts),
+            array_map(fn (array $shirt): array => [$shirt[1], $menu->find($shirt[0])?->name], array_merge(array_values($shirts), $newShirts)),
             $quantities,
             $data->donation,
             $existing,
@@ -125,7 +129,6 @@ final class RegistrationProjector
             'cars',
             'guests' => fn ($query) => $query->orderBy('id'),
             'shirts' => fn ($query) => $query->orderBy('id'),
-            'shirts.shirtType',
             'extras',
         ]);
 
@@ -133,13 +136,14 @@ final class RegistrationProjector
         foreach ($registration->extras as $extra) {
             $quantities[(int) $extra->show_extra_id] = (int) ($extra->num_extras ?? 0);
         }
+        $menu = $this->shirts->forShow((int) $show->id);
 
         return $this->price(
             $show,
-            $this->allowedCarCount($show, $registration),
-            $registration->guests->map(fn (UserGuest $guest): UserGuestType => $guest->type_id)->values()->all(),
+            $this->allowedCars($show, $registration),
+            $registration->guests->map(fn (UserGuest $guest): array => [$guest->type_id, LineDetails::guest($guest)])->values()->all(),
             $registration->shirts
-                ->map(fn ($shirt): string => $shirt->price ?? ($shirt->shirtType === null ? '0' : (string) $shirt->shirtType->price))
+                ->map(fn ($shirt): array => [$menu->linePrice($shirt->price, (int) $shirt->type_id), $menu->find((int) $shirt->type_id)?->name])
                 ->values()
                 ->all(),
             $quantities,
@@ -170,6 +174,7 @@ final class RegistrationProjector
                 fn (LineItem $item): array => [
                     'kind' => $item->kind->value,
                     'label' => $item->label ?? ucfirst($item->kind->value),
+                    'detail' => $item->detail,
                     'quantity' => $item->quantity,
                     'unit' => RegistrationPricing::decimal($item->unitCents),
                     'amount' => RegistrationPricing::decimal($item->totalCents),
@@ -181,26 +186,29 @@ final class RegistrationProjector
     }
 
     /**
-     * @param  list<UserGuestType>  $guests
-     * @param  list<string>  $shirtPrices
+     * @param  Collection<int, Car>  $cars  the priced cars
+     * @param  list<array{UserGuestType, string|null}>  $guests  [type, detail] in pricing order
+     * @param  list<array{string, string|null}>  $shirts  [unit price, type name]
      * @param  array<int, int>  $quantities  show_extra_id => quantity
      */
     private function price(
         CarShow $show,
-        int $carCount,
+        Collection $cars,
         array $guests,
-        array $shirtPrices,
+        array $shirts,
         array $quantities,
         int $donation,
         ?ShowRegistration $registration,
     ): PricingResult {
-        $prices = $quantities === []
-            ? []
-            : ShowExtra::query()->whereIn('id', array_keys($quantities))->pluck('price', 'id')->all();
+        $known = $quantities === []
+            ? collect()
+            : ShowExtra::query()->whereIn('id', array_keys($quantities))->get(['id', 'name', 'price'])->keyBy('id');
 
         $extras = [];
         foreach ($quantities as $extraId => $quantity) {
-            $extras[] = ExtraLine::fromDecimal((string) ($prices[$extraId] ?? '0'), $quantity);
+            /** @var ShowExtra|null $extra */
+            $extra = $known->get($extraId);
+            $extras[] = ExtraLine::fromDecimal((string) ($extra->price ?? '0'), $quantity, $extra?->name);
         }
 
         try {
@@ -208,42 +216,46 @@ final class RegistrationProjector
                 carPriceCents: Money::toCents($show->price_car ?? '0'),
                 adultPriceCents: Money::toCents($show->price_adult ?? '0'),
                 childPriceCents: Money::toCents($show->price_child ?? '0'),
-                carCount: $carCount,
-                guests: $guests,
-                shirtPricesCents: array_map(fn (string $price): int => Money::toCents($price), $shirtPrices),
+                carCount: $cars->count(),
+                guests: array_column($guests, 0),
+                shirtPricesCents: array_map(fn (array $shirt): int => Money::toCents($shirt[0]), $shirts),
                 extras: $extras,
                 donationCents: $donation * 100,
                 discountCents: RegistrationPricing::signedCents($registration === null ? null : (string) $registration->discount),
                 receivedCents: RegistrationPricing::signedCents($registration === null ? null : (string) $registration->amount_received),
+                carDetails: $cars->map(LineDetails::car(...))->values()->all(),
+                guestDetails: array_column($guests, 1),
+                shirtDetails: array_column($shirts, 1),
             ));
         } catch (InvalidArgumentException) {
             throw RegistrationRejected::at('general.amounts', 'The registration amounts cannot be priced. Please contact us.');
         }
     }
 
-    /** Cars of the registration whose body is allowed for the show (legacy carsByShow). */
-    private function allowedCarCount(CarShow $show, ShowRegistration $registration): int
+    /**
+     * Cars of the registration whose body is allowed for the show (legacy carsByShow).
+     *
+     * @return Collection<int, Car>
+     */
+    private function allowedCars(CarShow $show, ShowRegistration $registration): Collection
     {
         $allowed = array_flip(
             DB::table('car_body_show')->where('show_id', $show->id)->pluck('body_id')->map(fn ($id): int => (int) $id)->all(),
         );
 
-        return $registration->cars->filter(fn ($car): bool => isset($allowed[(int) $car->body_id]))->count();
+        return $registration->cars->filter(fn ($car): bool => isset($allowed[(int) $car->body_id]))->values();
     }
 
     /**
-     * @return array<int, string> shirt_type id => price for the posted types
+     * The posted cars in posted order (the request already checked ownership and body).
+     *
+     * @return Collection<int, Car>
      */
-    private function shirtTypePrices(RegistrationData $data): array
+    private function postedCars(RegistrationData $data): Collection
     {
-        $ids = array_values(array_unique(array_map(fn (ShirtInput $shirt): int => $shirt->typeId, $data->shirts)));
+        $ids = array_map(fn (CarInput $car): int => $car->id, $data->cars);
+        $byId = $ids === [] ? collect() : Car::query()->whereIn('id', $ids)->get()->keyBy('id');
 
-        if ($ids === []) {
-            return [];
-        }
-
-        return ShirtType::query()->whereIn('id', $ids)->get(['id', 'price'])
-            ->mapWithKeys(fn (ShirtType $type): array => [(int) $type->id => (string) $type->price])
-            ->all();
+        return collect($ids)->map(fn (int $id): Car => $byId->get($id) ?? new Car)->values();
     }
 }

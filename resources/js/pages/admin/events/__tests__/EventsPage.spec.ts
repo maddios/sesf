@@ -53,6 +53,9 @@ function stubEvents(rows: Event[] = [event(), event({ id: 2, name: 'Fall Show', 
     if (request.method === 'GET' && request.path === '/admin-api/events') return jsonResponse(200, listBody(rows));
     if (request.path === '/admin-api/events/clone-sources') return jsonResponse(200, CLONE_SOURCES);
     if (request.path === '/admin-api/events/1/sponsors') return jsonResponse(200, { data: [], primary_sponsor_id: null });
+    if (request.path === '/admin-api/events/1/shirts') {
+      return jsonResponse(200, { data: { configured: false, types: [{ id: 1, name: 'Mens S T-Shirt', default_price: '35.00', price: null, offered: true, orders: 0 }] } });
+    }
     return undefined;
   });
 }
@@ -215,6 +218,16 @@ describe('EventsPage', () => {
     await chooseRowAction(user, table(), 'Spring Show', 'Sponsors');
     expect(await screen.findByRole('dialog', { name: 'Sponsors for Spring Show' })).toBeTruthy();
     await waitFor(() => expect(seen.some((r) => r.path === '/admin-api/events/1/sponsors')).toBe(true));
+  });
+
+  it('opens the shirts of an event from the Actions menu', async () => {
+    const { seen } = stubEvents();
+    const user = userEvent.setup();
+    await renderAt(Page, '/admin/events');
+    await chooseRowAction(user, table(), 'Spring Show', 'Shirts…');
+    const dialog = await screen.findByRole('dialog', { name: 'Shirts for Spring Show' });
+    expect(await within(dialog).findByText('Mens S T-Shirt')).toBeTruthy();
+    expect(seen.some((r) => r.method === 'GET' && r.path === '/admin-api/events/1/shirts')).toBe(true);
   });
 });
 

@@ -9,7 +9,8 @@ use InvalidArgumentException;
 
 /**
  * Copies the car body and judging setup (and the waiver_id switch) from one show to another.
- * Port of legacy CarShowCopyPreviousConfig. The legacy code read the clone source from the
+ * Port of legacy CarShowCopyPreviousConfig. Also copies the shirt offer (show_shirt_type: types and price
+ * overrides; a source without rows leaves the target without rows, i.e. every type at its default price). The legacy code read the clone source from the
  * request inside a model boot hook. Here the caller passes both shows explicitly.
  */
 class CloneShowConfiguration
@@ -28,14 +29,14 @@ class CloneShowConfiguration
     }
 
     /**
-     * Copies car_body_show and judging_show_body rows, and waiver_id when the target has none, from
-     * $source to $target in one transaction.
+     * Copies car_body_show, judging_show_body and show_shirt_type rows, and waiver_id when the target has none,
+     * from $source to $target in one transaction.
      *
      * Every check runs inside the transaction, after both car_show rows are locked (in id order,
      * so two clones cannot deadlock on them). The checks are locking reads, so they see the latest
      * committed rows even when the caller's transaction holds an older snapshot. A target that
-     * already has any car body or judging row is refused: car_body_show would hit its primary key
-     * and judging_show_body (no unique key) would get duplicate rows.
+     * already has any car body, judging or shirt row is refused: car_body_show and show_shirt_type would hit
+     * their primary keys and judging_show_body (no unique key) would get duplicate rows.
      *
      * @throws InvalidArgumentException when the shows are the same, either show is missing,
      *                                  the source has no car bodies configured, or the target
@@ -71,12 +72,14 @@ class CloneShowConfiguration
 
             $targetBodies = DB::table('car_body_show')->where('show_id', $targetId)->lockForUpdate()->count();
             $targetJudging = DB::table('judging_show_body')->where('car_show_id', $targetId)->lockForUpdate()->count();
-            if ($targetBodies > 0 || $targetJudging > 0) {
+            $targetShirts = DB::table('show_shirt_type')->where('show_id', $targetId)->lockForUpdate()->count();
+            if ($targetBodies > 0 || $targetJudging > 0 || $targetShirts > 0) {
                 throw new InvalidArgumentException(sprintf(
-                    'The target event is already configured (%d car bodies, %d judging rows). '
+                    'The target event is already configured (%d car bodies, %d judging rows, %d shirt types). '
                     .'Remove its setup before cloning.',
                     $targetBodies,
                     $targetJudging,
+                    $targetShirts,
                 ));
             }
 
@@ -88,6 +91,11 @@ class CloneShowConfiguration
             DB::insert(
                 'INSERT INTO judging_show_body (judging_type_id, car_body_id, car_show_id, created_at, updated_at) '
                 .'SELECT judging_type_id, car_body_id, ?, NOW(), NOW() FROM judging_show_body WHERE car_show_id = ?',
+                [$targetId, $sourceId],
+            );
+
+            DB::insert(
+                'INSERT INTO show_shirt_type (show_id, shirt_type_id, price) SELECT ?, shirt_type_id, price FROM show_shirt_type WHERE show_id = ?',
                 [$targetId, $sourceId],
             );
 

@@ -6,6 +6,8 @@ use App\Enums\UserGuestType;
 use App\Models\CarShow;
 use App\Models\ShowRegistration;
 use App\Services\PayPal\RegistrationBalance;
+use App\Services\Shirts\ShowShirtCatalog;
+use App\Services\Shirts\ShowShirtMenu;
 use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 
@@ -23,15 +25,18 @@ use Illuminate\Support\Facades\DB;
  *    STORED amount_* / discount / donation columns, not a recomputation. Line items and category
  *    totals are still computed from the current prices, so they describe the items.
  *
- * Shirt unit price: shirt.price when set (snapshot), else the current shirt_type.price.
- * A shirt with no type row is priced at 0 (legacy crashed on it).
+ * Shirt unit price: shirt.price when set (snapshot), else the type's effective price at this event
+ * (ShowShirtCatalog: show_shirt_type.price ?? shirt_type.price). A shirt with no type row is priced at 0
+ * (legacy crashed on it).
+ *
+ * Each line item carries `detail` (car, guest name, shirt type, extra name) for the summary and invoice.
  *
  * Money in the output is a decimal string with 2 places ("1234.50", "-30.00"). Signed, because
  * owed is a credit when negative.
  *
  * @phpstan-type Totals array{
  *     source: string,
- *     lineItems: list<array{kind: string, label: string, quantity: int, unit: string, amount: string}>,
+ *     lineItems: list<array{kind: string, label: string, detail: string|null, quantity: int, unit: string, amount: string}>,
  *     cars: string, guests: string, shirts: string, extras: string,
  *     donation: string, total: string, received: string, discount: string, owed: string
  * }
@@ -50,7 +55,17 @@ final class RegistrationPricing implements RegistrationBalance
      */
     private array $allowedBodies = [];
 
-    public function __construct(private readonly PricingCalculator $calculator = new PricingCalculator) {}
+    /**
+     * The shirt menu per show id, read once per instance.
+     *
+     * @var array<int, ShowShirtMenu>
+     */
+    private array $menus = [];
+
+    public function __construct(
+        private readonly PricingCalculator $calculator = new PricingCalculator,
+        private readonly ShowShirtCatalog $shirts = new ShowShirtCatalog,
+    ) {}
 
     /**
      * @return Totals
@@ -140,24 +155,23 @@ final class RegistrationPricing implements RegistrationBalance
         );
 
         // carsByShow: count only cars whose body is allowed for this show.
-        $carCount = $registration->cars
+        $cars = $registration->cars
             ->filter(fn ($car) => isset($allowedBodies[(int) $car->body_id]))
-            ->count();
+            ->values();
 
         $guests = $registration->guests
             ->map(fn ($guest): UserGuestType => $guest->type_id)
             ->values()
             ->all();
 
-        $shirtPrices = $registration->shirts
-            ->map(fn ($shirt): string => $shirt->price ?? ($shirt->shirtType === null ? '0' : $shirt->shirtType->price))
-            ->values()
-            ->all();
+        $menu = $this->menus[(int) $show->id] ??= $this->shirts->forShow((int) $show->id);
+        $shirts = $registration->shirts->values();
 
         $extras = $registration->extras
             ->map(fn ($extra): ExtraLine => ExtraLine::fromDecimal(
                 $extra->showExtra === null ? '0' : $extra->showExtra->price,
                 (int) ($extra->num_extras ?? 0),
+                $extra->showExtra?->name,
             ))
             ->values()
             ->all();
@@ -166,13 +180,16 @@ final class RegistrationPricing implements RegistrationBalance
             carPrice: $show->price_car,
             adultPrice: $show->price_adult,
             childPrice: $show->price_child,
-            carCount: $carCount,
+            carCount: $cars->count(),
             guests: $guests,
-            shirtPrices: $shirtPrices,
+            shirtPrices: $shirts->map(fn ($shirt): string => $menu->linePrice($shirt->price, (int) $shirt->type_id))->all(),
             extras: $extras,
             donation: (int) $registration->donation,
             discount: (string) $registration->discount,
             received: (string) $registration->amount_received,
+            carDetails: $cars->map(LineDetails::car(...))->all(),
+            guestDetails: $registration->guests->map(LineDetails::guest(...))->values()->all(),
+            shirtDetails: $shirts->map(fn ($shirt): ?string => $menu->find((int) $shirt->type_id)?->name)->all(),
         );
     }
 
@@ -187,6 +204,7 @@ final class RegistrationPricing implements RegistrationBalance
                 fn (LineItem $item): array => [
                     'kind' => $item->kind->value,
                     'label' => $item->label ?? ucfirst($item->kind->value),
+                    'detail' => $item->detail,
                     'quantity' => $item->quantity,
                     'unit' => self::decimal($item->unitCents),
                     'amount' => self::decimal($item->totalCents),

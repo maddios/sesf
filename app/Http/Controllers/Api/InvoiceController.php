@@ -9,6 +9,7 @@ use App\Models\ShowRegistration;
 use App\Models\User;
 use App\Services\Registration\InvoiceBuilder;
 use App\Services\Registration\RegistrationPricing;
+use App\Services\Shirts\ShowShirtCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -23,6 +24,7 @@ class InvoiceController extends Controller
     public function __construct(
         private readonly InvoiceBuilder $invoices,
         private readonly RegistrationPricing $pricing,
+        private readonly ShowShirtCatalog $shirts,
     ) {}
 
     /**
@@ -82,7 +84,9 @@ class InvoiceController extends Controller
             return response()->json(['message' => 'Not found.'], 404);
         }
 
-        return response()->json((new InvoiceResource($registration, $this->pricing->totalsFor($registration)))->resolve($request));
+        $resource = new InvoiceResource($registration, $this->pricing->totalsFor($registration), $this->shirts->forShow((int) $registration->show_id));
+
+        return response()->json($resource->resolve($request));
     }
 
     private function isAdmin(User $user): bool

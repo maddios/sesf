@@ -116,6 +116,36 @@ export function eventSponsorsApi(eventId: number) {
   };
 }
 
+/** One shirt type as GET/PUT admin-api/events/{id}/shirts returns it. Money is a decimal string; price null = default. */
+export interface EventShirtType {
+  id: number;
+  name: string;
+  default_price: string;
+  price: string | null;
+  offered: boolean;
+  orders: number;
+}
+
+export interface EventShirts {
+  /** False: the event has no selection and offers every type at its default price. */
+  configured: boolean;
+  types: EventShirtType[];
+}
+
+export interface EventShirtsSaved {
+  data: EventShirts;
+  /** Types that stopped being offered although they already have orders at this event. */
+  removed_with_orders: Array<{ id: number; name: string; orders: number }>;
+}
+
+export function eventShirtsApi(eventId: number) {
+  const url = `${ADMIN_API_BASE}/events/${eventId}/shirts`;
+  return {
+    get: () => api.get<{ data: EventShirts }>(url),
+    save: (types: Array<{ id: number; price: string | null }>) => api.put<EventShirtsSaved>(url, { types }),
+  };
+}
+
 /** Form fields. Widths mirror car_show (the server validates them too; rich text counts its HTML). Clone source is a create-only field. */
 export const EVENT_FIELDS: AdminField[] = [
   { name: 'name', label: 'Name', required: true, maxlength: 60, section: 'Basics' },

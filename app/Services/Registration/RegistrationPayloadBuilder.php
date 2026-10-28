@@ -6,10 +6,11 @@ use App\Enums\UserGuestType;
 use App\Models\Car;
 use App\Models\CarBody;
 use App\Models\CarShow;
-use App\Models\ShirtType;
 use App\Models\ShowExtra;
 use App\Models\ShowRegistration;
 use App\Models\User;
+use App\Services\Shirts\ShowShirtCatalog;
+use App\Services\Shirts\ShowShirtMenu;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -22,7 +23,10 @@ use Illuminate\Support\Facades\DB;
  */
 final class RegistrationPayloadBuilder
 {
-    public function __construct(private readonly RegistrationPricing $pricing) {}
+    public function __construct(
+        private readonly RegistrationPricing $pricing,
+        private readonly ShowShirtCatalog $shirts,
+    ) {}
 
     /**
      * The registration of $user for $show, with every relation the payload and pricing need.
@@ -101,11 +105,12 @@ final class RegistrationPayloadBuilder
     }
 
     /**
-     * @return Collection<int, ShirtType>
+     * The event's shirt menu: offered() is the `shirtTypes` list (effective prices), and the ordered shirts are
+     * named and priced from it (ShowShirtCatalog).
      */
-    public function shirtTypes(): Collection
+    public function shirtMenu(CarShow $show): ShowShirtMenu
     {
-        return ShirtType::query()->orderBy('id')->get(['id', 'name', 'price']);
+        return $this->shirts->forShow((int) $show->id);
     }
 
     /**

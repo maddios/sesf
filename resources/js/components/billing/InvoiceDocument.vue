@@ -93,9 +93,14 @@ const balanceShown = computed(() => {
             >
               <th
                 scope="row"
-                class="py-2 pr-3 font-normal"
+                class="w-full max-w-0 py-2 pr-3 font-normal"
               >
                 {{ item.label }}
+                <span
+                  v-if="item.detail"
+                  class="block truncate text-xs leading-tight text-muted"
+                  :title="item.detail"
+                >{{ item.detail }}</span>
               </th>
               <td class="py-2 pr-3 text-right tabular-nums">
                 {{ item.quantity }}

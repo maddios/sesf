@@ -71,6 +71,15 @@ describe('validateRegistration', () => {
     expect(validateRegistration(form, context)).toEqual({ 'shirts.0.type': 'Choose a shirt size.' });
   });
 
+  it('allows 0 (not chosen) for an extra whose minimum is 1, like the server', () => {
+    const form = formFromRegistration(data);
+    const min1 = { ...context, extras: [{ ...context.extras[0]!, minValue: 1, maxValue: 1 }] };
+    form.extras['4'] = 0;
+    expect(validateRegistration(form, min1)['extras.4']).toBeUndefined();
+    form.extras['4'] = 2;
+    expect(validateRegistration(form, min1)['extras.4']).toBe('Choose a number from 1 to 1.');
+  });
+
   it('keeps extra quantities inside their bounds', () => {
     const form = validForm();
     form.extras['4'] = 4;

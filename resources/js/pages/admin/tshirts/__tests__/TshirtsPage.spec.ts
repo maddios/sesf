@@ -18,8 +18,8 @@ function inventory(overrides: Partial<ShirtInventory> = {}): ShirtInventory {
   return {
     show: { id: 4, name: 'Spring Show' },
     types: [
-      { id: 1, name: 'Mens Small', price_cents: 2000, stock: 5, ordered: 2, handed_out: 1, adhoc_sold: 0, remaining: 4, available_for_adhoc: 3 },
-      { id: 2, name: 'Mens Medium', price_cents: 2000, stock: 10, ordered: 4, handed_out: 2, adhoc_sold: 1, remaining: 7, available_for_adhoc: 5 },
+      { id: 1, name: 'Mens Small', price_cents: 2000, offered: true, stock: 5, ordered: 2, handed_out: 1, adhoc_sold: 0, remaining: 4, available_for_adhoc: 3 },
+      { id: 2, name: 'Mens Medium', price_cents: 2000, offered: true, stock: 10, ordered: 4, handed_out: 2, adhoc_sold: 1, remaining: 7, available_for_adhoc: 5 },
     ],
     registrations: [
       {
@@ -177,7 +177,7 @@ describe('TshirtsPage', () => {
   it('warns when ordered plus ad hoc sold exceeds the stock on hand', async () => {
     stubShirts(
       inventory({
-        types: [{ id: 2, name: 'Mens Medium', price_cents: 2000, stock: 3, ordered: 4, handed_out: 0, adhoc_sold: 1, remaining: 3, available_for_adhoc: -2 }],
+        types: [{ id: 2, name: 'Mens Medium', price_cents: 2000, offered: true, stock: 3, ordered: 4, handed_out: 0, adhoc_sold: 1, remaining: 3, available_for_adhoc: -2 }],
       }),
     );
     await renderAt(Page, '/admin/tshirts?show_id=4');

@@ -9,6 +9,7 @@ use App\Models\ShowExtraRegistration;
 use App\Models\ShowRegistration;
 use App\Models\UserGuest;
 use App\Services\Registration\RegistrationPricing;
+use App\Services\Shirts\ShowShirtMenu;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -26,8 +27,9 @@ class InvoiceResource extends JsonResource
 {
     /**
      * @param  array<string, mixed>  $totals  RegistrationPricing::totalsFor() output
+     * @param  ShowShirtMenu  $shirts  the event's shirt menu: the unit price of a legacy line without a snapshot
      */
-    public function __construct(ShowRegistration $registration, private readonly array $totals)
+    public function __construct(ShowRegistration $registration, private readonly array $totals, private readonly ShowShirtMenu $shirts)
     {
         parent::__construct($registration);
     }
@@ -74,7 +76,7 @@ class InvoiceResource extends JsonResource
                         'id' => (int) $shirt->type_id,
                         'name' => $shirt->shirtType?->name,
                     ],
-                    'price' => $shirt->price ?? ($shirt->shirtType === null ? '0.00' : $shirt->shirtType->price),
+                    'price' => $this->shirts->linePrice($shirt->price, (int) $shirt->type_id),
                 ])
                 ->values()
                 ->all(),

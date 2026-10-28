@@ -94,12 +94,13 @@ The sandbox serves the working tree as it is, so in-progress changes by others s
 | 10-accessibility | axe (WCAG 2.1 A/AA) on home, events, event, login, register, registration, billing, settings: no serious or critical violations |
 | 11-mobile | 390 x 844: no horizontal scroll on home, login, registration; menu button, links, Escape |
 | 12-admin-mobile | 390 x 844: every admin page without sideways scroll, one h1, Menu button; admin drawer (Escape, closes after navigating); check-in and T-shirt dialogs as full-width sheets; filter sheet and event combobox; axe (serious/critical) on every admin page |
+| 13-event-shirts | admin sets a shirt price and removes a type (Events > Shirts…, axe); Ben sees only the offered types at the event price, summary and invoice name the shirt and car and total 120.00; 390 px dialog sheet (44 px targets) and member pages without sideways scroll (stateful: changes the current event's shirt offer and registers Ben) |
 
 Every test fails on unexpected browser console errors. Always allowed: the 401 of `POST /login/authenticate` for
 anonymous visits, 404s for images, and messages from other origins (YouTube, Cloudflare). A test allows its own
 expected 4xx explicitly.
 
-Stateful specs (password reset, garage, IPN) assume a fresh seed: `scripts/e2e.sh test` reseeds every run; when
+Stateful specs (password reset, garage, IPN, event shirts) assume a fresh seed: `scripts/e2e.sh test` reseeds every run; when
 running specs by hand against a kept sandbox, run `scripts/e2e.sh reseed` first. Mind the rate limits (login 60 a
 minute per IP, password-forgot 6 a minute per IP, account writes): each spec uses its own account.
 
@@ -118,6 +119,8 @@ Fixed (frontend, each with a unit test):
 7. A new account landed on the home page instead of its profile: the server's `#/Name/u1` link was rejected by the
    redirect rules (`pages/register/RegisterPage.vue`).
 8. Mobile menu: Escape did nothing while focus was on the Menu button (`layouts/AppHeader.vue`).
+9. Registration form: an extra with `min_value` 1 that was not chosen (quantity 0) failed the client check, so no quote
+   was requested and the form could not be saved; 0 is always allowed, as on the server (`composables/registration/validation.ts`).
 9. Events list printed raw `<p>` tags for a show without a short description (`components/events/EventCard.vue`).
 
 ## Known issues found by E2E (PHP, not fixed here)

@@ -9,6 +9,7 @@ use App\Models\ShirtType;
 use App\Models\ShowRegistration;
 use Database\Factories\ShirtFactory;
 use Database\Factories\ShirtTypeFactory;
+use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -77,6 +78,32 @@ class ShirtInventoryAdminTest extends AdminTestCase
         $this->assertCount(4, $data['registrations'][0]['lines']);
         $this->assertCount(1, $data['adhoc_sales']);
         $this->assertSame(2, $data['adhoc_sales'][0]['items'][0]['count']);
+    }
+
+    #[Test]
+    public function the_inventory_lists_the_offered_types_at_the_event_price_and_keeps_types_with_stock_or_orders(): void
+    {
+        $show = CarShow::factory()->create(['shirt_stock_json' => [ShirtTypeFactory::MENS_S_POLO => 3]]);
+        $registration = ShowRegistration::factory()->create(['show_id' => $show->id]);
+        ShirtFactory::new()->create(['show_id' => $show->id, 'registration_id' => $registration->id, 'type_id' => ShirtTypeFactory::MENS_S_TSHIRT]);
+        DB::table('show_shirt_type')->insert(['show_id' => $show->id, 'shirt_type_id' => ShirtTypeFactory::MENS_M_TSHIRT, 'price' => 19.99]);
+
+        $types = $this->actingAs($this->admin())->getJson(self::BASE.'/inventory?show_id='.$show->id)->assertOk()->json('data.types');
+
+        $this->assertSame([ShirtTypeFactory::MENS_S_TSHIRT, ShirtTypeFactory::MENS_M_TSHIRT, ShirtTypeFactory::MENS_S_POLO], array_column($types, 'id'));
+        $this->assertSame([3500, 1999, 5500], array_column($types, 'price_cents'));
+        $this->assertSame([false, true, false], array_column($types, 'offered'));
+    }
+
+    #[Test]
+    public function an_event_without_an_offer_lists_every_type_in_the_inventory(): void
+    {
+        $show = CarShow::factory()->create();
+
+        $types = $this->actingAs($this->admin())->getJson(self::BASE.'/inventory?show_id='.$show->id)->assertOk()->json('data.types');
+
+        $this->assertCount(ShirtType::query()->count(), $types);
+        $this->assertSame([true], array_values(array_unique(array_column($types, 'offered'))));
     }
 
     #[Test]

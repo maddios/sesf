@@ -2,7 +2,7 @@
 /**
  * Events admin (car_show). List with search and status filter (URL-synced), create with an optional clone of the
  * car bodies and judging setup from an earlier event, edit, activate/deactivate, release/withhold judging results,
- * image and schedule PDF uploads, per-event sponsors (dialog), and delete. An event with registrations, sponsors or setup is a 409: the page says to deactivate it instead.
+ * image and schedule PDF uploads, per-event sponsors and shirts (dialogs), and delete. An event with registrations, sponsors or setup is a 409: the page says to deactivate it instead.
  */
 import { computed, ref } from 'vue';
 import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
@@ -18,6 +18,7 @@ import { mapAdminError } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
 import { BUSY_HINT, rowActions, type FormValues, type RowAction } from '../../../components/admin/types';
+import EventShirtsDialog from './EventShirtsDialog.vue';
 import EventSponsorsDialog from './EventSponsorsDialog.vue';
 import {
   EVENT_COLUMNS,
@@ -52,6 +53,8 @@ const formOpen = ref(false);
 const cloneSources = ref<CloneSource[]>([]);
 const sponsorsFor = ref<Event | null>(null);
 const sponsorsOpen = ref(false);
+const shirtsFor = ref<Event | null>(null);
+const shirtsOpen = ref(false);
 const busyId = ref<number | null>(null);
 const imageFor = ref<Event | null>(null);
 const imageOpen = ref(false);
@@ -171,6 +174,11 @@ function openSponsors(event: Event): void {
   sponsorsOpen.value = true;
 }
 
+function openShirts(event: Event): void {
+  shirtsFor.value = event;
+  shirtsOpen.value = true;
+}
+
 function actionsFor(event: Event): RowAction[] {
   const busy = busyId.value === event.id;
   const busyHint = busy ? BUSY_HINT : undefined;
@@ -195,6 +203,7 @@ function actionsFor(event: Event): RowAction[] {
     { id: 'image', label: 'Upload image', icon: 'image', handler: () => openImage(event) },
     { id: 'schedule-pdf', label: 'Upload schedule PDF', icon: 'file', disabled: busy, hint: busyHint, handler: () => choosePdf(event) },
     { id: 'sponsors', label: 'Sponsors', icon: 'users', handler: () => openSponsors(event) },
+    { id: 'shirts', label: 'Shirts…', icon: 'shirt', handler: () => openShirts(event) },
     { id: 'expenses', label: 'Expense tracker', icon: 'dollar', to: `/admin/expenses?show_id=${event.id}` },
     { id: 'delete', label: 'Delete…', icon: 'trash', danger: true, disabled: busy, hint: busyHint, handler: () => remove(event) },
   );
@@ -325,6 +334,11 @@ async function remove(event: Event): Promise<void> {
     <EventSponsorsDialog
       v-model:open="sponsorsOpen"
       :event="sponsorsFor"
+    />
+
+    <EventShirtsDialog
+      v-model:open="shirtsOpen"
+      :event="shirtsFor"
     />
   </div>
 </template>

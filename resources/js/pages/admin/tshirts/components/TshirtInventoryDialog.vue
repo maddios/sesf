@@ -59,7 +59,7 @@ function save(): void {
             >
               <span class="font-semibold text-[#333]">{{ type.name }}</span>
               <span class="block text-xs text-[#6b7280]">
-                {{ type.ordered }} ordered<template v-if="type.price_cents !== null"> · {{ formatCents(type.price_cents) }}</template>
+                {{ type.ordered }} ordered<template v-if="type.price_cents !== null"> · {{ formatCents(type.price_cents) }}</template><template v-if="!type.offered"> · not offered</template>
               </span>
             </th>
             <td class="py-2">

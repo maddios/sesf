@@ -173,3 +173,22 @@ it('reads signed decimal discount and received', function () {
 
     expect($input->discountCents)->toBe(-3000)->and($input->receivedCents)->toBe(-50);
 });
+
+test('line items carry the optional details in order and never change the amounts', function () {
+    $input = new PricingInput(
+        15000, 15000, 7500, 2, [ADULT, CHILD], [2000, 3500], [new ExtraLine(500, 2, 'Dinner')],
+        carDetails: ['Sharky (1988 M6)', null],
+        guestDetails: ['Ann Lee', 'Bo Lee'],
+        shirtDetails: ['Mens XXXL', 'Ladies S'],
+    );
+
+    $result = (new PricingCalculator)->calculate($input);
+    $plain = (new PricingCalculator)->calculate(new PricingInput(15000, 15000, 7500, 2, [ADULT, CHILD], [2000, 3500], [new ExtraLine(500, 2)]));
+
+    expect(array_map(fn (LineItem $item) => $item->detail, $result->lineItems))
+        ->toBe(['Sharky (1988 M6)', null, 'Ann Lee', 'Bo Lee', 'Mens XXXL', 'Ladies S', 'Dinner']);
+    expect(array_map(fn (LineItem $item) => $item->detail, $plain->lineItems))->each->toBeNull();
+    expect($result->totalCents)->toBe($plain->totalCents);
+    expect(array_map(fn (LineItem $item) => $item->totalCents, $result->lineItems))
+        ->toBe(array_map(fn (LineItem $item) => $item->totalCents, $plain->lineItems));
+});

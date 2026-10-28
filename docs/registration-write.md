@@ -26,7 +26,7 @@ Closed: `{general:{response:{closed:['Registration is closed']},status:'error'}}
 | open | `CarShow::regOpen`, unless admin on behalf (`user_id`). Applies to quote and `event/extra` too. |
 | cars | ≥1 unless an admin sends `cancel:true` on an existing registration; ≤20, distinct; owned by the TARGET user (sold cars have no owner); body in `car_body_show`; `judging_type` null or in `judging_show_body` for show+body. |
 | guests | ≤50; `type` 1/2; `first`/`last` required, ≤60 (column), Latin-1 letters, digits, space `.'-`; `email` optional, RFC, ASCII, ≤128, not the target user's email (case-insensitive); `id` must be a guest of THIS registration; `deleted:true` removes. |
-| shirts | ≤50; `type` exists in `shirt_type`; `id` of THIS registration; new or re-typed shirts snapshot `shirt.price` from `shirt_type.price`. |
+| shirts | ≤50; `type` exists in `shirt_type`; `id` of THIS registration; a new or re-typed shirt must be offered by the event (`ShowShirtCatalog`, 400 `shirt.<i>.type`) and snapshots `shirt.price` from the event's effective price; a kept shirt of a type no longer offered stays valid. |
 | extras | show extra of THIS show and enabled (`event/extra`: may be disabled, it is the landing-page key); `num_extras` integer, 0 removes, else within [min_value, max_value]. |
 | donation | null → 0, else one of 0,5,10,15,25,35,50,75,100,150,200,250,300,400,500. |
 | arrival | required unless an admin cancels; time in morning/afternoon/evening/night; date `Y-m-d` within `date_start..date_end` (the legacy `showDates`). |

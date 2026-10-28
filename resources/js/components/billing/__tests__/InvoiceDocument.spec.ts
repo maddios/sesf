@@ -23,6 +23,23 @@ describe('InvoiceDocument', () => {
     expect(within(dinner).getByText('$60.00')).toBeTruthy();
   });
 
+  it('names the item under its label in a small truncated line, and passes axe', async () => {
+    const { container } = render1(invoiceBody({}, {
+      lineItems: [
+        { kind: 'car', label: 'Car', detail: 'Sharky (1988 M6)', quantity: 1, unit: '100.00', amount: '100.00' },
+        { kind: 'shirt', label: 'Shirt', detail: 'Mens XXXL T-Shirt', quantity: 1, unit: '24.50', amount: '24.50' },
+        { kind: 'donation', label: 'Donation', quantity: 1, unit: '5.00', amount: '5.00' },
+      ],
+    }));
+    const table = screen.getByRole('table', { name: 'Invoice line items' });
+    const shirt = within(table).getByText('Mens XXXL T-Shirt');
+    expect(shirt.getAttribute('title')).toBe('Mens XXXL T-Shirt');
+    expect(shirt.className).toContain('truncate');
+    expect(within(table).getByRole('rowheader', { name: 'Car Sharky (1988 M6)' })).toBeTruthy();
+    expect(within(table).getByRole('rowheader', { name: 'Donation' })).toBeTruthy();
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
   it('marks the column headers with scope', () => {
     render1(invoiceBody());
     const headers = screen.getAllByRole('columnheader');

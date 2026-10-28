@@ -189,6 +189,24 @@ export function useRegistrationEditor(options: EditorOptions) {
     touched.value = {};
   }
 
+  /**
+   * Drops the restored draft: the form goes back to the saved registration (blank when there is none), the
+   * messages are cleared and the totals are asked for again.
+   */
+  function discardDraft(): void {
+    const data = payload.value;
+    if (data === null) {
+      return;
+    }
+    drafts.clear(key);
+    initialize(data, false);
+    serverErrors.value = null;
+    saveError.value = null;
+    submitAttempted.value = false;
+    touched.value = {};
+    quoteState.refresh();
+  }
+
   async function submit(): Promise<void> {
     if (readOnly.value || submitting.value) {
       return;
@@ -263,6 +281,7 @@ export function useRegistrationEditor(options: EditorOptions) {
     readOnly,
     hasRegistration,
     restoredDraft,
+    discardDraft,
     fieldError,
     touch,
     clientErrors,
