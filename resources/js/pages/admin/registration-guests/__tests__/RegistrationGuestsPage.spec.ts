@@ -7,7 +7,7 @@ import RegistrationGuestsPage from '../RegistrationGuestsPage.vue';
 import AdminConfirmHost from '../../../../components/admin/AdminConfirmHost.vue';
 import AdminToastRegion from '../../../../components/admin/AdminToastRegion.vue';
 import { renderAt, jsonResponse } from '../../../../test/helpers';
-import { listBody, stubAdminFetch, type SeenRequest } from '../../../../test/admin';
+import { listBody, stubAdminFetch, type SeenRequest, chooseRowAction } from '../../../../test/admin';
 import { useToast } from '../../../../composables/admin/useToast';
 import { useConfirm } from '../../../../composables/admin/useConfirm';
 import { toInput, type RegistrationGuest } from '../registration-guests';
@@ -131,7 +131,7 @@ describe('RegistrationGuestsPage', () => {
     const { seen } = stubGuests(undefined, (r) => (r.method === 'DELETE' && r.path === '/admin-api/registration-guests/5' ? new Response(null, { status: 204 }) : undefined));
     const user = userEvent.setup();
     await renderAt(Page, '/admin/registration-guests');
-    await user.click(await within(table()).findByRole('button', { name: 'Delete guest Grace Hopper' }));
+    await chooseRowAction(user, table(), 'guest Grace Hopper', 'Delete…');
     const dialog = await screen.findByRole('dialog', { name: 'Delete guest' });
     const confirm = within(dialog).getByRole('button', { name: 'Delete' }) as HTMLButtonElement;
     expect(confirm.disabled).toBe(true);

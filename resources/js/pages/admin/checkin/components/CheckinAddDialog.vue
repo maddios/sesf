@@ -346,7 +346,7 @@ onMounted(() => void load());
             :key="index"
             class="a2-subtle-row"
           >
-            <div class="grid gap-2 sm:grid-cols-2">
+            <div class="grid gap-2 @sm:grid-cols-2">
               <label class="a2-modal-label">First
                 <input
                   v-model="guest.first"

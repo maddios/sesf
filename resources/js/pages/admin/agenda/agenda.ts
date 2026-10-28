@@ -48,7 +48,7 @@ export const AGENDA_FIELDS: AdminField[] = [
     required: true,
     options: AGENDA_TYPES,
   },
-  { name: 'text', label: 'Description (HTML)', type: 'textarea', rows: 10, hint: 'Basic formatting only. Scripts and event handlers are removed when saved.' },
+  { name: 'text', label: 'Description', type: 'richtext', rows: 10, maxlength: 65535, hint: 'Basic formatting only. Scripts and event handlers are removed when saved.' },
   { name: 'is_visible', label: 'Visible on the site', type: 'checkbox' },
 ];
 

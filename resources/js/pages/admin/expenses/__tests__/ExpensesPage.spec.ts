@@ -7,7 +7,7 @@ import ExpensesPage from '../ExpensesPage.vue';
 import AdminConfirmHost from '../../../../components/admin/AdminConfirmHost.vue';
 import AdminToastRegion from '../../../../components/admin/AdminToastRegion.vue';
 import { renderAt, jsonResponse } from '../../../../test/helpers';
-import { stubAdminFetch, type SeenRequest } from '../../../../test/admin';
+import { stubAdminFetch, type SeenRequest, chooseRowAction } from '../../../../test/admin';
 import { useToast } from '../../../../composables/admin/useToast';
 import { useConfirm } from '../../../../composables/admin/useConfirm';
 import { formatAmount, toForm, toInput, type Expense, type ExpenseLedger } from '../expenses';
@@ -147,11 +147,11 @@ describe('ExpensesPage', () => {
     const { seen } = stubExpenses((r) => (r.method === 'DELETE' && r.path === '/admin-api/expenses/1' ? new Response(null, { status: 204 }) : undefined));
     const user = userEvent.setup();
     await renderAt(Page, '/admin/expenses?show_id=4');
-    await user.click(await within(await lines()).findByRole('button', { name: 'Delete Tent rental' }));
+    await chooseRowAction(user, await lines(), 'Tent rental', 'Delete…');
     await user.click(await screen.findByRole('button', { name: 'Cancel' }));
     expect(seen.some((r) => r.method === 'DELETE')).toBe(false);
 
-    await user.click(within(await lines()).getByRole('button', { name: 'Delete Tent rental' }));
+    await chooseRowAction(user, await lines(), 'Tent rental', 'Delete…');
     const dialog = await screen.findByRole('dialog', { name: 'Delete item' });
     expect(within(dialog).getByText('Are you sure you want to delete “Tent rental”?')).toBeTruthy();
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));

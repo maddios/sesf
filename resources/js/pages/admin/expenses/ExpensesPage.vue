@@ -12,7 +12,8 @@ import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
 import FormField from '../../../components/FormField.vue';
 import MoneyInput from '../../../components/admin/MoneyInput.vue';
 import { formatAdminDate } from '../../../components/admin/format';
-import type { FormValues } from '../../../components/admin/types';
+import AdminRowActions from '../../../components/admin/AdminRowActions.vue';
+import { BUSY_HINT, rowActions, type FormValues, type RowAction } from '../../../components/admin/types';
 import { mapAdminError } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
@@ -91,6 +92,11 @@ function save(values: FormValues): Promise<Expense> {
 function onSaved(): void {
   toast.success(editing.value === null ? 'Item added.' : 'Item saved.');
   void load();
+}
+
+function actionsFor(expense: Expense): RowAction[] {
+  const busy = busyId.value === expense.id;
+  return rowActions({ id: 'delete', label: 'Delete…', icon: 'trash', danger: true, disabled: busy, hint: busy ? BUSY_HINT : undefined, handler: () => remove(expense) });
 }
 
 async function remove(expense: Expense): Promise<void> {
@@ -259,24 +265,12 @@ function grossText(decimal: string): string {
                 <span class="sr-only">{{ item.type }}</span>
               </td>
               <td class="a2-cell-nolabel">
-                <div class="flex justify-end gap-1">
-                  <button
-                    type="button"
-                    class="a2-btn a2-btn-info a2-btn-small"
-                    :aria-label="`Edit ${item.description || `item ${item.id}`}`"
-                    @click="openEdit(item)"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    class="a2-btn a2-btn-danger a2-btn-small"
-                    :disabled="busyId === item.id"
-                    :aria-label="`Delete ${item.description || `item ${item.id}`}`"
-                    @click="remove(item)"
-                  >
-                    Delete
-                  </button>
+                <div class="flex justify-end">
+                  <AdminRowActions
+                    :subject="item.description || `item ${item.id}`"
+                    :primary="{ id: 'edit', label: 'Edit', icon: 'edit', handler: () => openEdit(item) }"
+                    :actions="actionsFor(item)"
+                  />
                 </div>
               </td>
             </tr>

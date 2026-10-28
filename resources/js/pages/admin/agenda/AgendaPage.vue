@@ -5,7 +5,7 @@
  */
 import { computed, ref } from 'vue';
 import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
-import AdminIconButton from '../../../components/admin/AdminIconButton.vue';
+import AdminRowActions from '../../../components/admin/AdminRowActions.vue';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader.vue';
 import EventFilter from '../../../components/admin/EventFilter.vue';
 import ReorderableList from '../../../components/admin/ReorderableList.vue';
@@ -16,7 +16,7 @@ import { useAdminList } from '../../../composables/admin/useAdminList';
 import { mapAdminError, type ListResponse } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
-import type { FormValues } from '../../../components/admin/types';
+import { rowActions, type FormValues, type RowAction } from '../../../components/admin/types';
 import { AGENDA_FIELDS, AGENDA_TYPES, agendaApi, saveAgendaOrder, toForm, toInput, type AgendaItem } from './agenda';
 
 const NO_ROWS: ListResponse<AgendaItem> = { data: [], meta: { page: 1, per_page: 100, total: 0, last_page: 1 } };
@@ -79,6 +79,10 @@ async function reorder(ids: number[]): Promise<void> {
     toast.error(mapAdminError(error, 'The order could not be saved.').message);
   }
   await list.reload();
+}
+
+function actionsFor(item: AgendaItem): RowAction[] {
+  return rowActions({ id: 'delete', label: 'Delete…', icon: 'trash', danger: true, handler: () => remove(item) });
 }
 
 async function remove(item: AgendaItem): Promise<void> {
@@ -185,16 +189,10 @@ async function remove(item: AgendaItem): Promise<void> {
                 />
               </div>
             </div>
-            <AdminIconButton
-              icon="edit"
-              :label="`Edit ${item.name}`"
-              @click="openEdit(item)"
-            />
-            <AdminIconButton
-              icon="trash"
-              variant="danger"
-              :label="`Delete ${item.name}`"
-              @click="remove(item)"
+            <AdminRowActions
+              :subject="item.name"
+              :primary="{ id: 'edit', label: 'Edit', icon: 'edit', handler: () => openEdit(item) }"
+              :actions="actionsFor(item)"
             />
           </div>
         </template>

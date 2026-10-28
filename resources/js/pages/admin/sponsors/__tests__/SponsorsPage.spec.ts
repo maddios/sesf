@@ -7,7 +7,7 @@ import SponsorsPage from '../SponsorsPage.vue';
 import AdminConfirmHost from '../../../../components/admin/AdminConfirmHost.vue';
 import AdminToastRegion from '../../../../components/admin/AdminToastRegion.vue';
 import { renderAt, jsonResponse } from '../../../../test/helpers';
-import { listBody, stubAdminFetch, stubXhr, type SeenRequest } from '../../../../test/admin';
+import { listBody, stubAdminFetch, stubXhr, type SeenRequest, chooseRowAction } from '../../../../test/admin';
 import { useToast } from '../../../../composables/admin/useToast';
 import { useConfirm } from '../../../../composables/admin/useConfirm';
 import { imageSrc, toInput, type Sponsor } from '../sponsors';
@@ -162,11 +162,11 @@ describe('SponsorsPage', () => {
     });
     const user = userEvent.setup();
     await renderAt(Page, '/admin/sponsors');
-    await user.click(await within(table()).findByRole('button', { name: 'Disable Acme Tools' }));
+    await chooseRowAction(user, table(), 'Acme Tools', 'Disable');
     await waitFor(() => expect(seen.some((r) => r.path === '/admin-api/sponsors/1/disable')).toBe(true));
     expect(await screen.findByText('Sponsor “Acme Tools” disabled.')).toBeTruthy();
 
-    await user.click(within(table()).getByRole('button', { name: 'Enable Bolt Co' }));
+    await chooseRowAction(user, table(), 'Bolt Co', 'Enable');
     expect(await screen.findByText(/Wait a minute/)).toBeTruthy();
   });
 
@@ -174,7 +174,7 @@ describe('SponsorsPage', () => {
     const { seen } = stubSponsors(undefined, (r) => (r.method === 'DELETE' && r.path === '/admin-api/sponsors/2' ? new Response(null, { status: 204 }) : undefined));
     const user = userEvent.setup();
     await renderAt(Page, '/admin/sponsors');
-    await user.click(await within(table()).findByRole('button', { name: 'Delete Bolt Co' }));
+    await chooseRowAction(user, table(), 'Bolt Co', 'Delete…');
     const dialog = await screen.findByRole('dialog', { name: 'Delete sponsor' });
     const confirm = within(dialog).getByRole('button', { name: 'Delete' }) as HTMLButtonElement;
     expect(confirm.disabled).toBe(true);
@@ -189,7 +189,7 @@ describe('SponsorsPage', () => {
     const { seen } = stubSponsors();
     const user = userEvent.setup();
     await renderAt(Page, '/admin/sponsors');
-    await user.click(await within(table()).findByRole('button', { name: 'Delete Acme Tools' }));
+    await chooseRowAction(user, table(), 'Acme Tools', 'Delete…');
     await user.click(await screen.findByRole('button', { name: 'Cancel' }));
     expect(seen.some((r) => r.method === 'DELETE')).toBe(false);
   });
@@ -202,7 +202,7 @@ describe('SponsorsPage', () => {
     });
     const user = userEvent.setup();
     await renderAt(Page, '/admin/sponsors');
-    await user.click(await within(table()).findByRole('button', { name: 'Delete Acme Tools' }));
+    await chooseRowAction(user, table(), 'Acme Tools', 'Delete…');
     await user.type(await screen.findByLabelText(/Type DELETE/), 'DELETE');
     await user.click(screen.getByRole('button', { name: 'Delete' }));
 
@@ -216,7 +216,7 @@ describe('SponsorsPage', () => {
     stubSponsors(undefined, (r) => (r.method === 'DELETE' ? jsonResponse(409, { message: 'In use. Disable it instead.' }) : undefined));
     const user = userEvent.setup();
     await renderAt(Page, '/admin/sponsors');
-    await user.click(await within(table()).findByRole('button', { name: 'Delete Bolt Co' }));
+    await chooseRowAction(user, table(), 'Bolt Co', 'Delete…');
     await user.type(await screen.findByLabelText(/Type DELETE/), 'DELETE');
     await user.click(screen.getByRole('button', { name: 'Delete' }));
     expect(await screen.findByText('In use. Disable it instead.')).toBeTruthy();
@@ -227,7 +227,7 @@ describe('SponsorsPage', () => {
     const xhrs = stubXhr();
     const user = userEvent.setup();
     await renderAt(Page, '/admin/sponsors');
-    await user.click(await within(table()).findByRole('button', { name: 'Upload logo for Acme Tools' }));
+    await chooseRowAction(user, table(), 'Acme Tools', 'Upload logo');
     const dialog = await screen.findByRole('dialog', { name: 'Logo for Acme Tools' });
     await user.upload(within(dialog).getByLabelText('Choose an image'), new File(['x'], 'l.png', { type: 'image/png' }));
     await user.click(within(dialog).getByRole('button', { name: 'Upload' }));

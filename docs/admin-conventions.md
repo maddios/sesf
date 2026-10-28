@@ -73,10 +73,20 @@ URLs 302 to `/#/admin/...` (`routes/web/admin_redirects.php`).
    page buttons in slot `actions`, e.g. "New thing"), `AdminDataTable` (compact striped rows, sticky header row, sort
    marks, first and actions columns pinned while a wide table scrolls, `@row-click` opens the edit dialog,
    `:active-filters="list.activeFilters.value"`; the `filters` slot is a bar on desktop and a bottom sheet on phones;
-   each filter is `<div class="w-48"><label for>..</label><control/></div>`), row actions as `AdminIconButton`
-   (`icon`, `label` = accessible name and tooltip, `variant` danger for deletes), `AdminFormModal` (two columns from
-   768px, `wide` and `section` on `AdminField`, required asterisk via `AdminFormField`, phone sheet with sticky
-   Save/Cancel). BaseButton is restyled to compact Bootstrap 2 buttons inside the admin (30px, sm 24px; on touch
+   each filter is `<div class="w-48"><label for>..</label><control/></div>`), row actions as `AdminRowActions`
+   (see below), `AdminFormModal` (two columns once the dialog body is 34rem wide, a container query, `wide` and
+   `section` on `AdminField`, required asterisk via `AdminFormField`, phone sheet with sticky Save/Cancel).
+   Inside dialogs size things with container variants (`@sm:`, `@md:`; the BaseModal body is a size container),
+   never viewport `sm:`/`md:`, because a dialog is much narrower than the viewport.
+   **Row actions** (`AdminRowActions`, actions declared as data, `RowAction` in `components/admin/types.ts`):
+   `<AdminRowActions :subject="row.name" :primary="{ id: 'edit', label: 'Edit', icon: 'edit', handler: () => openEdit(row) }" :actions="actionsFor(row)" />`
+   with `actionsFor(row) = rowActions({ id, label, icon, handler | to | href, danger?, disabled?, hint? }, cond && {...})`.
+   The primary is the row-click action, shown as one labelled button ("Edit <subject>"); everything else sits in the
+   "Actions" menu (popover on desktop, bottom sheet below 768px), danger items last ("Delete…", still behind
+   `useConfirm`). Show unavailable actions disabled with a `hint` saying why (`BUSY_HINT` while a write runs) rather
+   than hiding them. Record state (active, enabled, confirmed, cancelled, released) is a `StatusBadge` column; the
+   toggle lives in the menu. `AdminIconButton` (title + aria-label) is only for icons that need no words: close,
+   move up/down, sort, clear. Specs open a menu with `chooseRowAction` / `rowMenuItem` from `test/admin.ts`. BaseButton is restyled to compact Bootstrap 2 buttons inside the admin (30px, sm 24px; on touch
    36px with a 44px hit area): never add `size="lg"` or fixed big heights. Every dropdown is `components/ui/BaseCombobox.vue`
    (static `options` or async `search`/`resolve`; RelationSelect wraps it for lookups). Dialogs use `BaseModal`
    with `sheet`.

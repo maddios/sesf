@@ -9,7 +9,7 @@ import { api } from '../../../api/client';
 import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
 import AdminFormField from '../../../components/admin/AdminFormField.vue';
 import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
-import AdminIconButton from '../../../components/admin/AdminIconButton.vue';
+import AdminRowActions from '../../../components/admin/AdminRowActions.vue';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader.vue';
 import ImageUploadModal from '../../../components/admin/ImageUploadModal.vue';
 import RelationSelect from '../../../components/admin/RelationSelect.vue';
@@ -21,7 +21,7 @@ import { useAdminList } from '../../../composables/admin/useAdminList';
 import { ADMIN_API_BASE, mapAdminError } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
-import type { FormValues } from '../../../components/admin/types';
+import { BUSY_HINT, rowActions, type FormValues, type RowAction } from '../../../components/admin/types';
 import { CAR_COLUMNS, carFields, carsApi, imageSrc, profileHref, toForm, toInput, type Car, type CarOptions } from './cars';
 
 const list = useAdminList<Car>({
@@ -99,6 +99,23 @@ function uploadImage(file: File, onProgress: (percent: number) => void): Promise
 function onUploaded(): void {
   toast.success('Car photo uploaded.');
   void list.reload();
+}
+
+function actionsFor(car: Car): RowAction[] {
+  const busy = busyId.value === car.id;
+  return rowActions(
+    { id: 'confirmed', label: car.is_confirmed ? 'Unconfirm' : 'Confirm', icon: car.is_confirmed ? 'x' : 'check', disabled: busy, hint: busy ? BUSY_HINT : undefined, handler: () => setConfirmed(car, !car.is_confirmed) },
+    { id: 'image', label: 'Upload photo', icon: 'image', handler: () => openImage(car) },
+    {
+      id: 'delete',
+      label: 'Delete…',
+      icon: 'trash',
+      danger: true,
+      disabled: car.in_use,
+      hint: car.in_use ? 'Registered for an event, so it stays in the show history.' : undefined,
+      handler: () => remove(car),
+    },
+  );
 }
 
 async function remove(car: Car): Promise<void> {
@@ -246,28 +263,10 @@ function idFilterValue(key: 'show_id' | 'user_id'): number | null {
       </template>
 
       <template #actions="{ row }">
-        <AdminIconButton
-          icon="edit"
-          :label="`Edit car ${row.id}`"
-          @click="openEdit(row)"
-        />
-        <AdminIconButton
-          :icon="row.is_confirmed ? 'x' : 'check'"
-          :label="`${row.is_confirmed ? 'Unconfirm' : 'Confirm'} car ${row.id}`"
-          :disabled="busyId === row.id"
-          @click="setConfirmed(row, !row.is_confirmed)"
-        />
-        <AdminIconButton
-          icon="image"
-          :label="`Photo for car ${row.id}`"
-          @click="openImage(row)"
-        />
-        <AdminIconButton
-          icon="trash"
-          variant="danger"
-          :label="`Delete car ${row.id}`"
-          :disabled="row.in_use"
-          @click="remove(row)"
+        <AdminRowActions
+          :subject="`car ${row.id}`"
+          :primary="{ id: 'edit', label: 'Edit', icon: 'edit', handler: () => openEdit(row) }"
+          :actions="actionsFor(row)"
         />
       </template>
     </AdminDataTable>

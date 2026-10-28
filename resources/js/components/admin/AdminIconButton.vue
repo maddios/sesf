@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
- * Compact icon-only button for row actions (edit, delete...). `label` is the accessible name and the tooltip.
- * Renders a link instead when `href` is given.
+ * Compact icon-only button, only where the icon alone is obvious (close, move up/down, sort, clear). Row actions use
+ * AdminRowActions instead. `label` is the accessible name and the tooltip. Renders a link instead when `href` is given.
  */
 import AdminIcon, { type AdminIconName } from './AdminIcon.vue';
 

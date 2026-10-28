@@ -7,7 +7,7 @@ import EventsPage from '../EventsPage.vue';
 import AdminConfirmHost from '../../../../components/admin/AdminConfirmHost.vue';
 import AdminToastRegion from '../../../../components/admin/AdminToastRegion.vue';
 import { renderAt, jsonResponse } from '../../../../test/helpers';
-import { listBody, stubAdminFetch, stubXhr, type SeenRequest } from '../../../../test/admin';
+import { listBody, stubAdminFetch, stubXhr, type SeenRequest, chooseRowAction, rowMenuItem } from '../../../../test/admin';
 import { useToast } from '../../../../composables/admin/useToast';
 import { useConfirm } from '../../../../composables/admin/useConfirm';
 import { toCreateInput, toInput, type Event } from '../events';
@@ -73,7 +73,8 @@ describe('EventsPage', () => {
     const { container } = await renderAt(Page, '/admin/events');
     expect(await within(table()).findByText('Spring Show')).toBeTruthy();
     expect(within(table()).getByText('Inactive')).toBeTruthy();
-    expect(within(table()).getByRole('button', { name: 'Sponsors for Spring Show' })).toBeTruthy();
+    expect(within(table()).getByRole('button', { name: 'Actions for Spring Show' })).toBeTruthy();
+    expect(within(table()).getByRole('button', { name: 'Edit Spring Show' })).toBeTruthy();
     const list = seen.find((r) => r.path === '/admin-api/events')!;
     expect(list.params.get('sort')).toBe('date_start');
     expect(list.params.get('direction')).toBe('desc');
@@ -176,7 +177,7 @@ describe('EventsPage', () => {
     );
     const user = userEvent.setup();
     await renderAt(Page, '/admin/events');
-    await user.click(await within(table()).findByRole('button', { name: 'Activate Fall Show' }));
+    await chooseRowAction(user, table(), 'Fall Show', 'Activate');
     await waitFor(() => expect(seen.some((r) => r.path === '/admin-api/events/2/activate')).toBe(true));
     expect(await screen.findByText('Event “Fall Show” activated.')).toBeTruthy();
   });
@@ -185,7 +186,7 @@ describe('EventsPage', () => {
     const { seen } = stubEvents(undefined, (r) => (r.method === 'DELETE' && r.path === '/admin-api/events/2' ? new Response(null, { status: 204 }) : undefined));
     const user = userEvent.setup();
     await renderAt(Page, '/admin/events');
-    await user.click(await within(table()).findByRole('button', { name: 'Delete Fall Show' }));
+    await chooseRowAction(user, table(), 'Fall Show', 'Delete…');
     const dialog = await screen.findByRole('dialog', { name: 'Delete event' });
     await user.type(within(dialog).getByLabelText(/Type DELETE/), 'DELETE');
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
@@ -200,7 +201,7 @@ describe('EventsPage', () => {
     );
     const user = userEvent.setup();
     await renderAt(Page, '/admin/events');
-    await user.click(await within(table()).findByRole('button', { name: 'Delete Fall Show' }));
+    await chooseRowAction(user, table(), 'Fall Show', 'Delete…');
     await user.type(await screen.findByLabelText(/Type DELETE/), 'DELETE');
     await user.click(screen.getByRole('button', { name: 'Delete' }));
     expect(await screen.findByText(/Deactivate it instead/)).toBeTruthy();
@@ -211,7 +212,7 @@ describe('EventsPage', () => {
     const { seen } = stubEvents();
     const user = userEvent.setup();
     await renderAt(Page, '/admin/events');
-    await user.click(await within(table()).findByRole('button', { name: 'Sponsors for Spring Show' }));
+    await chooseRowAction(user, table(), 'Spring Show', 'Sponsors');
     expect(await screen.findByRole('dialog', { name: 'Sponsors for Spring Show' })).toBeTruthy();
     await waitFor(() => expect(seen.some((r) => r.path === '/admin-api/events/1/sponsors')).toBe(true));
   });
@@ -224,7 +225,7 @@ describe('toCreateInput', () => {
     );
     const user = userEvent.setup();
     await renderAt(Page, '/admin/events');
-    await user.click(await within(table()).findByRole('button', { name: 'Release judging results for Spring Show' }));
+    await chooseRowAction(user, table(), 'Spring Show', 'Release judging results');
     await waitFor(() => expect(seen.find((r) => r.path === '/admin-api/judging/shows/1/release')?.body).toEqual({ released: true }));
     expect(await screen.findByText('Judging results for “Spring Show” released.')).toBeTruthy();
   });
@@ -235,7 +236,7 @@ describe('toCreateInput', () => {
     );
     const user = userEvent.setup();
     await renderAt(Page, '/admin/events');
-    await user.click(await within(table()).findByRole('button', { name: 'Send judging results for Spring Show' }));
+    await chooseRowAction(user, table(), 'Spring Show', 'Send judging results');
     const dialog = await screen.findByRole('dialog', { name: 'Send judging results' });
     expect(seen.some((r) => r.path.endsWith('/results-mail'))).toBe(false);
     await user.click(within(dialog).getByRole('button', { name: 'Send results' }));
@@ -247,7 +248,7 @@ describe('toCreateInput', () => {
     const xhrs = stubXhr();
     const user = userEvent.setup();
     await renderAt(Page, '/admin/events');
-    await user.click(await within(table()).findByRole('button', { name: 'Upload image for Spring Show' }));
+    await chooseRowAction(user, table(), 'Spring Show', 'Upload image');
     const dialog = await screen.findByRole('dialog', { name: 'Image for Spring Show' });
     await user.upload(within(dialog).getByLabelText('Choose an image'), new File(['x'], 's.png', { type: 'image/png' }));
     await user.click(within(dialog).getByRole('button', { name: 'Upload' }));
@@ -261,13 +262,13 @@ describe('toCreateInput', () => {
     const xhrs = stubXhr();
     const user = userEvent.setup();
     await renderAt(Page, '/admin/events');
-    await user.click(await within(table()).findByRole('button', { name: 'Upload schedule PDF for Spring Show' }));
+    await chooseRowAction(user, table(), 'Spring Show', 'Upload schedule PDF');
     await user.upload(screen.getByLabelText('Schedule PDF file'), new File(['%PDF-'], 'schedule.pdf', { type: 'application/pdf' }));
     await waitFor(() => expect(xhrs[0]?.url).toBe('/admin-api/events/1/schedule-pdf'));
     xhrs[0]!.respond(200, { data: event({ is_schedule_pdf: true }) });
     expect(await screen.findByText('Schedule PDF for “Spring Show” uploaded.')).toBeTruthy();
 
-    await user.click(within(table()).getByRole('button', { name: 'Upload schedule PDF for Spring Show' }));
+    await chooseRowAction(user, table(), 'Spring Show', 'Upload schedule PDF');
     await user.upload(screen.getByLabelText('Schedule PDF file'), new File(['<html>'], 'fake.pdf', { type: 'application/pdf' }));
     await waitFor(() => expect(xhrs[1]).toBeDefined());
     xhrs[1]!.respond(422, { message: 'The file must be a PDF.', errors: { file: ['The file must be a PDF.'] } });
@@ -276,9 +277,10 @@ describe('toCreateInput', () => {
 
   it('shows the id and links each event to its expense tracker', async () => {
     stubEvents();
+    const user = userEvent.setup();
     await renderAt(Page, '/admin/events');
     expect(await within(table()).findByRole('columnheader', { name: /ID/ })).toBeTruthy();
-    const link = await within(table()).findByRole('link', { name: 'Expenses for Spring Show' });
+    const link = await rowMenuItem(user, table(), 'Spring Show', 'Expense tracker');
     expect(link.getAttribute('href')).toContain('/admin/expenses?show_id=1');
   });
 

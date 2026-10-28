@@ -7,7 +7,7 @@ import RegistrationsPage from '../RegistrationsPage.vue';
 import AdminConfirmHost from '../../../../components/admin/AdminConfirmHost.vue';
 import AdminToastRegion from '../../../../components/admin/AdminToastRegion.vue';
 import { renderAt, jsonResponse } from '../../../../test/helpers';
-import { listBody, stubAdminFetch, type SeenRequest } from '../../../../test/admin';
+import { listBody, stubAdminFetch, type SeenRequest, chooseRowAction, rowMenuItem } from '../../../../test/admin';
 import { useToast } from '../../../../composables/admin/useToast';
 import { useConfirm } from '../../../../composables/admin/useConfirm';
 import { centsToDollars, dollarsToCents, formatCents, type Registration } from '../registrations';
@@ -144,7 +144,7 @@ describe('RegistrationsPage', () => {
     );
     const user = userEvent.setup();
     await renderAt(Page, '/admin/registrations');
-    await user.click(await within(table()).findByRole('button', { name: 'Cancel registration 1001' }));
+    await chooseRowAction(user, table(), 'registration 1001', 'Cancel registration…');
     const dialog = await screen.findByRole('dialog', { name: 'Cancel registration' });
     expect(seen.some((r) => r.method === 'PUT')).toBe(false);
     await user.click(within(dialog).getByRole('button', { name: 'Cancel registration' }));
@@ -252,7 +252,7 @@ describe('RegistrationsPage', () => {
   it('links each row to the full on-behalf editor', async () => {
     stubRegistrations();
     await renderAt(Page, '/admin/registrations');
-    const link = await within(table()).findByRole('link', { name: 'Open the full editor for registration 1001' });
+    const link = await rowMenuItem(userEvent.setup(), table(), 'registration 1001', 'Open full editor');
     expect(link.getAttribute('href')).toContain('/SpringShow/e4/register?user_id=9');
   });
 
@@ -270,7 +270,7 @@ describe('RegistrationsPage', () => {
     );
     const user = userEvent.setup();
     await renderAt(Page, '/admin/registrations');
-    await user.click(await within(table()).findByRole('button', { name: 'Delete registration 1001' }));
+    await chooseRowAction(user, table(), 'registration 1001', 'Delete…');
     const dialog = await screen.findByRole('dialog', { name: 'Delete registration' });
     await user.type(within(dialog).getByRole('textbox'), 'DELETE');
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
@@ -284,7 +284,7 @@ describe('RegistrationsPage', () => {
     );
     const user = userEvent.setup();
     await renderAt(Page, '/admin/registrations');
-    await user.click(await within(table()).findByRole('button', { name: 'Add a guest to registration 1001' }));
+    await chooseRowAction(user, table(), 'registration 1001', 'Add a guest');
     const dialog = await screen.findByRole('dialog', { name: 'Add a guest to registration 1001' });
     await user.type(within(dialog).getByLabelText('First name (required)'), 'Ann');
     await user.type(within(dialog).getByLabelText('Last name (required)'), 'Guest');
@@ -301,7 +301,7 @@ describe('RegistrationsPage', () => {
     });
     const user = userEvent.setup();
     await renderAt(Page, '/admin/registrations');
-    await user.click(await within(table()).findByRole('button', { name: 'Add an extra to registration 1001' }));
+    await chooseRowAction(user, table(), 'registration 1001', 'Add an extra');
     const dialog = await screen.findByRole('dialog', { name: 'Add an extra to registration 1001' });
     expect(seen.find((r) => r.path === '/admin-api/extras')?.params.get('filter[show_id]')).toBe('4');
     await user.click(within(dialog).getByRole('combobox', { name: /^Extra/ }));

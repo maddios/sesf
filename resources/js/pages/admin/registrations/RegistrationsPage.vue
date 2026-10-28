@@ -10,7 +10,7 @@ import { nextTick, ref } from 'vue';
 import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
 import AdminFormField from '../../../components/admin/AdminFormField.vue';
 import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
-import AdminIconButton from '../../../components/admin/AdminIconButton.vue';
+import AdminRowActions from '../../../components/admin/AdminRowActions.vue';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader.vue';
 import RelationSelect from '../../../components/admin/RelationSelect.vue';
 import StatusBadge from '../../../components/admin/StatusBadge.vue';
@@ -27,7 +27,7 @@ import { ADMIN_API_BASE, mapAdminError } from '../../../composables/admin/useAdm
 import { api, ApiError } from '../../../api/client';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
-import type { FormValues } from '../../../components/admin/types';
+import { BUSY_HINT, rowActions, type FormValues, type RowAction } from '../../../components/admin/types';
 import {
   REGISTRATION_CHANGED,
   REGISTRATION_COLUMNS,
@@ -113,6 +113,20 @@ function addExtra(values: FormValues): Promise<unknown> {
 function onExtraAdded(): void {
   toast.success(`Extra added to registration #${extraFor.value?.invoice_id ?? ''}.`);
   void list.reload();
+}
+
+function actionsFor(registration: Registration): RowAction[] {
+  const busy = busyId.value === registration.id;
+  const hint = busy ? BUSY_HINT : undefined;
+  return rowActions(
+    { id: 'editor', label: 'Open full editor', icon: 'external', href: `#${registration.editor_path}` },
+    { id: 'guest', label: 'Add a guest', icon: 'user-plus', handler: () => openAddGuest(registration) },
+    { id: 'extra', label: 'Add an extra', icon: 'plus', handler: () => openAddExtra(registration) },
+    registration.is_cancelled
+      ? { id: 'reinstate', label: 'Reinstate', icon: 'check', disabled: busy, hint, handler: () => setCancelled(registration, false) }
+      : { id: 'cancel', label: 'Cancel registration…', icon: 'ban', danger: true, disabled: busy, hint, handler: () => setCancelled(registration, true) },
+    { id: 'delete', label: 'Delete…', icon: 'trash', danger: true, disabled: busy, hint, handler: () => remove(registration) },
+  );
 }
 
 async function remove(registration: Registration): Promise<void> {
@@ -313,39 +327,10 @@ function showFilterValue(): number | null {
       </template>
 
       <template #actions="{ row }">
-        <AdminIconButton
-          icon="edit"
-          :label="`Edit registration ${row.invoice_id}`"
-          @click="openEdit(row)"
-        />
-        <AdminIconButton
-          icon="external"
-          :href="`#${row.editor_path}`"
-          :label="`Open the full editor for registration ${row.invoice_id}`"
-        />
-        <AdminIconButton
-          icon="user-plus"
-          :label="`Add a guest to registration ${row.invoice_id}`"
-          @click="openAddGuest(row)"
-        />
-        <AdminIconButton
-          icon="plus"
-          :label="`Add an extra to registration ${row.invoice_id}`"
-          @click="openAddExtra(row)"
-        />
-        <AdminIconButton
-          :icon="row.is_cancelled ? 'check' : 'x'"
-          :variant="row.is_cancelled ? 'primary' : 'danger'"
-          :disabled="busyId === row.id"
-          :label="`${row.is_cancelled ? 'Reinstate' : 'Cancel'} registration ${row.invoice_id}`"
-          @click="setCancelled(row, !row.is_cancelled)"
-        />
-        <AdminIconButton
-          icon="trash"
-          variant="danger"
-          :disabled="busyId === row.id"
-          :label="`Delete registration ${row.invoice_id}`"
-          @click="remove(row)"
+        <AdminRowActions
+          :subject="`registration ${row.invoice_id}`"
+          :primary="{ id: 'edit', label: 'Edit', icon: 'edit', handler: () => openEdit(row) }"
+          :actions="actionsFor(row)"
         />
       </template>
     </AdminDataTable>

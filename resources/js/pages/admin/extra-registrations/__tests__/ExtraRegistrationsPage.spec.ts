@@ -7,7 +7,7 @@ import ExtraRegistrationsPage from '../ExtraRegistrationsPage.vue';
 import AdminConfirmHost from '../../../../components/admin/AdminConfirmHost.vue';
 import AdminToastRegion from '../../../../components/admin/AdminToastRegion.vue';
 import { renderAt, jsonResponse } from '../../../../test/helpers';
-import { listBody, stubAdminFetch, type SeenRequest } from '../../../../test/admin';
+import { listBody, stubAdminFetch, type SeenRequest, chooseRowAction } from '../../../../test/admin';
 import { useToast } from '../../../../composables/admin/useToast';
 import { useConfirm } from '../../../../composables/admin/useConfirm';
 import type { ExtraRegistration } from '../extraRegistrations';
@@ -80,7 +80,7 @@ describe('ExtraRegistrationsPage', () => {
     );
     const user = userEvent.setup();
     await renderAt(Page, '/admin/extra-registrations');
-    await user.click(await within(await screen.findByRole('table', { name: 'Extra registrations' })).findByRole('button', { name: 'Edit purchase for Ada Lovelace' }));
+    await user.click(await within(await screen.findByRole('table', { name: 'Extra registrations' })).findByRole('button', { name: 'Edit Dinner for Ada Lovelace' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit purchase' });
     const quantity = within(dialog).getByLabelText('Quantity (required)');
     await user.clear(quantity);
@@ -96,7 +96,7 @@ describe('ExtraRegistrationsPage', () => {
     stubRows(ROWS, (r) => (r.method === 'PUT' && r.path === '/admin-api/extra-registrations/1' ? new Response(null, { status: 204 }) : undefined));
     const user = userEvent.setup();
     await renderAt(Page, '/admin/extra-registrations');
-    await user.click(await within(await screen.findByRole('table', { name: 'Extra registrations' })).findByRole('button', { name: 'Edit purchase for Ada Lovelace' }));
+    await user.click(await within(await screen.findByRole('table', { name: 'Extra registrations' })).findByRole('button', { name: 'Edit Dinner for Ada Lovelace' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit purchase' });
     const quantity = within(dialog).getByLabelText('Quantity (required)');
     await user.clear(quantity);
@@ -112,7 +112,7 @@ describe('ExtraRegistrationsPage', () => {
     );
     const user = userEvent.setup();
     await renderAt(Page, '/admin/extra-registrations');
-    await user.click(await within(await screen.findByRole('table', { name: 'Extra registrations' })).findByRole('button', { name: 'Edit purchase for Ada Lovelace' }));
+    await user.click(await within(await screen.findByRole('table', { name: 'Extra registrations' })).findByRole('button', { name: 'Edit Dinner for Ada Lovelace' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit purchase' });
     expect(seen.find((r) => r.path === '/admin-api/extras')?.params.get('filter[show_id]')).toBe('4');
     await user.click(within(dialog).getByRole('combobox', { name: /^Extra/ }));
@@ -140,7 +140,7 @@ describe('ExtraRegistrationsPage', () => {
     );
     const user = userEvent.setup();
     await renderAt(Page, '/admin/extra-registrations');
-    await user.click(await within(await screen.findByRole('table', { name: 'Extra registrations' })).findByRole('button', { name: 'Edit purchase for Ada Lovelace' }));
+    await user.click(await within(await screen.findByRole('table', { name: 'Extra registrations' })).findByRole('button', { name: 'Edit Dinner for Ada Lovelace' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit purchase' });
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
 
@@ -151,7 +151,7 @@ describe('ExtraRegistrationsPage', () => {
     const { seen } = stubRows(ROWS, (r) => (r.method === 'DELETE' && r.path === '/admin-api/extra-registrations/2' ? new Response(null, { status: 204 }) : undefined));
     const user = userEvent.setup();
     await renderAt(Page, '/admin/extra-registrations');
-    await user.click(await within(await screen.findByRole('table', { name: 'Extra registrations' })).findByRole('button', { name: 'Delete Pin for Grace Hopper' }));
+    await chooseRowAction(user, await screen.findByRole('table', { name: 'Extra registrations' }), 'Pin for Grace Hopper', 'Delete…');
     const dialog = await screen.findByRole('dialog', { name: 'Delete extra purchase' });
     await user.type(within(dialog).getByLabelText(/Type DELETE/), 'DELETE');
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));

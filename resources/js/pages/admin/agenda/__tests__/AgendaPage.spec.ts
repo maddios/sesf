@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/vue';
+import { fireEvent, screen, waitFor, within } from '@testing-library/vue';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
 import { defineComponent, h } from 'vue';
@@ -7,7 +7,7 @@ import AgendaPage from '../AgendaPage.vue';
 import AdminConfirmHost from '../../../../components/admin/AdminConfirmHost.vue';
 import AdminToastRegion from '../../../../components/admin/AdminToastRegion.vue';
 import { renderAt, jsonResponse } from '../../../../test/helpers';
-import { listBody, stubAdminFetch, type SeenRequest } from '../../../../test/admin';
+import { listBody, stubAdminFetch, type SeenRequest, chooseRowAction } from '../../../../test/admin';
 import { useToast } from '../../../../composables/admin/useToast';
 import { useConfirm } from '../../../../composables/admin/useConfirm';
 import type { AgendaItem } from '../agenda';
@@ -121,7 +121,8 @@ describe('AgendaPage', () => {
     await user.click(await screen.findByRole('button', { name: 'New agenda item' }));
     const dialog = await screen.findByRole('dialog', { name: 'New agenda item' });
     await user.type(within(dialog).getByLabelText('Name (required)'), 'Lunch');
-    await user.type(within(dialog).getByLabelText('Description (HTML)'), '<b>Tacos</b>');
+    await user.click(within(dialog).getByRole('switch', { name: 'Visual editor' }));
+    await fireEvent.update(within(dialog).getByRole('textbox', { name: 'Description (HTML)' }), '<b>Tacos</b>');
     await user.click(within(dialog).getByRole('button', { name: 'Create item' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
@@ -157,7 +158,7 @@ describe('AgendaPage', () => {
     );
     const user = userEvent.setup();
     await renderAt(Page, '/admin/agenda?f.show_id=4');
-    await user.click(await screen.findByRole('button', { name: 'Delete Judging begins' }));
+    await chooseRowAction(user, document.body, 'Judging begins', 'Delete…');
     const dialog = await screen.findByRole('dialog', { name: 'Delete agenda item' });
     const confirm = within(dialog).getByRole('button', { name: 'Delete' }) as HTMLButtonElement;
     expect(confirm.disabled).toBe(true);

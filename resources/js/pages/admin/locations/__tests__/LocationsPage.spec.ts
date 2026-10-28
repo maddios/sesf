@@ -7,7 +7,7 @@ import LocationsPage from '../LocationsPage.vue';
 import AdminConfirmHost from '../../../../components/admin/AdminConfirmHost.vue';
 import AdminToastRegion from '../../../../components/admin/AdminToastRegion.vue';
 import { renderAt, jsonResponse } from '../../../../test/helpers';
-import { listBody, stubAdminFetch, type SeenRequest } from '../../../../test/admin';
+import { listBody, stubAdminFetch, type SeenRequest, chooseRowAction } from '../../../../test/admin';
 import { useToast } from '../../../../composables/admin/useToast';
 import { useConfirm } from '../../../../composables/admin/useConfirm';
 import type { Location } from '../locations';
@@ -135,7 +135,7 @@ describe('LocationsPage', () => {
     const { seen } = stubLocations(ROWS, (r) => (r.method === 'DELETE' && r.path === '/admin-api/locations/2' ? new Response(null, { status: 204 }) : undefined));
     const user = userEvent.setup();
     await renderAt(Page, '/admin/locations?f.show_id=4');
-    await user.click(await screen.findByRole('button', { name: 'Delete Overflow field' }));
+    await chooseRowAction(user, document.body, 'Overflow field', 'Delete…');
     const dialog = await screen.findByRole('dialog', { name: 'Delete location' });
     await user.type(within(dialog).getByLabelText(/Type DELETE/), 'DELETE');
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));

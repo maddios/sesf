@@ -8,12 +8,12 @@
  * - Legacy admin look: compact striped rows, gradient header with the sticky header row (the table scrolls inside
  *   its box on desktop, so wide tables scroll sideways there with the first column pinned), sort indicators.
  * - Sortable headers are buttons; the sorted column has aria-sort. Search is debounced (Enter searches now).
- * - Slots: `cell-<key>` ({ row }) for a custom cell, `actions` ({ row }) for row actions (AdminIconButton), `filters`
+ * - Slots: `cell-<key>` ({ row }) for a custom cell, `actions` ({ row }) for row actions (AdminRowActions), `filters`
  *   for the filter bar, `toolbar-end` for buttons such as "New", `empty` for the no-rows message.
  * - Filters: a bar under the search on desktop; on phones a "Filters" button opens them as a bottom sheet
  *   (`activeFilters` shows the count on the button).
- * - `row-click` (optional): a click on a row outside its controls, e.g. to open the edit dialog as the legacy
- *   admin did. Keyboard users use the row's buttons.
+ * - `row-click` (optional): a click on a row (desktop) or card (phone) outside its controls, e.g. to open the edit
+ *   dialog as the legacy admin did. Keyboard users use the row's buttons.
  * - Loading keeps the old rows and sets aria-busy; errors show a retry button; no rows shows the empty state.
  * - Below the md breakpoint rows render as cards (label: value), so nothing scrolls sideways on a phone.
  */
@@ -331,6 +331,8 @@ function onRowClick(event: MouseEvent, row: T): void {
           v-for="(row, index) in rows"
           :key="keyOf(row, index)"
           class="admin-card"
+          :class="listens ? 'is-clickable' : ''"
+          @click="onRowClick($event, row)"
         >
           <dl class="admin-card-fields">
             <div

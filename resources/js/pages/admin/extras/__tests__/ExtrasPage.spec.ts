@@ -7,7 +7,7 @@ import ExtrasPage from '../ExtrasPage.vue';
 import AdminConfirmHost from '../../../../components/admin/AdminConfirmHost.vue';
 import AdminToastRegion from '../../../../components/admin/AdminToastRegion.vue';
 import { renderAt, jsonResponse } from '../../../../test/helpers';
-import { listBody, stubAdminFetch, type SeenRequest } from '../../../../test/admin';
+import { listBody, stubAdminFetch, type SeenRequest, chooseRowAction } from '../../../../test/admin';
 import { useToast } from '../../../../composables/admin/useToast';
 import { useConfirm } from '../../../../composables/admin/useConfirm';
 import type { Extra } from '../extras';
@@ -136,7 +136,7 @@ describe('ExtrasPage', () => {
     );
     const user = userEvent.setup();
     await renderAt(Page, '/admin/extras');
-    await user.click(await within(table()).findByRole('button', { name: 'Delete Pin' }));
+    await chooseRowAction(user, table(), 'Pin', 'Delete…');
     const dialog = await screen.findByRole('dialog', { name: 'Delete extra' });
     await user.type(within(dialog).getByLabelText(/Type DELETE/), 'DELETE');
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));

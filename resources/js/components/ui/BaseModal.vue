@@ -171,13 +171,14 @@ onBeforeUnmount(() => {
             type="button"
             class="-mr-2 rounded-sm px-2 py-1 text-2xl leading-none text-muted hover:bg-subtle hover:text-text"
             :aria-label="closeLabel"
+            :title="closeLabel"
             @click="dismiss"
           >
             <span aria-hidden="true">&times;</span>
           </button>
         </div>
         <div
-          class="px-5 py-4"
+          class="@container px-5 py-4"
           :class="sheet ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 md:px-5' : ''"
         >
           <slot />

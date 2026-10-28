@@ -6,7 +6,7 @@
 import { computed, ref } from 'vue';
 import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
 import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
-import AdminIconButton from '../../../components/admin/AdminIconButton.vue';
+import AdminRowActions from '../../../components/admin/AdminRowActions.vue';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader.vue';
 import RelationSelect, { type RelationOption } from '../../../components/admin/RelationSelect.vue';
 import StatusBadge from '../../../components/admin/StatusBadge.vue';
@@ -16,7 +16,7 @@ import { useAdminList } from '../../../composables/admin/useAdminList';
 import { ADMIN_API_BASE, mapAdminError } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
-import type { FormValues } from '../../../components/admin/types';
+import { BUSY_HINT, rowActions, type FormValues, type RowAction } from '../../../components/admin/types';
 import { EXTRA_COLUMNS, EXTRA_FIELDS, EXTRA_TYPE_OPTIONS, extrasApi, toForm, toInput, type Extra } from './extras';
 
 const list = useAdminList<Extra>({
@@ -71,6 +71,11 @@ function onEventFilter(option: RelationOption | null): void {
 
 function setSelectFilter(key: 'type_id' | 'is_enabled', value: string | number | null): void {
   void list.setFilter(key, value === null || value === '' ? null : String(value));
+}
+
+function actionsFor(extra: Extra): RowAction[] {
+  const busy = busyId.value === extra.id;
+  return rowActions({ id: 'delete', label: 'Delete…', icon: 'trash', danger: true, disabled: busy, hint: busy ? BUSY_HINT : undefined, handler: () => remove(extra) });
 }
 
 async function remove(extra: Extra): Promise<void> {
@@ -174,17 +179,10 @@ function eventFilterValue(): number | null {
       </template>
 
       <template #actions="{ row }">
-        <AdminIconButton
-          icon="edit"
-          :label="`Edit ${row.name}`"
-          @click="openEdit(row)"
-        />
-        <AdminIconButton
-          icon="trash"
-          variant="danger"
-          :label="`Delete ${row.name}`"
-          :disabled="busyId === row.id"
-          @click="remove(row)"
+        <AdminRowActions
+          :subject="row.name"
+          :primary="{ id: 'edit', label: 'Edit', icon: 'edit', handler: () => openEdit(row) }"
+          :actions="actionsFor(row)"
         />
       </template>
     </AdminDataTable>

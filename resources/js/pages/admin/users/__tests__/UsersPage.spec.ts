@@ -7,7 +7,7 @@ import UsersPage from '../UsersPage.vue';
 import AdminConfirmHost from '../../../../components/admin/AdminConfirmHost.vue';
 import AdminToastRegion from '../../../../components/admin/AdminToastRegion.vue';
 import { renderAt, jsonResponse } from '../../../../test/helpers';
-import { listBody, stubAdminFetch, type SeenRequest } from '../../../../test/admin';
+import { listBody, stubAdminFetch, type SeenRequest, chooseRowAction, rowMenuItem } from '../../../../test/admin';
 import { useToast } from '../../../../composables/admin/useToast';
 import { useConfirm } from '../../../../composables/admin/useConfirm';
 import { goToSite, type AdminUser } from '../users';
@@ -80,8 +80,8 @@ describe('UsersPage', () => {
     const { container } = await renderAt(Page, '/admin/users');
     expect(await within(table()).findByText('Ada Lovelace')).toBeTruthy();
     expect(within(table()).queryByText('Bo Gone')).toBeTruthy();
-    expect(within(table()).getByRole('button', { name: 'Log in as Ada Lovelace' })).toBeTruthy();
-    expect(within(table()).getByRole('button', { name: 'Restore Bo Gone' })).toBeTruthy();
+    expect(within(table()).getByRole('button', { name: 'Edit Ada Lovelace' })).toBeTruthy();
+    expect(within(table()).getByRole('button', { name: 'Actions for Bo Gone' })).toBeTruthy();
     const list = seen.find((r) => r.path === '/admin-api/users')!;
     expect(list.params.get('sort')).toBe('last');
     expect(await axe(container)).toHaveNoViolations();
@@ -112,7 +112,7 @@ describe('UsersPage', () => {
     );
     const user = userEvent.setup();
     await renderAt(Page, '/admin/users');
-    await user.click(await within(table()).findByRole('button', { name: 'Log in as Ada Lovelace' }));
+    await chooseRowAction(user, table(), 'Ada Lovelace', 'Log in as member');
     const dialog = await screen.findByRole('dialog', { name: 'Log in as this member' });
     await user.click(within(dialog).getByRole('button', { name: 'Log in as member' }));
 
@@ -124,7 +124,7 @@ describe('UsersPage', () => {
     const { seen } = stubUsers();
     const user = userEvent.setup();
     await renderAt(Page, '/admin/users');
-    await user.click(await within(table()).findByRole('button', { name: 'Log in as Ada Lovelace' }));
+    await chooseRowAction(user, table(), 'Ada Lovelace', 'Log in as member');
     await user.click(await screen.findByRole('button', { name: 'Cancel' }));
     expect(seen.some((r) => r.path === '/admin-api/users/1/impersonate')).toBe(false);
     expect(goToSite).not.toHaveBeenCalled();
@@ -138,11 +138,11 @@ describe('UsersPage', () => {
     });
     const user = userEvent.setup();
     await renderAt(Page, '/admin/users');
-    await user.click(await within(table()).findByRole('button', { name: 'Disable Ada Lovelace' }));
+    await chooseRowAction(user, table(), 'Ada Lovelace', 'Disable…');
     await user.click(await screen.findByRole('button', { name: 'Disable' }));
     await waitFor(() => expect(seen.some((r) => r.method === 'DELETE')).toBe(true));
 
-    await user.click(await within(table()).findByRole('button', { name: 'Restore Bo Gone' }));
+    await chooseRowAction(user, table(), 'Bo Gone', 'Restore');
     await waitFor(() => expect(seen.some((r) => r.method === 'POST' && r.path === '/admin-api/users/2/restore')).toBe(true));
   });
 
@@ -152,7 +152,7 @@ describe('UsersPage', () => {
     );
     const user = userEvent.setup();
     await renderAt(Page, '/admin/users');
-    await user.click(await within(table()).findByRole('button', { name: 'Register Ada Lovelace for an event' }));
+    await chooseRowAction(user, table(), 'Ada Lovelace', 'Register for an event');
     const dialog = await screen.findByRole('dialog', { name: 'Register Ada Lovelace for an event' });
     await user.type(within(dialog).getByRole('combobox'), 'spr');
     await user.click(await screen.findByRole('option', { name: 'Spring (2026)' }));
@@ -217,7 +217,7 @@ describe('UsersPage', () => {
     });
     const user = userEvent.setup();
     await renderAt(Page, '/admin/users');
-    await user.click(await within(table()).findByRole('button', { name: 'Set password for Ada Lovelace' }));
+    await chooseRowAction(user, table(), 'Ada Lovelace', 'Set password');
     const dialog = await screen.findByRole('dialog', { name: 'Set password for Ada Lovelace' });
     await user.type(within(dialog).getByLabelText(/^Password \(required\)/), 'secret12');
     await user.type(within(dialog).getByLabelText('Confirm password (required)'), 'secret13');
@@ -232,12 +232,20 @@ describe('UsersPage', () => {
     expect(seen.filter((r) => r.path === '/admin-api/users/1/password').at(-1)?.body).toEqual({ password: 'secret12', password_confirmation: 'secret12' });
   });
 
-  it("hides set password and reset for another administrator's account", async () => {
-    stubUsers([member(), member({ id: 9, full_name: 'Other Admin', type_id: 3, type_name: 'Administrator' })]);
+  it("disables set password and reset for another administrator's account, saying why", async () => {
+    const { seen } = stubUsers([member(), member({ id: 9, full_name: 'Other Admin', type_id: 3, type_name: 'Administrator' })]);
+    const user = userEvent.setup();
     await renderAt(Page, '/admin/users');
     await within(table()).findByText('Other Admin');
-    expect(within(table()).queryByRole('button', { name: 'Set password for Other Admin' })).toBeNull();
-    expect(within(table()).queryByRole('button', { name: 'Send password reset to Other Admin' })).toBeNull();
-    expect(within(table()).getByRole('button', { name: 'Send password reset to Ada Lovelace' })).toBeTruthy();
+    const setPassword = await rowMenuItem(user, table(), 'Other Admin', /^Set password/);
+    expect(setPassword.getAttribute('aria-disabled')).toBe('true');
+    expect(setPassword.textContent).toContain('Each administrator manages their own sign-in.');
+    const reset = screen.getByRole('menuitem', { name: /^Send password reset/ });
+    expect(reset.getAttribute('aria-disabled')).toBe('true');
+    await user.click(reset);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(seen.some((r) => r.path.endsWith('/password-reset'))).toBe(false);
+    await user.keyboard('{Escape}');
+    expect((await rowMenuItem(user, table(), 'Ada Lovelace', 'Send password reset')).getAttribute('aria-disabled')).toBeNull();
   });
 });

@@ -139,7 +139,7 @@ watch(() => [props.open, props.event?.id], () => void load(), { immediate: true 
               @update:model-value="pickId = $event"
             />
           </div>
-          <div class="w-full sm:w-40">
+          <div class="w-full @md:w-40">
             <BaseCombobox
               id="event-sponsor-pick-tier"
               :model-value="pickTier"
@@ -186,7 +186,7 @@ watch(() => [props.open, props.event?.id], () => void load(), { immediate: true 
               label="Disabled"
               variant="neutral"
             />
-            <div class="w-full sm:w-40">
+            <div class="w-full @md:w-40">
               <BaseCombobox
                 :model-value="String(item.type_id ?? '')"
                 :options="SPONSOR_TIERS"

@@ -6,7 +6,7 @@
  * the default slot ({ item, index }); `itemLabel` names rows for the buttons and announcements.
  */
 import { nextTick, ref, watch } from 'vue';
-import AdminIcon from './AdminIcon.vue';
+import AdminIconButton from './AdminIconButton.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -123,28 +123,22 @@ function onDragEnd(): void {
           </slot>
         </div>
         <div class="flex shrink-0 gap-1">
-          <button
-            type="button"
+          <AdminIconButton
             data-move="up"
-            class="a2-icon-btn"
-            :aria-label="`Move ${itemLabel(item)} up`"
+            icon="up"
+            :label="`Move ${itemLabel(item)} up`"
             :disabled="disabled || index === 0"
             @click="moveTo(index, index - 1, 'up')"
             @keydown="onKeydown($event, index)"
-          >
-            <AdminIcon name="up" />
-          </button>
-          <button
-            type="button"
+          />
+          <AdminIconButton
             data-move="down"
-            class="a2-icon-btn"
-            :aria-label="`Move ${itemLabel(item)} down`"
+            icon="down"
+            :label="`Move ${itemLabel(item)} down`"
             :disabled="disabled || index === order.length - 1"
             @click="moveTo(index, index + 1, 'down')"
             @keydown="onKeydown($event, index)"
-          >
-            <AdminIcon name="down" />
-          </button>
+          />
         </div>
       </li>
     </ul>

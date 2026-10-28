@@ -37,6 +37,10 @@ const banner = ref<string | null>(null);
 
 const accept = IMAGE_TYPES.join(',');
 const shownSrc = computed(() => chosen.previewUrl.value ?? props.currentSrc ?? null);
+const previewAlt = computed(() => {
+  if (chosen.previewUrl.value !== null) return 'Preview of the image to upload';
+  return shownSrc.value === null ? 'No image yet' : props.currentAlt;
+});
 const fieldErrors = computed(() => (chosen.problem.value !== null ? [chosen.problem.value] : serverErrors.value));
 
 function reset(): void {
@@ -100,16 +104,16 @@ async function submit(): Promise<void> {
       novalidate
       @submit.prevent="submit"
     >
-      <div class="flex flex-col gap-4 sm:flex-row sm:items-start">
-        <SafeImage
-          :src="shownSrc"
-          :alt="chosen.previewUrl.value ? 'Preview of the image to upload' : currentAlt"
-          img-class="h-32 w-32 rounded-md border border-border object-contain bg-subtle"
-          width="128"
-          height="128"
-          loading="eager"
-        />
-        <div class="min-w-0 flex-1">
+      <div class="flex flex-col gap-4">
+        <div class="h-40 w-full max-w-xs overflow-hidden rounded-md border border-border bg-subtle">
+          <SafeImage
+            :src="shownSrc"
+            :alt="previewAlt"
+            img-class="h-40 w-full object-contain"
+            loading="eager"
+          />
+        </div>
+        <div class="min-w-0">
           <FormField
             :id="inputId"
             v-slot="{ inputProps }"

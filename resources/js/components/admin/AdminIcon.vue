@@ -31,7 +31,12 @@ export type AdminIconName =
   | 'align-left'
   | 'align-center'
   | 'align-right'
-  | 'align-justify';
+  | 'align-justify'
+  | 'more'
+  | 'file'
+  | 'dollar'
+  | 'award'
+  | 'ban';
 
 defineProps<{ name: AdminIconName }>();
 
@@ -67,6 +72,11 @@ const PATHS: Record<AdminIconName, string> = {
   'align-center': 'M3 6h18 M6 12h12 M4 18h16',
   'align-right': 'M3 6h18 M9 12h12 M6 18h15',
   'align-justify': 'M3 6h18 M3 12h18 M3 18h18',
+  more: 'M5 12h.01 M12 12h.01 M19 12h.01',
+  file: 'M14 3H6v18h12V7Z M14 3v4h4 M9 13h6 M9 17h6',
+  dollar: 'M12 3v18 M16.5 7.5c0-1.7-2-3-4.5-3s-4.5 1.3-4.5 3 2 2.6 4.5 3 4.5 1.3 4.5 3-2 3-4.5 3-4.5-1.3-4.5-3',
+  award: 'M12 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z M8.5 14 7 22l5-3 5 3-1.5-8',
+  ban: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z M5.6 5.6l12.8 12.8',
 };
 </script>
 

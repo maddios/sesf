@@ -7,7 +7,7 @@
 import { ref } from 'vue';
 import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
 import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
-import AdminIconButton from '../../../components/admin/AdminIconButton.vue';
+import AdminRowActions from '../../../components/admin/AdminRowActions.vue';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader.vue';
 import ImageUploadModal from '../../../components/admin/ImageUploadModal.vue';
 import RelationSelect from '../../../components/admin/RelationSelect.vue';
@@ -19,7 +19,7 @@ import { useAdminList } from '../../../composables/admin/useAdminList';
 import { ADMIN_API_BASE, mapAdminError } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
-import type { FormValues } from '../../../components/admin/types';
+import { BUSY_HINT, rowActions, type FormValues, type RowAction } from '../../../components/admin/types';
 import { SPONSOR_COLUMNS, SPONSOR_FIELDS, imageSrc, sponsorsApi, toForm, toInput, type Sponsor } from './sponsors';
 
 const list = useAdminList<Sponsor>({
@@ -88,6 +88,15 @@ function uploadImage(file: File, onProgress: (percent: number) => void): Promise
 function onUploaded(): void {
   toast.success(`Logo for “${imageFor.value?.name ?? 'sponsor'}” uploaded.`);
   void list.reload();
+}
+
+function actionsFor(sponsor: Sponsor): RowAction[] {
+  const busy = busyId.value === sponsor.id;
+  return rowActions(
+    { id: 'enabled', label: sponsor.is_enabled ? 'Disable' : 'Enable', icon: sponsor.is_enabled ? 'eye-off' : 'eye', disabled: busy, hint: busy ? BUSY_HINT : undefined, handler: () => setEnabled(sponsor, !sponsor.is_enabled) },
+    { id: 'image', label: 'Upload logo', icon: 'image', handler: () => openImage(sponsor) },
+    { id: 'delete', label: 'Delete…', icon: 'trash', danger: true, handler: () => remove(sponsor) },
+  );
 }
 
 async function remove(sponsor: Sponsor): Promise<void> {
@@ -220,27 +229,10 @@ function showFilterValue(): number | null {
       </template>
 
       <template #actions="{ row }">
-        <AdminIconButton
-          icon="edit"
-          :label="`Edit ${row.name}`"
-          @click="openEdit(row)"
-        />
-        <AdminIconButton
-          :icon="row.is_enabled ? 'eye-off' : 'eye'"
-          :label="`${row.is_enabled ? 'Disable' : 'Enable'} ${row.name}`"
-          :disabled="busyId === row.id"
-          @click="setEnabled(row, !row.is_enabled)"
-        />
-        <AdminIconButton
-          icon="image"
-          :label="`Upload logo for ${row.name}`"
-          @click="openImage(row)"
-        />
-        <AdminIconButton
-          icon="trash"
-          variant="danger"
-          :label="`Delete ${row.name}`"
-          @click="remove(row)"
+        <AdminRowActions
+          :subject="row.name"
+          :primary="{ id: 'edit', label: 'Edit', icon: 'edit', handler: () => openEdit(row) }"
+          :actions="actionsFor(row)"
         />
       </template>
     </AdminDataTable>

@@ -1,4 +1,29 @@
 /** Shared types for the admin kit (components/admin). */
+import type { RouteLocationRaw } from 'vue-router';
+import type { AdminIconName } from './AdminIcon.vue';
+
+/**
+ * One row action for AdminRowActions. `label` is the visible text; the row's subject gives the context. Give one of
+ * `handler`, `to` (router link) or `href`. `hint` explains a disabled item (or adds a short note otherwise).
+ */
+export interface RowAction {
+  id: string;
+  label: string;
+  icon: AdminIconName;
+  handler?: () => unknown;
+  to?: RouteLocationRaw;
+  href?: string;
+  danger?: boolean;
+  disabled?: boolean;
+  hint?: string;
+}
+
+/** Builds a row action list, leaving out entries given as false (`cond && {...}`). */
+export function rowActions(...items: Array<RowAction | false>): RowAction[] {
+  return items.filter((item): item is RowAction => item !== false);
+}
+
+export const BUSY_HINT = 'Wait for the current change to finish.';
 
 export type FormValues = Record<string, unknown>;
 

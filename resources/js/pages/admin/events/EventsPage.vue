@@ -7,7 +7,7 @@
 import { computed, ref } from 'vue';
 import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
 import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
-import AdminIconButton from '../../../components/admin/AdminIconButton.vue';
+import AdminRowActions from '../../../components/admin/AdminRowActions.vue';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader.vue';
 import ImageUploadModal from '../../../components/admin/ImageUploadModal.vue';
 import StatusBadge from '../../../components/admin/StatusBadge.vue';
@@ -17,7 +17,7 @@ import { useAdminList } from '../../../composables/admin/useAdminList';
 import { mapAdminError } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
-import type { FormValues } from '../../../components/admin/types';
+import { BUSY_HINT, rowActions, type FormValues, type RowAction } from '../../../components/admin/types';
 import EventSponsorsDialog from './EventSponsorsDialog.vue';
 import {
   EVENT_COLUMNS,
@@ -171,6 +171,35 @@ function openSponsors(event: Event): void {
   sponsorsOpen.value = true;
 }
 
+function actionsFor(event: Event): RowAction[] {
+  const busy = busyId.value === event.id;
+  const busyHint = busy ? BUSY_HINT : undefined;
+  return rowActions(
+    { id: 'active', label: event.is_active ? 'Deactivate' : 'Activate', icon: 'power', disabled: busy, hint: busyHint, handler: () => setActive(event, !event.is_active) },
+    {
+      id: 'release',
+      label: event.is_judging_released ? 'Withhold judging results' : 'Release judging results',
+      icon: 'award',
+      disabled: busy,
+      hint: busyHint,
+      handler: () => setJudgingReleased(event, !event.is_judging_released),
+    },
+    {
+      id: 'send-results',
+      label: 'Send judging results',
+      icon: 'mail',
+      disabled: busy || !event.is_judging_released,
+      hint: event.is_judging_released ? busyHint : 'Release the judging results first.',
+      handler: () => sendResults(event),
+    },
+    { id: 'image', label: 'Upload image', icon: 'image', handler: () => openImage(event) },
+    { id: 'schedule-pdf', label: 'Upload schedule PDF', icon: 'file', disabled: busy, hint: busyHint, handler: () => choosePdf(event) },
+    { id: 'sponsors', label: 'Sponsors', icon: 'users', handler: () => openSponsors(event) },
+    { id: 'expenses', label: 'Expense tracker', icon: 'dollar', to: `/admin/expenses?show_id=${event.id}` },
+    { id: 'delete', label: 'Delete…', icon: 'trash', danger: true, disabled: busy, hint: busyHint, handler: () => remove(event) },
+  );
+}
+
 async function remove(event: Event): Promise<void> {
   const ok = await confirm({
     title: 'Delete event',
@@ -249,58 +278,18 @@ async function remove(event: Event): Promise<void> {
         />
       </template>
 
+      <template #cell-is_judging_released="{ row }">
+        <StatusBadge
+          :label="row.is_judging_released ? 'Released' : 'Withheld'"
+          :variant="row.is_judging_released ? 'info' : 'neutral'"
+        />
+      </template>
+
       <template #actions="{ row }">
-        <AdminIconButton
-          icon="edit"
-          :label="`Edit ${row.name}`"
-          @click="openEdit(row)"
-        />
-        <AdminIconButton
-          icon="power"
-          :label="`${row.is_active ? 'Deactivate' : 'Activate'} ${row.name}`"
-          :disabled="busyId === row.id"
-          @click="setActive(row, !row.is_active)"
-        />
-        <AdminIconButton
-          icon="check"
-          :label="`${row.is_judging_released ? 'Withhold' : 'Release'} judging results for ${row.name}`"
-          :disabled="busyId === row.id"
-          @click="setJudgingReleased(row, !row.is_judging_released)"
-        />
-        <AdminIconButton
-          v-if="row.is_judging_released"
-          icon="mail"
-          :label="`Send judging results for ${row.name}`"
-          :disabled="busyId === row.id"
-          @click="sendResults(row)"
-        />
-        <AdminIconButton
-          icon="image"
-          :label="`Upload image for ${row.name}`"
-          @click="openImage(row)"
-        />
-        <AdminIconButton
-          icon="calendar"
-          :label="`Upload schedule PDF for ${row.name}`"
-          @click="choosePdf(row)"
-        />
-        <BaseButton
-          size="sm"
-          :to="`/admin/expenses?show_id=${row.id}`"
-          :aria-label="`Expenses for ${row.name}`"
-        >
-          Expenses
-        </BaseButton>
-        <AdminIconButton
-          icon="users"
-          :label="`Sponsors for ${row.name}`"
-          @click="openSponsors(row)"
-        />
-        <AdminIconButton
-          icon="trash"
-          variant="danger"
-          :label="`Delete ${row.name}`"
-          @click="remove(row)"
+        <AdminRowActions
+          :subject="row.name"
+          :primary="{ id: 'edit', label: 'Edit', icon: 'edit', handler: () => openEdit(row) }"
+          :actions="actionsFor(row)"
         />
       </template>
     </AdminDataTable>

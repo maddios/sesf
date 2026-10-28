@@ -1537,7 +1537,8 @@
   gap: 12px 18px;
 }
 
-@media (min-width: 768px) {
+/* Two columns when the dialog body (a size container, see BaseModal) is wide enough, whatever the viewport. */
+@container (min-width: 34rem) {
   .admin-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1886,5 +1887,182 @@
   .admin-ui .rte-raw {
     font-size: 16px;
     line-height: 1.5;
+  }
+}
+
+/* ---------- 7. Row actions (components/admin/AdminRowActions.vue) ---------- */
+@layer components {
+  .admin-row-actions {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .admin-row-actions .a2-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .admin-row-more .admin-icon {
+    stroke-width: 3.5;
+  }
+
+  .admin-actions-popover {
+    position: fixed;
+    z-index: 60;
+    min-width: 13rem;
+    max-width: min(20rem, calc(100vw - 16px));
+    padding: 4px 0;
+    background: #fff;
+    border: 1px solid #c4c4c4;
+    border-radius: 4px;
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.18);
+  }
+
+  .admin-actions-menu {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .admin-actions-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 6px 14px;
+    font-size: 13px;
+    line-height: 20px;
+    color: #333;
+    text-align: left;
+    text-decoration: none;
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+
+  .admin-actions-item:hover,
+  .admin-actions-item:focus-visible {
+    color: #111;
+    background: var(--admin-row-hover);
+  }
+
+  .admin-actions-item:focus-visible {
+    outline-offset: -2px;
+  }
+
+  .admin-actions-item .admin-icon {
+    color: #4b5563;
+  }
+
+  .admin-actions-item.is-danger,
+  .admin-actions-item.is-danger .admin-icon {
+    color: #a82824;
+  }
+
+  .admin-actions-item.is-danger:hover,
+  .admin-actions-item.is-danger:focus-visible {
+    background: #fbeaea;
+  }
+
+  .admin-actions-item[aria-disabled="true"] {
+    color: #6b6b6b;
+    cursor: not-allowed;
+  }
+
+  .admin-actions-item[aria-disabled="true"] .admin-icon {
+    opacity: 0.55;
+  }
+
+  .admin-actions-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  /* Desktop: the hint is the tooltip (title); it stays in the accessibility tree through aria-describedby. */
+  .admin-actions-popover .admin-actions-hint {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .admin-actions-sep {
+    margin: 4px 0;
+    border-top: 1px solid #e3e3e3;
+  }
+
+  .admin-actions-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 59;
+    background: rgb(0 0 0 / 0.4);
+  }
+
+  .admin-actions-sheet {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 60;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 6px 0 calc(10px + env(safe-area-inset-bottom));
+    background: #fff;
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 -6px 24px rgb(0 0 0 / 0.25);
+  }
+
+  .admin-actions-sheet-title {
+    margin: 0;
+    padding: 10px 18px 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #4f5559;
+    border-bottom: 1px solid #eef0f1;
+  }
+
+  .admin-actions-sheet .admin-actions-item {
+    min-height: 52px;
+    gap: 14px;
+    padding: 8px 18px;
+    font-size: 16px;
+    line-height: 22px;
+  }
+
+  .admin-actions-sheet .admin-actions-item .admin-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .admin-actions-sheet .admin-actions-hint {
+    font-size: 13px;
+    line-height: 18px;
+    color: #5f6368;
+  }
+
+  /* Cards: the two row buttons share the card width and use phone-sized text. */
+  .admin-card-actions {
+    display: flex;
+  }
+
+  .admin-card-actions .admin-row-actions {
+    display: flex;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .admin-card-actions .admin-row-actions .a2-btn {
+    flex: 1 1 0;
+    justify-content: center;
+    min-height: 40px;
+    font-size: 15px;
+  }
+
+  .admin-card.is-clickable {
+    cursor: pointer;
   }
 }

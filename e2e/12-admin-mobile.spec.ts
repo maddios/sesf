@@ -1,3 +1,4 @@
+import type { Locator, Page } from '@playwright/test';
 import { test, expect, visit, login, shot, expectNoHorizontalScroll } from './support/test';
 import { expectNoSeriousA11yViolations } from './support/axe';
 import { seed } from './support/seed';
@@ -25,6 +26,31 @@ function adminPages(eventId: number): Array<[string, string]> {
     ['report-event-summary', `/admin/reports/event-summary?show_id=${eventId}`],
     ['report-extras', `/admin/reports/extras?show_id=${eventId}`],
   ];
+}
+
+/** The image upload dialogs, opened from each list's row Actions menu. */
+const IMAGE_DIALOGS: Array<[path: string, item: string]> = [
+  ['/admin/events', 'Upload image'],
+  ['/admin/sponsors', 'Upload logo'],
+  ['/admin/cars', 'Upload photo'],
+];
+
+async function openRowAction(page: Page, item: string): Promise<void> {
+  await page.getByRole('button', { name: /^Actions for / }).filter({ visible: true }).first().click();
+  await page.getByRole('menu').getByRole('menuitem', { name: item }).click();
+}
+
+/** Text in the dialog keeps a readable width: nothing with a sentence of text is squeezed into a narrow column. */
+async function expectReadableDialog(dialog: Locator, name: string): Promise<void> {
+  const squeezed = await dialog.evaluate((root) =>
+    Array.from(root.querySelectorAll<HTMLElement>('label, p, input, button, img, [role="img"]'))
+      .filter((element) => element.offsetParent !== null && (element.textContent ?? '').trim().length > 20)
+      .map((element) => ({ text: (element.textContent ?? '').trim().slice(0, 40), width: element.getBoundingClientRect().width, lines: element.getBoundingClientRect().height / parseFloat(getComputedStyle(element).lineHeight || '20') }))
+      .filter((element) => element.width < 240 || element.lines > 3),
+  );
+  expect(squeezed, `${name}: squeezed text`).toEqual([]);
+  const input = dialog.locator('input[type="file"]');
+  expect((await input.boundingBox())?.width ?? 0, `${name}: file input width`).toBeGreaterThanOrEqual(240);
 }
 
 test.describe('admin on a phone (390 x 844)', () => {
@@ -84,6 +110,51 @@ test.describe('admin on a phone (390 x 844)', () => {
     await expectNoHorizontalScroll(page);
   });
 
+  test('row actions: a labelled Edit button and an Actions bottom sheet with large labelled rows', async ({ page }) => {
+    const s = seed();
+    await login(page, s.users.admin.email);
+    await visit(page, '/admin/events');
+    const card = page.locator('.admin-card').filter({ hasText: s.events.current.name });
+    await expect(card.getByRole('button', { name: `Edit ${s.events.current.name}` })).toBeVisible();
+    const trigger = card.getByRole('button', { name: `Actions for ${s.events.current.name}` });
+    await expect(trigger).toHaveText(/Actions/);
+    await trigger.click();
+    const menu = page.getByRole('menu', { name: `Actions for ${s.events.current.name}` });
+    await expect(menu).toBeInViewport();
+    const items = menu.getByRole('menuitem');
+    for (const box of await items.evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height))) {
+      expect(box).toBeGreaterThanOrEqual(48);
+    }
+    await expect(items.last()).toHaveText('Delete…');
+    const send = menu.getByRole('menuitem', { name: 'Send judging results' });
+    await expect(send).toHaveAttribute('aria-disabled', 'true');
+    await expect(send).toContainText('Release the judging results first.');
+    await expectNoHorizontalScroll(page);
+    await shot(page, '12-admin-mobile-row-actions-sheet');
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    await expect(trigger).toBeFocused();
+
+    await trigger.click();
+    await menu.getByRole('menuitem', { name: 'Sponsors' }).click();
+    await expect(page.getByRole('dialog', { name: `Sponsors for ${s.events.current.name}` })).toBeVisible();
+  });
+
+  test('image upload dialogs keep the file picker and its text readable', async ({ page }) => {
+    const s = seed();
+    await login(page, s.users.admin.email);
+    for (const [path, item] of IMAGE_DIALOGS) {
+      await visit(page, path);
+      await openRowAction(page, item);
+      const dialog = page.getByRole('dialog');
+      await expect(dialog).toBeVisible();
+      await expectReadableDialog(dialog, `${path} ${item}`);
+      await expectNoHorizontalScroll(page);
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeHidden();
+    }
+  });
+
   test('admin list filters open as a sheet and the combobox lists the events', async ({ page }) => {
     const s = seed();
     await login(page, s.users.admin.email);
@@ -94,6 +165,36 @@ test.describe('admin on a phone (390 x 844)', () => {
     await event.click();
     await expect(page.getByRole('option', { name: new RegExp(s.events.current.name) })).toBeVisible();
     await expectNoHorizontalScroll(page);
+  });
+});
+
+test.describe('admin on a desktop (1280)', () => {
+  test('row Actions open a popover menu by keyboard; image dialogs stay readable', async ({ page }) => {
+    const s = seed();
+    await login(page, s.users.admin.email);
+    await visit(page, '/admin/events');
+    const row = page.getByRole('table', { name: 'Events' }).getByRole('row').filter({ hasText: s.events.current.name });
+    const trigger = row.getByRole('button', { name: `Actions for ${s.events.current.name}` });
+    await trigger.focus();
+    await page.keyboard.press('ArrowDown');
+    const menu = page.getByRole('menu', { name: `Actions for ${s.events.current.name}` });
+    await expect(menu).toBeVisible();
+    await expect(menu.getByRole('menuitem').first()).toBeFocused();
+    await page.keyboard.press('End');
+    await expect(menu.getByRole('menuitem', { name: 'Delete…' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    await expect(trigger).toBeFocused();
+
+    for (const [path, item] of IMAGE_DIALOGS) {
+      await visit(page, path);
+      await openRowAction(page, item);
+      const dialog = page.getByRole('dialog');
+      await expect(dialog).toBeVisible();
+      await expectReadableDialog(dialog, `${path} ${item}`);
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeHidden();
+    }
   });
 });
 

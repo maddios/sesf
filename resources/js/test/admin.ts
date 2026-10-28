@@ -1,4 +1,6 @@
 import { vi } from 'vitest';
+import { screen, within } from '@testing-library/vue';
+import type { UserEvent } from '@testing-library/user-event';
 import { jsonResponse, SESSION_PAYLOAD } from './helpers';
 
 export const ADMIN_SESSION = { ...SESSION_PAYLOAD, user_id: 1, user_level: 3, type_id: 3, first_name: 'Ada', profileURL: '/ada/u1' };
@@ -101,4 +103,16 @@ export function stubXhr(): FakeXhr[] {
   }
   vi.stubGlobal('XMLHttpRequest', Fake);
   return created;
+}
+
+/** Opens the row's "Actions" menu inside `scope` and returns the menu item named `item` (the menu is teleported to body). */
+export async function rowMenuItem(user: UserEvent, scope: HTMLElement, subject: string, item: string | RegExp): Promise<HTMLElement> {
+  await user.click(await within(scope).findByRole('button', { name: `Actions for ${subject}` }));
+  const menu = await screen.findByRole('menu', { name: `Actions for ${subject}` });
+  return within(menu).getByRole('menuitem', { name: item });
+}
+
+/** Opens the row's "Actions" menu and chooses `item`. */
+export async function chooseRowAction(user: UserEvent, scope: HTMLElement, subject: string, item: string | RegExp): Promise<void> {
+  await user.click(await rowMenuItem(user, scope, subject, item));
 }

@@ -10,7 +10,7 @@
 import { ref } from 'vue';
 import AdminDataTable from '../../../components/admin/AdminDataTable.vue';
 import AdminFormModal from '../../../components/admin/AdminFormModal.vue';
-import AdminIconButton from '../../../components/admin/AdminIconButton.vue';
+import AdminRowActions from '../../../components/admin/AdminRowActions.vue';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader.vue';
 import StatusBadge from '../../../components/admin/StatusBadge.vue';
 import BaseButton from '../../../components/ui/BaseButton.vue';
@@ -20,7 +20,7 @@ import { mapAdminError } from '../../../composables/admin/useAdminResource';
 import { useConfirm } from '../../../composables/admin/useConfirm';
 import { useToast } from '../../../composables/admin/useToast';
 import { USER_TYPE_ADMIN, useAuthStore } from '../../../stores/auth';
-import type { FormValues } from '../../../components/admin/types';
+import { BUSY_HINT, rowActions, type FormValues, type RowAction } from '../../../components/admin/types';
 import RegisterForEventModal from './RegisterForEventModal.vue';
 import {
   CREATE_USER_FIELDS,
@@ -164,6 +164,32 @@ async function restore(member: AdminUser): Promise<void> {
   }
 }
 
+function actionsFor(member: AdminUser): RowAction[] {
+  const busy = busyId.value === member.id;
+  const blocked = (needsSignIn: boolean): string | undefined => {
+    if (member.is_disabled) return 'Restore the account first.';
+    if (needsSignIn && !managesSignIn(member)) return 'Each administrator manages their own sign-in.';
+    return busy ? BUSY_HINT : undefined;
+  };
+  const off = (needsSignIn: boolean): boolean => blocked(needsSignIn) !== undefined;
+  return rowActions(
+    { id: 'register', label: 'Register for an event', icon: 'calendar', disabled: off(false), hint: blocked(false), handler: () => openRegister(member) },
+    { id: 'impersonate', label: 'Log in as member', icon: 'login', disabled: off(false), hint: blocked(false), handler: () => logInAs(member) },
+    {
+      id: 'password',
+      label: 'Set password',
+      icon: 'key',
+      disabled: !managesSignIn(member),
+      hint: managesSignIn(member) ? undefined : 'Each administrator manages their own sign-in.',
+      handler: () => openPassword(member),
+    },
+    { id: 'reset', label: 'Send password reset', icon: 'mail', disabled: off(true), hint: blocked(true), handler: () => sendReset(member) },
+    member.is_disabled
+      ? { id: 'restore', label: 'Restore', icon: 'eye', disabled: busy, hint: busy ? BUSY_HINT : undefined, handler: () => restore(member) }
+      : { id: 'disable', label: 'Disable…', icon: 'eye-off', danger: true, disabled: busy, hint: busy ? BUSY_HINT : undefined, handler: () => disable(member) },
+  );
+}
+
 function onStatusFilter(value: string | number | null): void {
   void list.setFilter('status', value === null ? 'active' : String(value));
 }
@@ -226,12 +252,12 @@ function onTypeFilter(value: string | number | null): void {
       </template>
 
       <template #cell-profile_url="{ row }">
-        <AdminIconButton
-          icon="external"
+        <a
           :href="row.profile_url"
           target="_blank"
-          :label="`Profile of ${row.full_name} (opens in a new tab)`"
-        />
+          rel="noopener"
+          class="text-link underline"
+        >Profile<span class="sr-only"> of {{ row.full_name }} (opens in a new tab)</span></a>
       </template>
 
       <template #cell-is_disabled="{ row }">
@@ -242,51 +268,10 @@ function onTypeFilter(value: string | number | null): void {
       </template>
 
       <template #actions="{ row }">
-        <AdminIconButton
-          icon="edit"
-          :label="`Edit ${row.full_name}`"
-          @click="openEdit(row)"
-        />
-        <AdminIconButton
-          v-if="!row.is_disabled"
-          icon="calendar"
-          :label="`Register ${row.full_name} for an event`"
-          @click="openRegister(row)"
-        />
-        <AdminIconButton
-          v-if="!row.is_disabled"
-          icon="login"
-          :label="`Log in as ${row.full_name}`"
-          :disabled="busyId === row.id"
-          @click="logInAs(row)"
-        />
-        <AdminIconButton
-          v-if="managesSignIn(row)"
-          icon="key"
-          :label="`Set password for ${row.full_name}`"
-          @click="openPassword(row)"
-        />
-        <AdminIconButton
-          v-if="!row.is_disabled && managesSignIn(row)"
-          icon="mail"
-          :label="`Send password reset to ${row.full_name}`"
-          :disabled="busyId === row.id"
-          @click="sendReset(row)"
-        />
-        <AdminIconButton
-          v-if="row.is_disabled"
-          icon="eye"
-          :label="`Restore ${row.full_name}`"
-          :disabled="busyId === row.id"
-          @click="restore(row)"
-        />
-        <AdminIconButton
-          v-else
-          icon="eye-off"
-          variant="danger"
-          :label="`Disable ${row.full_name}`"
-          :disabled="busyId === row.id"
-          @click="disable(row)"
+        <AdminRowActions
+          :subject="row.full_name"
+          :primary="{ id: 'edit', label: 'Edit', icon: 'edit', handler: () => openEdit(row) }"
+          :actions="actionsFor(row)"
         />
       </template>
     </AdminDataTable>

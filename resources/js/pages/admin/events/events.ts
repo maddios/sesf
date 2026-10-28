@@ -153,6 +153,7 @@ export const EVENT_COLUMNS: AdminColumn<Event>[] = [
   { key: 'short_name', label: 'Short name', sortable: true, hideOnMobile: true },
   { key: 'date_start', label: 'Starts', sortable: true },
   { key: 'is_active', label: 'Status', sortable: true },
+  { key: 'is_judging_released', label: 'Results' },
   { key: 'registrations_count', label: 'Registrations', align: 'right', format: (row) => String(row.registrations_count), hideOnMobile: true },
 ];
 

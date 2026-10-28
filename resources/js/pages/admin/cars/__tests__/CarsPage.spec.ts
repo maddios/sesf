@@ -7,7 +7,7 @@ import CarsPage from '../CarsPage.vue';
 import AdminConfirmHost from '../../../../components/admin/AdminConfirmHost.vue';
 import AdminToastRegion from '../../../../components/admin/AdminToastRegion.vue';
 import { renderAt, jsonResponse } from '../../../../test/helpers';
-import { listBody, stubAdminFetch, type SeenRequest } from '../../../../test/admin';
+import { listBody, stubAdminFetch, type SeenRequest, chooseRowAction, rowMenuItem } from '../../../../test/admin';
 import { useToast } from '../../../../composables/admin/useToast';
 import { useConfirm } from '../../../../composables/admin/useConfirm';
 import { imageSrc, type Car } from '../cars';
@@ -79,9 +79,12 @@ describe('CarsPage', () => {
     expect(within(table()).getAllByText('Ada Lovelace').length).toBeGreaterThan(0);
     expect(within(table()).getAllByText('Coupe').length).toBeGreaterThan(0);
     expect(within(table()).getByText('Unconfirmed')).toBeTruthy();
-    expect(within(table()).getByRole('button', { name: 'Delete car 8' }).hasAttribute('disabled')).toBe(true);
     expect(seen.some((r) => r.path === '/admin-api/cars/options')).toBe(true);
     expect(await axe(container)).toHaveNoViolations();
+    const remove = await rowMenuItem(userEvent.setup(), table(), 'car 8', /^Delete…/);
+    expect(remove.getAttribute('aria-disabled')).toBe('true');
+    expect(remove.textContent).toContain('Registered for an event');
+    expect(await axe(remove.closest('.admin-actions-popover') as HTMLElement)).toHaveNoViolations();
   });
 
   it('lists the shows a car is entered in, read-only', async () => {
@@ -96,7 +99,7 @@ describe('CarsPage', () => {
     );
     const user = userEvent.setup();
     await renderAt(Page, '/admin/cars');
-    await user.click(await within(table()).findByRole('button', { name: 'Confirm car 7' }));
+    await chooseRowAction(user, table(), 'car 7', 'Confirm');
     await waitFor(() => expect(seen.some((r) => r.method === 'POST' && r.path === '/admin-api/cars/7/confirm')).toBe(true));
     expect(await screen.findByText('Car confirmed.')).toBeTruthy();
   });
@@ -125,7 +128,7 @@ describe('CarsPage', () => {
     const { seen } = stubCars(undefined, (r) => (r.method === 'DELETE' && r.path === '/admin-api/cars/7' ? new Response(null, { status: 204 }) : undefined));
     const user = userEvent.setup();
     await renderAt(Page, '/admin/cars');
-    await user.click(await within(table()).findByRole('button', { name: 'Delete car 7' }));
+    await chooseRowAction(user, table(), 'car 7', 'Delete…');
     const dialog = await screen.findByRole('dialog', { name: 'Delete car' });
     await user.type(within(dialog).getByLabelText(/Type DELETE/), 'DELETE');
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
