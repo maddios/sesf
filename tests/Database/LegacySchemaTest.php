@@ -18,6 +18,23 @@ function expectedLegacyTables(): array
     return $matches[1];
 }
 
+/**
+ * Tables created by the hand-applied files in database/sql (*.sql and *.sql.done), so new numbered
+ * files are picked up without editing this test.
+ *
+ * @return list<string>
+ */
+function sqlDirectoryTables(): array
+{
+    $tables = [];
+    foreach (glob(base_path(LegacyTestDatabase::SQL_DIRECTORY).'/*.sql{,.done}', GLOB_BRACE) ?: [] as $file) {
+        preg_match_all('/^CREATE TABLE (?:IF NOT EXISTS )?`([^`]+)`/mi', (string) file_get_contents($file), $matches);
+        array_push($tables, ...$matches[1]);
+    }
+
+    return array_values(array_unique($tables));
+}
+
 function legacyConnection(): Connection
 {
     return DB::connection(LegacyTestDatabase::CONNECTION);
@@ -30,17 +47,17 @@ test('the test database is sesf_test and the legacy schema has 65 tables', funct
     expect(expectedLegacyTables())->toHaveCount(65);
 });
 
-test('every table from the legacy schema dump exists in the test database', function () {
+test('the test database has exactly the legacy dump tables plus those created by database/sql', function () {
     $existing = array_map(
         fn ($row) => $row->table_name,
         legacyConnection()->select('select table_name from information_schema.tables where table_schema = database()'),
     );
 
-    foreach (expectedLegacyTables() as $table) {
-        expect($existing)->toContain($table);
-    }
+    $expected = array_values(array_unique([...expectedLegacyTables(), ...sqlDirectoryTables()]));
+    sort($expected);
+    sort($existing);
 
-    expect($existing)->toHaveCount(65);
+    expect($existing)->toBe($expected);
 });
 
 test('user has an email column', function () {

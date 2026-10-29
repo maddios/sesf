@@ -4,7 +4,7 @@ import pluginVue from 'eslint-plugin-vue';
 
 export default tseslint.config(
     {
-        ignores: ['node_modules/**', 'public/build/**', 'vendor/**', 'storage/**', 'coverage/**', 'playwright-report/**', 'test-results/**'],
+        ignores: ['node_modules/**', 'public/build/**', 'vendor/**', 'storage/**', 'coverage/**', 'playwright-report/**', 'test-results/**', 'docs/**'],
     },
     js.configs.recommended,
     tseslint.configs.recommended,
@@ -23,6 +23,11 @@ export default tseslint.config(
                 parser: tseslint.parser,
                 extraFileExtensions: ['.vue'],
             },
+        },
+        rules: {
+            // TypeScript (vue-tsc) already checks undefined names; core no-undef does not know DOM types like
+            // HTMLElement in <script lang="ts">. typescript-eslint recommends turning it off for TS code.
+            'no-undef': 'off',
         },
     },
 );

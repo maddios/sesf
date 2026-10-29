@@ -111,7 +111,7 @@ jobs:
         run: npm audit --audit-level=low
 
   e2e:
-    name: E2E (Playwright)
+    name: E2E (docker sandbox + Playwright)
     needs: [backend, frontend]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -119,64 +119,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup PHP
-        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
-        with:
-          php-version: "8.5"
-          extensions: ${{ env.PHP_EXTENSIONS }}
-          coverage: none
+      # scripts/e2e.sh builds the sesf-php:dev image if missing, installs vendor/ and node_modules/ in
+      # containers (glibc node image) when absent, builds the Vite assets, starts the sandbox (compose
+      # profile "e2e", project sesf-e2e: MariaDB sesf_e2e on tmpfs, Mailpit, PayPal stub, app), seeds it,
+      # runs Playwright in mcr.microsoft.com/playwright and removes everything afterwards. No secrets.
+      - name: Build the PHP image
+        run: docker compose --env-file docker/e2e/compose.env -p sesf-e2e --profile e2e build e2eapp
 
-      - name: Get Composer cache directory
-        id: composer-cache
-        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+      - name: Run the E2E suite
+        run: scripts/e2e.sh test
 
-      - name: Cache Composer packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ steps.composer-cache.outputs.dir }}
-          key: composer-${{ runner.os }}-php8.5-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-${{ runner.os }}-php8.5-
-
-      - name: Setup Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Install PHP dependencies
-        run: composer install --no-interaction --prefer-dist
-
-      - name: Prepare environment
-        # The SPA shell route does not touch the database, and sessions and cache
-        # are file-based in .env.example, so no database is needed for E2E.
-        run: |
-          cp .env.example .env
-          php artisan key:generate
-
-      - name: Install JS dependencies and build
-        run: |
-          npm ci
-          npm run build
-
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Start Laravel server
-        env:
-          APP_ENV: testing
-        run: |
-          php artisan serve --port=8000 > "$RUNNER_TEMP/serve.log" 2>&1 &
-          timeout 60 bash -c 'until curl -sf http://localhost:8000 > /dev/null; do sleep 1; done'
-
-      - name: Run E2E tests
-        env:
-          E2E_BASE_URL: http://localhost:8000
-        run: npm run e2e
-
-      - name: Upload Playwright report
+      - name: Upload Playwright report and artifacts
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-report
-          path: playwright-report/
+          path: |
+            playwright-report/
+            e2e/artifacts/
           retention-days: 7

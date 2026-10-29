@@ -7,6 +7,7 @@ services:
     user: "1000:1000"
     environment:
       COMPOSER_HOME: /tmp/composer
+      PHP_CLI_SERVER_WORKERS: "8"
     volumes:
       - .:/app
       # Dev file store: the already-copied production-like store, mounted
@@ -45,15 +46,49 @@ services:
         bind: {create_host_path: false}
       - type: bind
         source: ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/public/waivers
-        target: /app/public/waivers
+        target: /app/storage/legacy-waivers
         bind: {create_host_path: false}
       - type: bind
         source: ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/storage/waivers
         target: /app/storage/waivers
         bind: {create_host_path: false}
     ports:
-      - "8000:8000"
+      - "${APP_HOST_PORT:-8000}:8000"
     command: php artisan serve --host=0.0.0.0 --port=8000
+
+  # The only consumer of the database queue (QUEUE_CONNECTION=database). Same image and checkout as app; the waiver
+  # stores are mounted because queued waiver PDFs are read from and written there. Restarts on failure.
+  worker:
+    image: sesf-php:dev
+    working_dir: /app
+    user: "1000:1000"
+    restart: unless-stopped
+    environment:
+      COMPOSER_HOME: /tmp/composer
+      DB_QUEUE_TABLE: queue_jobs
+    volumes:
+      - .:/app
+      - type: bind
+        source: ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/public/waivers
+        target: /app/storage/legacy-waivers
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${DEV_STORE_DIR:-/var/www/sesf-dev-store}/storage/waivers
+        target: /app/storage/waivers
+        bind: {create_host_path: false}
+    command: php artisan queue:work --tries=3 --sleep=3 --max-time=3600
+
+  # Laravel scheduler (routes/console.php): runs scheduled commands only; it never consumes the queue (see worker).
+  scheduler:
+    image: sesf-php:dev
+    working_dir: /app
+    user: "1000:1000"
+    restart: unless-stopped
+    environment:
+      COMPOSER_HOME: /tmp/composer
+    volumes:
+      - .:/app
+    command: php artisan schedule:work
 
   node:
     image: node:24
@@ -123,3 +158,168 @@ services:
       timeout: 5s
       retries: 60
       start_period: 5s
+
+  # ---------------------------------------------------------------------------------------------
+  # E2E sandbox (profile "e2e"). Always run through scripts/e2e.sh, which uses its own compose
+  # project (sesf-e2e) so the dev stack (project sesf-new) is never touched, and names these
+  # services explicitly. Containers run as the invoking user (E2E_UID/E2E_GID, default 1000).
+  # Throwaway DB sesf_e2e on tmpfs; never sesf_dev or any shared host.
+  # Host ports (127.0.0.1 only): 8001 app, 8025 Mailpit UI/API, 9001 PayPal stub control.
+  # See docs/e2e.md.
+  # ---------------------------------------------------------------------------------------------
+  e2edb:
+    image: mariadb:10.11.19
+    profiles: ["e2e"]
+    environment:
+      MARIADB_ROOT_PASSWORD: e2e
+      MARIADB_DATABASE: sesf_e2e
+    tmpfs:
+      - /var/lib/mysql
+    command:
+      - --sql-mode=STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+      - --character-set-server=latin1
+      - --collation-server=latin1_swedish_ci
+    networks: [e2e]
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+      start_period: 5s
+
+  # Mailpit 1.32.0: catches all sandbox mail (SMTP 1025, network-internal). No relay is configured,
+  # so nothing leaves the sandbox. 1.32.0 fixes every published Mailpit advisory (see docs/e2e.md).
+  mailpit:
+    image: axllent/mailpit:v1.32.0
+    profiles: ["e2e"]
+    user: "${E2E_UID:-1000}:${E2E_GID:-1000}"
+    environment:
+      MP_MAX_MESSAGES: "2000"
+      MP_BLOCK_REMOTE_CSS_AND_FONTS: "true"
+      MP_SMTP_DISABLE_RDNS: "true"
+    ports:
+      - "127.0.0.1:8025:8025"
+    networks: [e2e]
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # One-shot: throwaway self-signed cert for paypalstub (the app only posts IPN checks over https).
+  e2ecerts:
+    image: sesf-php:dev
+    build:
+      context: docker/php
+    profiles: ["e2e"]
+    user: "0:0"
+    network_mode: none
+    volumes:
+      - ./docker/e2e/make-certs.sh:/make-certs.sh:ro
+      - e2ecerts:/certs
+    command: ["sh", "/make-certs.sh", "/certs"]
+
+  # PayPal IPN postback stub (docker/e2e/paypalstub/server.mjs): https :9000 for the app,
+  # http :9001 control API for the tests.
+  paypalstub:
+    image: node:24.22.1-alpine
+    profiles: ["e2e"]
+    user: "${E2E_UID:-1000}:${E2E_GID:-1000}"
+    init: true
+    volumes:
+      - ./docker/e2e/paypalstub/server.mjs:/stub/server.mjs:ro
+      - e2ecerts:/certs:ro
+    command: ["node", "/stub/server.mjs"]
+    ports:
+      - "127.0.0.1:9001:9001"
+    networks: [e2e]
+    depends_on:
+      e2ecerts:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:9001/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # The app under test. Environment comes ONLY from docker/e2e/app.env (also mounted over /app/.env,
+  # so the repo .env is never read). Storage, logs and upload dirs are tmpfs, separate from dev.
+  e2eapp:
+    image: sesf-php:dev
+    build:
+      context: docker/php
+    profiles: ["e2e"]
+    working_dir: /app
+    user: "${E2E_UID:-1000}:${E2E_GID:-1000}"
+    env_file:
+      - docker/e2e/app.env
+    environment:
+      COMPOSER_HOME: /tmp/composer
+    volumes:
+      - .:/app
+      - ./docker/e2e/app.env:/app/.env:ro
+      - e2ecerts:/certs:ro
+    tmpfs:
+      - /app/storage/framework/sessions:uid=${E2E_UID:-1000},gid=${E2E_GID:-1000},mode=0755
+      - /app/storage/framework/cache:uid=${E2E_UID:-1000},gid=${E2E_GID:-1000},mode=0755
+      - /app/storage/framework/views:uid=${E2E_UID:-1000},gid=${E2E_GID:-1000},mode=0755
+      - /app/storage/logs:uid=${E2E_UID:-1000},gid=${E2E_GID:-1000},mode=0755
+      - /app/storage/waivers:uid=${E2E_UID:-1000},gid=${E2E_GID:-1000},mode=0755
+      - /app/public/images/members:uid=${E2E_UID:-1000},gid=${E2E_GID:-1000},mode=0755
+      - /app/public/images/cars:uid=${E2E_UID:-1000},gid=${E2E_GID:-1000},mode=0755
+      - /app/public/images/shows:uid=${E2E_UID:-1000},gid=${E2E_GID:-1000},mode=0755
+      - /app/public/images/sponsor:uid=${E2E_UID:-1000},gid=${E2E_GID:-1000},mode=0755
+      - /app/public/images/gallery:uid=${E2E_UID:-1000},gid=${E2E_GID:-1000},mode=0755
+      - /app/public/images/judging:uid=${E2E_UID:-1000},gid=${E2E_GID:-1000},mode=0755
+      - /app/public/packet:uid=${E2E_UID:-1000},gid=${E2E_GID:-1000},mode=0755
+      - /app/storage/legacy-waivers:uid=${E2E_UID:-1000},gid=${E2E_GID:-1000},mode=0755
+    # --no-reload: artisan serve would otherwise strip the container env from the PHP server
+    # process and re-read the env file. The CA bundle adds the throwaway paypalstub cert.
+    command:
+      - sh
+      - -c
+      - cat /etc/ssl/certs/ca-certificates.crt /certs/stub.crt > /tmp/sesf-e2e-ca.pem && exec php artisan serve --host=0.0.0.0 --port=8000 --no-reload
+    ports:
+      - "127.0.0.1:8001:8000"
+    networks: [e2e]
+    depends_on:
+      e2edb:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+      paypalstub:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "php", "-r", "$$c = stream_context_create(['http' => ['header' => 'Host: localhost', 'timeout' => 3]]); exit(@file_get_contents('http://127.0.0.1:8000/up', false, $$c) === false ? 1 : 0);"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+      start_period: 3s
+
+  # Playwright runner (scripts/e2e.sh test). Host network, so the browser reaches the app at
+  # http://localhost:8001 (= APP_URL), Mailpit at :8025 and the stub control API at :9001.
+  # The repo's node_modules is mounted read-only so @playwright/test and axe-core resolve.
+  e2erunner:
+    image: mcr.microsoft.com/playwright:v1.64.1-noble
+    profiles: ["e2e"]
+    network_mode: host
+    user: "${E2E_UID:-1000}:${E2E_GID:-1000}"
+    working_dir: /work
+    ipc: host
+    environment:
+      HOME: /tmp
+      NPM_CONFIG_UPDATE_NOTIFIER: "false"
+      CI: ${CI:-}
+      E2E_BASE_URL: http://localhost:8001
+      E2E_MAILPIT_URL: http://localhost:8025
+      E2E_STUB_URL: http://localhost:9001
+      E2E_SHOTS: ${E2E_SHOTS:-}
+    volumes:
+      - .:/work
+      - ./node_modules:/work/node_modules:ro
+
+volumes:
+  e2ecerts:
+
+networks:
+  e2e:

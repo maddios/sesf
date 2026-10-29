@@ -57,6 +57,9 @@ dataset('pricing cases', [
     'discount larger than total: owed goes negative (credit), as legacy' => [
         fn () => pricingInput(1, discount: 20000), 15000, -5000, 0, 0, 15000, 0, 0, 0,
     ],
+    'legacy negative discount and a refund below zero are signed' => [
+        fn () => pricingInput(1, discount: -3000, received: -1000), 15000, 19000, 0, 0, 15000, 0, 0, 0,
+    ],
     'overpayment: owed negative' => [
         fn () => pricingInput(1, received: 15001), 15000, -1, 0, 0, 15000, 0, 0, 0,
     ],
@@ -150,8 +153,6 @@ dataset('invalid inputs', [
     'negative child price' => [fn () => new PricingInput(0, 0, -1, 0)],
     'negative car count' => [fn () => new PricingInput(0, 0, 0, -1)],
     'negative donation' => [fn () => pricingInput(1, donation: -1)],
-    'negative discount' => [fn () => pricingInput(1, discount: -1)],
-    'negative received' => [fn () => pricingInput(1, received: -1)],
     'guest that is not a UserGuestType' => [fn () => new PricingInput(0, 0, 0, 0, [1])], // @phpstan-ignore argument.type
     'negative shirt price' => [fn () => pricingInput(1, [], [-100])],
     'non-integer shirt price' => [fn () => new PricingInput(0, 0, 0, 0, [], [35.0])], // @phpstan-ignore argument.type
@@ -159,7 +160,6 @@ dataset('invalid inputs', [
     'negative extra price' => [fn () => new ExtraLine(-1, 1)],
     'negative extra quantity' => [fn () => new ExtraLine(100, -1)],
     'negative decimal donation' => [fn () => PricingInput::fromDecimals('1', '1', '1', 1, donation: '-5')],
-    'negative decimal discount' => [fn () => PricingInput::fromDecimals('1', '1', '1', 1, discount: '-0.01')],
     'negative decimal price' => [fn () => PricingInput::fromDecimals('-65', '1', '1', 1)],
     'negative decimal extra price' => [fn () => ExtraLine::fromDecimal('-1', 1)],
 ]);
@@ -167,3 +167,28 @@ dataset('invalid inputs', [
 it('rejects invalid input', function (Closure $make) {
     $make();
 })->with('invalid inputs')->throws(InvalidArgumentException::class);
+
+it('reads signed decimal discount and received', function () {
+    $input = PricingInput::fromDecimals('1', '1', '1', 1, discount: '-30.00', received: -0.5);
+
+    expect($input->discountCents)->toBe(-3000)->and($input->receivedCents)->toBe(-50);
+});
+
+test('line items carry the optional details in order and never change the amounts', function () {
+    $input = new PricingInput(
+        15000, 15000, 7500, 2, [ADULT, CHILD], [2000, 3500], [new ExtraLine(500, 2, 'Dinner')],
+        carDetails: ['Sharky (1988 M6)', null],
+        guestDetails: ['Ann Lee', 'Bo Lee'],
+        shirtDetails: ['Mens XXXL', 'Ladies S'],
+    );
+
+    $result = (new PricingCalculator)->calculate($input);
+    $plain = (new PricingCalculator)->calculate(new PricingInput(15000, 15000, 7500, 2, [ADULT, CHILD], [2000, 3500], [new ExtraLine(500, 2)]));
+
+    expect(array_map(fn (LineItem $item) => $item->detail, $result->lineItems))
+        ->toBe(['Sharky (1988 M6)', null, 'Ann Lee', 'Bo Lee', 'Mens XXXL', 'Ladies S', 'Dinner']);
+    expect(array_map(fn (LineItem $item) => $item->detail, $plain->lineItems))->each->toBeNull();
+    expect($result->totalCents)->toBe($plain->totalCents);
+    expect(array_map(fn (LineItem $item) => $item->totalCents, $result->lineItems))
+        ->toBe(array_map(fn (LineItem $item) => $item->totalCents, $plain->lineItems));
+});

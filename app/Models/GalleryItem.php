@@ -17,7 +17,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * One uploaded gallery item (legacy table `gallery_item`). Ports app/models/GalleryItem.php.
  *
  * Images are stored at config('sesf.gallery_image_root') in the sharded layout
- * {a/b/c}/{id}.jpg (see App\Support\NumericPath). The imageURL key is the legacy JSON key for the
+ * {a/b/c}/{file} (see App\Support\NumericPath), where {file} is file_name (random, new uploads) or the
+ * legacy {id}.jpg when file_name is NULL. The imageURL key is the legacy JSON key for the
  * public URL. A '?<mtime>' suffix is added when the file exists, so browsers refetch replaced images.
  *
  * Gallery membership (with a title and sort_order per gallery) is in gallery_item_xref.
@@ -27,8 +28,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @property GalleryItemType $type_id
  * @property string $title
  * @property string|null $original_name
+ * @property string|null $file_name
  * @property int|null $sort_order
- * @property CarbonInterface $date_taken
+ * @property CarbonInterface|null $date_taken
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
  * @property-read string $imageURL
@@ -42,7 +44,7 @@ class GalleryItem extends Model
 
     public $timestamps = true;
 
-    protected $guarded = ['id', 'user_id'];
+    protected $guarded = ['id', 'user_id', 'file_name'];
 
     protected $appends = ['imageURL'];
 
@@ -57,14 +59,21 @@ class GalleryItem extends Model
         ];
     }
 
+    /** The image's path under gallery_image_root. */
+    public function relativeImagePath(): string
+    {
+        $id = (int) $this->getKey();
+
+        return NumericPath::for($id).'/'.($this->file_name ?? $id.'.jpg');
+    }
+
     /**
-     * Legacy imageURL: the public base URL, the sharded path, and '{id}.jpg'.
+     * Legacy imageURL: the public base URL and the sharded path.
      * Adds '?<filemtime>' when the file exists under gallery_image_root.
      */
     public function getImageURLAttribute(): string
     {
-        $id = (int) $this->getKey();
-        $relativePath = NumericPath::for($id).'/'.$id.'.jpg';
+        $relativePath = $this->relativeImagePath();
 
         $url = config('sesf.gallery_image_url').$relativePath;
         $file = config('sesf.gallery_image_root').$relativePath;

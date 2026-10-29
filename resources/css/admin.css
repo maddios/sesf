@@ -1,0 +1,2068 @@
+/*
+ * Admin styles (imported by layouts/AdminLayout.vue, so only the admin chunk loads them).
+ *
+ * 1. Shell rules for every admin page on phones: touch targets >= 44px, 16px form text (no iOS zoom).
+ * 2. The "a2" kit: the look of the legacy /admin2 pages (Bootstrap 2.3.2 + public/css/style.css of the old app):
+ *    legends, wells, bordered tables, gradient buttons, labels, alerts, the check-in/T-shirt modals and the
+ *    hand-out toggle. Colours that failed WCAG AA against white text were darkened (same hue), noted inline.
+ *    Below 768px a2 tables become cards (cells carry data-label), as the legacy mobile CSS did.
+ */
+
+@layer components {
+/* ---------- 1. Admin-wide rules (body.admin-ui is set by AdminLayout, so teleported dialogs are included) ---------- */
+
+/* Denser type on desktop: Tailwind sizes are rem-based, so a 14px root makes every admin page more compact. */
+@media (min-width: 768px) {
+  html:has(body.admin-ui) {
+    font-size: 14px;
+  }
+}
+
+.admin-ui {
+  --admin-chrome: #4a4f52;
+  --admin-chrome-top: #5a6064;
+  --admin-bar-top: #f3f4f4;
+  --admin-bar-bottom: #e2e4e5;
+  --admin-bar-border: #d4d4d4;
+  --admin-bar-text: #4f5559; /* legacy #5e6469, darkened for 7:1 on the bar */
+  --admin-row-alt: #f6f7f7;
+  --admin-row-hover: #eaf0f5;
+  --admin-row-selected: #d9e4ec;
+}
+
+.admin-ui .form-control {
+  min-height: 30px;
+  padding: 4px 8px;
+  font-size: 13px;
+  line-height: 20px;
+  border-radius: 3px;
+  box-shadow: inset 0 1px 1px rgb(0 0 0 / 0.075);
+}
+
+.admin-ui .form-control:focus {
+  border-color: rgb(82 168 236 / 0.9);
+  box-shadow: inset 0 1px 1px rgb(0 0 0 / 0.075), 0 0 6px rgb(82 168 236 / 0.5);
+}
+
+.admin-ui textarea.form-control {
+  min-height: 60px;
+}
+
+/* Phones and touch screens: 16px form text (no zoom on focus); buttons keep their look but get a 44px hit area. */
+@media (max-width: 767px), (pointer: coarse) {
+  .admin-ui :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea),
+  .admin-ui .form-control {
+    font-size: 16px;
+  }
+
+  .admin-ui :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select),
+  .admin-ui .form-control:not(textarea) {
+    min-height: 40px;
+  }
+
+  .admin-ui :is(input[type="checkbox"], input[type="radio"]) {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* ---------- 2. a2 kit ---------- */
+.a2-page {
+  font: 14px/1.6 var(--font-sans);
+  color: #444;
+}
+
+.a2-page :is(h1, h2, h3, h4) {
+  color: #333;
+}
+
+/* Bootstrap 2 legend */
+.a2-legend {
+  display: block;
+  width: 100%;
+  margin: 0 0 20px;
+  padding: 0;
+  font-size: 21px;
+  font-weight: 400;
+  line-height: 40px;
+  color: #333;
+  border: 0;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.a2-legend--sub {
+  margin-bottom: 12px;
+}
+
+.a2-fieldset {
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.a2-filter-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+}
+
+.a2-filter-inline > :first-child {
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 420px;
+}
+
+/* Bootstrap 2 inputs (border darkened #ccc -> #8c8c8c for 3:1 non-text contrast) */
+.a2-input,
+.a2-page select.a2-input {
+  display: inline-block;
+  min-height: 34px;
+  padding: 4px 8px;
+  font-size: 14px;
+  line-height: 20px;
+  color: #555;
+  background: #fff;
+  border: 1px solid #8c8c8c;
+  border-radius: 4px;
+  box-shadow: inset 0 1px 1px rgb(0 0 0 / 0.075);
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.a2-input:focus {
+  border-color: rgb(82 168 236 / 0.8);
+  box-shadow: inset 0 1px 1px rgb(0 0 0 / 0.075), 0 0 8px rgb(82 168 236 / 0.6);
+}
+
+.a2-input--block {
+  display: block;
+  width: 100%;
+}
+
+/* Bootstrap 2 .btn; BaseButton (.ui-btn) gets the same look inside the admin. */
+.a2-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 20px;
+  color: #333;
+  white-space: nowrap;
+  text-align: center;
+  text-decoration: none;
+  text-shadow: 0 1px 1px rgb(255 255 255 / 0.75);
+  vertical-align: middle;
+  background-color: #f5f5f5;
+  background-image: linear-gradient(to bottom, #fff, #e6e6e6);
+  border: 1px solid #ccc;
+  border-bottom-color: #b3b3b3;
+  border-radius: 4px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 1px 2px rgb(0 0 0 / 0.05);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.a2-btn:hover {
+  color: #333;
+  background-color: #e6e6e6;
+  background-image: none;
+}
+
+.a2-btn:disabled,
+.a2-btn[aria-disabled="true"] {
+  opacity: 0.65;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* btn-info: legacy #5bc0de -> #2f96b4 gave 2.6:1 with white; darkened to >= 4.5:1. */
+.a2-btn-info {
+  color: #fff;
+  text-shadow: 0 -1px 0 rgb(0 0 0 / 0.25);
+  background-color: #1b6f8a;
+  background-image: linear-gradient(to bottom, #23819f, #1b6f8a);
+  border-color: #1b6f8a #1b6f8a #124b5d;
+}
+
+.a2-btn-info:hover {
+  color: #fff;
+  background-color: #155a70;
+}
+
+/* btn-primary (legacy #0088cc -> #0044cc), the main action of a page or dialog. */
+.a2-btn-primary {
+  color: #fff;
+  text-shadow: 0 -1px 0 rgb(0 0 0 / 0.25);
+  background-color: #0055b3;
+  background-image: linear-gradient(to bottom, #0070cc, #0050a8);
+  border-color: #0050a8 #0050a8 #003570;
+}
+
+.a2-btn-primary:hover {
+  color: #fff;
+  background-color: #00448f;
+  background-image: none;
+}
+
+/* btn-warning: legacy #fbb450 -> #f89406; darkened. */
+.a2-btn-warning {
+  color: #fff;
+  text-shadow: 0 -1px 0 rgb(0 0 0 / 0.25);
+  background-color: #9c5400;
+  background-image: linear-gradient(to bottom, #b25f00, #9c5400);
+  border-color: #9c5400 #9c5400 #6b3900;
+}
+
+.a2-btn-warning:hover {
+  color: #fff;
+  background-color: #844600;
+}
+
+/* btn-danger: legacy #ee5f5b -> #bd362f; darkened top stop. */
+.a2-btn-danger {
+  color: #fff;
+  text-shadow: 0 -1px 0 rgb(0 0 0 / 0.25);
+  background-color: #a82824;
+  background-image: linear-gradient(to bottom, #c9302c, #a82824);
+  border-color: #a82824 #a82824 #7a1d1a;
+}
+
+.a2-btn-danger:hover {
+  color: #fff;
+  background-image: none;
+  background-color: #8f221f;
+}
+
+/* The check-in modal's grey secondary buttons */
+.a2-btn-secondary {
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  color: #111827;
+  text-shadow: none;
+}
+
+.a2-btn-small {
+  min-height: 24px;
+  padding: 1px 8px;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+/* Icon-only buttons for row actions */
+.a2-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  color: #4b5563;
+  background-color: #f8f8f8;
+  background-image: linear-gradient(to bottom, #fff, #ececec);
+  border: 1px solid #c4c4c4;
+  border-radius: 4px;
+  cursor: pointer;
+  vertical-align: middle;
+  text-decoration: none;
+}
+
+.a2-icon-btn:hover {
+  color: #111;
+  background: #e6e6e6;
+}
+
+.a2-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.a2-icon-btn--danger {
+  color: #b02a26;
+}
+
+.a2-icon-btn--danger:hover {
+  color: #fff;
+  background: #c9302c;
+  border-color: #a82824;
+}
+
+.a2-icon-btn--primary {
+  color: #0050a8;
+}
+
+.admin-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.a2-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.a2-btn-block {
+  display: flex;
+  width: 100%;
+}
+
+.a2-btn[hidden] {
+  display: none !important;
+}
+
+/* Bootstrap 2 .label badges. Backgrounds darkened where white text was below 4.5:1. */
+.a2-label {
+  display: inline-block;
+  padding: 2px 5px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 14px;
+  color: #fff;
+  text-shadow: 0 -1px 0 rgb(0 0 0 / 0.25);
+  white-space: nowrap;
+  vertical-align: baseline;
+  background-color: #6b6b6b; /* legacy #999 */
+  border-radius: 3px;
+}
+
+.a2-label-success {
+  background-color: #3d7a3e; /* legacy #468847 */
+}
+
+.a2-label-warning {
+  background-color: #a35a00; /* legacy #f89406 */
+}
+
+.a2-label-important {
+  background-color: #b94a48;
+}
+
+.a2-label-info {
+  background-color: #2f7397; /* legacy #3a87ad */
+}
+
+.a2-label-partial {
+  background-color: #ffeb3b;
+  color: #5d4e00;
+  text-shadow: none;
+}
+
+.a2-label-pending {
+  background-color: #b35400; /* legacy #f57c00 */
+}
+
+/* Bootstrap 2 .alert (text darkened to Bootstrap 3 values for 4.5:1) */
+.a2-alert {
+  margin: 0 0 12px;
+  padding: 8px 14px;
+  color: #8a6d3b;
+  background-color: #fcf8e3;
+  border: 1px solid #fbeed5;
+  border-radius: 4px;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.5);
+}
+
+.a2-alert-error {
+  color: #a94442;
+  background-color: #f2dede;
+  border-color: #eed3d7;
+}
+
+.a2-alert-success {
+  color: #3c763d;
+  background-color: #dff0d8;
+  border-color: #d6e9c6;
+}
+
+.a2-alert-info {
+  color: #31708f;
+  background-color: #d9edf7;
+  border-color: #bce8f1;
+}
+
+.a2-muted {
+  color: #666;
+}
+
+.a2-small {
+  font-size: 12.6px;
+}
+
+/* Bootstrap 2 .well.well-small */
+.a2-well {
+  margin: 12px 0;
+  padding: 9px;
+  background-color: #f5f5f5;
+  border: 1px solid #e3e3e3;
+  border-radius: 3px;
+  box-shadow: inset 0 1px 1px rgb(0 0 0 / 0.05);
+}
+
+.a2-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 0 12px;
+}
+
+.a2-toolbar-count {
+  margin-left: auto;
+}
+
+.a2-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.a2-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.a2-links a {
+  white-space: nowrap;
+}
+
+/* Search above a table, with the 44px clear button */
+.a2-search {
+  margin: 0 0 12px;
+}
+
+.a2-search-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.a2-search-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  scroll-margin-top: 72px;
+}
+
+.a2-search-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 14px;
+}
+
+.a2-search-clear {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: #4b5563;
+  background: #f3f4f6;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+.a2-search-clear:hover {
+  color: #111827;
+  background: #e5e7eb;
+}
+
+/* Bootstrap 2 .table.table-bordered */
+.a2-table {
+  width: 100%;
+  max-width: 100%;
+  margin-bottom: 20px;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid #ddd;
+  border-left: 0;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.a2-table :is(th, td) {
+  padding: 8px;
+  line-height: 20px;
+  text-align: left;
+  vertical-align: middle;
+  border-top: 1px solid #ddd;
+  border-left: 1px solid #ddd;
+}
+
+.a2-table th {
+  font-weight: 700;
+  color: #333;
+}
+
+.a2-table thead:first-child tr:first-child > :is(th, td),
+.a2-table caption + thead tr:first-child > :is(th, td) {
+  border-top: 0;
+}
+
+.a2-table--condensed :is(th, td) {
+  padding: 4px 5px;
+}
+
+.a2-table--striped tbody > tr:nth-child(odd) > td {
+  background-color: #f9f9f9;
+}
+
+.a2-table .a2-num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.a2-row-done > td {
+  background-color: #e6f4ea !important;
+}
+
+.a2-scroll {
+  position: relative;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Sticky first column inside a horizontal scroller (wide reports). */
+.a2-scroll .a2-sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #fff;
+  box-shadow: 1px 0 0 #ddd;
+}
+
+/* Cards when the admin content panel is narrower than 700px (phones, and tablets with the sidebar open):
+   tables with .a2-cards. Cells: data-label for the small caption,
+   .a2-cell-title (big first line), .a2-cell-half (half width), .a2-cell-sep (rule above),
+   .a2-cell-nolabel, .a2-cell-corner (top-right, e.g. Remove), .a2-desktop-only. */
+@container admin-panel (max-width: 699px) {
+  .a2-page {
+    font-size: 15px;
+  }
+
+  .a2-cards {
+    border: 0;
+    background: transparent;
+  }
+
+  .a2-cards thead {
+    position: absolute;
+    display: block;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+  }
+
+  /* Sortable card lists keep their sort buttons as a small bar above the cards. */
+  .a2-cards thead:has(button) {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0 0 8px;
+    overflow: visible;
+    clip: auto;
+  }
+
+  .a2-cards thead:has(button) tr {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+
+  .a2-cards thead:has(button) th {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+
+  .a2-cards thead:has(button) th:not(:has(button)) {
+    display: none;
+  }
+
+  .a2-cards tbody {
+    display: block;
+  }
+
+  .a2-cards tbody tr {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 12px;
+    row-gap: 10px;
+    align-items: start;
+    margin-bottom: 12px;
+    padding: 14px 12px 16px;
+    background: #fff;
+    border: 1px solid #d8dde3;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.06);
+  }
+
+  .a2-cards tbody tr.a2-row-done {
+    background-color: #e6f4ea;
+  }
+
+  .a2-cards tbody td,
+  .a2-cards tbody th {
+    display: block;
+    grid-column: 1 / -1;
+    min-width: 0;
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    text-align: left;
+    font-size: 14px;
+    line-height: 1.35;
+    color: #222;
+    background: transparent !important;
+    overflow-wrap: anywhere;
+  }
+
+  .a2-cards tbody td[data-label]::before,
+  .a2-cards tbody th[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #6b7280;
+  }
+
+  .a2-cards tbody .a2-cell-nolabel::before {
+    display: none !important;
+  }
+
+  .a2-cards tbody .a2-cell-half {
+    grid-column: auto;
+  }
+
+  .a2-cards tbody .a2-cell-third {
+    grid-column: auto;
+  }
+
+  .a2-cards tbody tr.a2-thirds {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .a2-cards tbody .a2-cell-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #111827;
+  }
+
+  .a2-cards tbody .a2-cell-big {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    color: #111827;
+  }
+
+  .a2-cards tbody .a2-cell-sep {
+    margin-top: 4px;
+    padding-top: 10px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .a2-cards tbody .a2-cell-corner {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: auto;
+  }
+
+  .a2-cards .a2-num {
+    text-align: left;
+  }
+
+  .a2-cards tbody .a2-desktop-only {
+    display: none;
+  }
+
+  .a2-cards tbody tr[data-tap] {
+    cursor: pointer;
+  }
+
+  .a2-cards .a2-btn-block {
+    padding: 12px 14px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .a2-check {
+    min-height: 44px;
+  }
+
+  .a2-toolbar-count {
+    margin-left: 0;
+  }
+}
+
+@container admin-panel (min-width: 540px) and (max-width: 699px) {
+  .a2-cards--pair tbody {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .a2-cards--pair tbody tr {
+    margin-bottom: 0;
+  }
+}
+
+/* Check-in / T-shirt modal content (inside BaseModal sheet) */
+.a2-modal-label {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.a2-modal-line {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.a2-modal-section {
+  margin: 14px 0;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.a2-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.a2-modal-actions > .a2-btn {
+  width: 100%;
+}
+
+/* Hand-out slider toggle (legacy .sesf-tshirt-handoff): a real checkbox covering the row. */
+.a2-handoff {
+  position: relative;
+  display: block;
+  margin: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.a2-handoff input {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.a2-handoff-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 54px;
+  padding: 12px 14px;
+  background: #fff7ed;
+  border: 2px solid #fdba74;
+  border-radius: 12px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.a2-handoff input:focus-visible + .a2-handoff-inner {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.a2-handoff input:checked + .a2-handoff-inner {
+  background: #ecfdf5;
+  border-color: #34d399;
+}
+
+.a2-handoff input:disabled + .a2-handoff-inner {
+  opacity: 0.6;
+}
+
+.a2-handoff-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #9a3412;
+}
+
+.a2-handoff input:checked + .a2-handoff-inner .a2-handoff-name {
+  color: #166534;
+}
+
+.a2-handoff-slider {
+  position: relative;
+  flex-shrink: 0;
+  width: 56px;
+  height: 34px;
+  background: #d1d5db;
+  border-radius: 17px;
+  transition: background 0.2s ease;
+}
+
+.a2-handoff input:checked + .a2-handoff-inner .a2-handoff-slider {
+  background: #22c55e;
+}
+
+.a2-handoff-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 28px;
+  height: 28px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
+  transition: transform 0.2s ease;
+}
+
+.a2-handoff input:checked + .a2-handoff-inner .a2-handoff-knob {
+  transform: translateX(22px);
+}
+
+.a2-handoff--compact .a2-handoff-inner {
+  min-height: 44px;
+  padding: 6px 10px;
+  gap: 10px;
+  border-width: 1px;
+  border-radius: 8px;
+}
+
+.a2-handoff--compact .a2-handoff-name {
+  font-size: 14px;
+}
+
+.a2-handoff--compact .a2-handoff-slider {
+  width: 38px;
+  height: 22px;
+  border-radius: 11px;
+}
+
+.a2-handoff--compact .a2-handoff-knob {
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+}
+
+.a2-handoff--compact input:checked + .a2-handoff-inner .a2-handoff-knob {
+  transform: translateX(16px);
+}
+
+@media (min-width: 768px) {
+  .a2-handoff-inner {
+    min-height: 48px;
+    padding: 10px 14px;
+  }
+
+  .a2-handoff-name {
+    font-size: 16px;
+  }
+}
+
+/* Small form rows inside the modals (inventory, sale, guests, shirts) */
+.a2-form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.a2-form-row > label {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.a2-form-row > select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.a2-subtle-row {
+  position: relative;
+  margin-bottom: 14px;
+  padding: 10px 8px 8px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+/* Bootstrap 2 accordion (legacy judging list filter and sections), as <details> */
+.a2-accordion {
+  margin-bottom: 2px;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.a2-accordion > summary {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 15px;
+  color: #005580; /* legacy #0088cc link colour, darkened */
+  cursor: pointer;
+  list-style: none;
+}
+
+.a2-accordion > summary::-webkit-details-marker {
+  display: none;
+}
+
+.a2-accordion > summary::before {
+  content: "▸";
+  margin-right: 8px;
+  font-size: 12px;
+  transition: transform 0.15s ease;
+}
+
+.a2-accordion[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.a2-accordion > summary:hover {
+  text-decoration: underline;
+}
+
+.a2-accordion-body {
+  padding: 9px 15px 12px;
+  border-top: 1px solid #e5e5e5;
+}
+
+@media (max-width: 767px) {
+  .a2-accordion > summary {
+    min-height: 48px;
+  }
+}
+
+/* Judging list cards (legacy .sesf-judging-table mobile layout) */
+.a2-judging-type .a2-qstats {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.a2-qstats strong {
+  color: #111827;
+}
+
+.a2-incomplete {
+  color: #c00;
+  font-weight: 600;
+}
+
+.a2-form-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+
+@container admin-panel (max-width: 699px) {
+  .a2-judging tbody tr {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    column-gap: 10px;
+    row-gap: 12px;
+  }
+
+  .a2-judging tbody .a2-judging-type {
+    padding: 12px 14px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1e1b4b;
+    background: #eef2ff !important;
+    border: 1px solid #c7d2fe;
+    border-radius: 8px;
+  }
+
+  .a2-judging tbody .a2-judging-type::before {
+    color: #4338ca !important;
+    font-weight: 700 !important;
+  }
+
+  .a2-judging tbody .a2-judging-type .a2-qstats {
+    font-size: 14px;
+    color: #4338ca;
+  }
+
+  .a2-judging tbody .a2-cell-owner {
+    grid-column: 1;
+  }
+
+  .a2-judging tbody .a2-cell-email {
+    grid-column: 2 / -1;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+
+  .a2-judging tbody :is(.a2-cell-owner, .a2-cell-email) {
+    margin-top: 4px;
+    padding-top: 12px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .a2-judging .a2-form-links a {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1d4ed8;
+    text-decoration: none;
+    background: #eff6ff;
+    border: 1px solid rgb(29 78 216 / 0.35);
+    border-radius: 8px;
+  }
+
+  .a2-judging .a2-form-links .a2-sep {
+    display: none;
+  }
+
+  .a2-judging tbody .a2-cell-corner .a2-btn {
+    font-size: 12px;
+    font-weight: 600;
+    color: #4b5563;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    box-shadow: none;
+    text-shadow: none;
+  }
+}
+
+@container admin-panel (min-width: 700px) {
+  .a2-mobile-only {
+    display: none !important;
+  }
+}
+
+/* Touch: visible buttons stay compact (36px, 32px small); ::after widens the hit area to about 44px. */
+@media (max-width: 767px), (pointer: coarse) {
+  .a2-btn,
+  .a2-icon-btn {
+    position: relative;
+    min-height: 36px;
+  }
+
+  .a2-btn-small {
+    min-height: 32px;
+  }
+
+  .a2-icon-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  :is(.a2-btn, .a2-icon-btn)::after {
+    content: "";
+    position: absolute;
+    inset: -5px 0;
+  }
+}
+
+/* ---------- 3. Shell: legacy admin top bar and menu ---------- */
+.admin-topbar {
+  color: #fff;
+  background-color: var(--admin-chrome, #4a4f52);
+  background-image: linear-gradient(to bottom, #5a6064, #4a4f52);
+  border-bottom: 1px solid #44484b;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+}
+
+.admin-topbar-title {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  font-size: 18px;
+  font-weight: 400;
+  color: #fff;
+}
+
+.admin-topbar-title:hover {
+  color: #fff;
+  background: rgb(0 0 0 / 0.2);
+}
+
+@media (min-width: 768px) {
+  .admin-topbar-title {
+    border-right: 1px solid #3c4043;
+  }
+}
+
+.admin-topbar-link {
+  color: #eee;
+  text-decoration: none;
+}
+
+.admin-topbar-link:hover,
+.admin-topbar-link[aria-expanded="true"] {
+  color: #fff;
+  background: linear-gradient(to bottom, #444, #333);
+}
+
+.admin-topbar :focus-visible {
+  outline-color: #fff;
+  outline-offset: -2px;
+}
+
+.admin-sidebar {
+  background: #f4f5f5;
+  border-right: 1px solid #dcdedf;
+}
+
+.admin-nav-group {
+  margin: 0;
+  padding: 6px 16px 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5e6469;
+}
+
+.admin-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 4px 16px 4px 13px;
+  font-size: 13px;
+  color: #333;
+  text-decoration: none;
+  border-left: 3px solid transparent;
+}
+
+.admin-nav-link:hover {
+  color: #111;
+  background: #e6e9eb;
+}
+
+.admin-nav-link.is-current {
+  font-weight: 700;
+  color: #1f2427;
+  background: var(--admin-row-selected, #d9e4ec);
+  border-left-color: #4a4f52;
+}
+
+@media (max-width: 767px) {
+  .admin-nav-link {
+    min-height: 44px;
+    font-size: 15px;
+  }
+
+  .admin-nav-group {
+    padding-top: 10px;
+  }
+}
+
+/* ---------- 4. Lists: page header, toolbar, filters, data table, cards, pager ---------- */
+.admin-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  margin: 0 0 10px;
+  padding: 6px 10px 6px 14px;
+  color: var(--admin-bar-text);
+  text-shadow: #fff 0 1px 0;
+  background: linear-gradient(to bottom, var(--admin-bar-top), var(--admin-bar-bottom));
+  border: 1px solid var(--admin-bar-border);
+  border-top-color: #e6e6e6;
+  border-radius: 3px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+}
+
+.admin-page-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 24px;
+  color: #3d4246;
+}
+
+.admin-page-note {
+  margin-left: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--admin-bar-text);
+}
+
+.admin-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  text-shadow: none;
+}
+
+.admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-toolbar-end {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.admin-search {
+  position: relative;
+  flex: 1 1 220px;
+  max-width: 340px;
+}
+
+.admin-search .form-control {
+  padding-left: 30px;
+}
+
+.admin-search-icon {
+  position: absolute;
+  top: 50%;
+  left: 9px;
+  display: flex;
+  color: #6b7280;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.admin-filters {
+  padding: 8px 10px;
+  background: #f4f5f5;
+  border: 1px solid #e0e2e3;
+  border-radius: 3px;
+}
+
+.admin-filters-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 14px;
+}
+
+.admin-filters-body label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #444;
+}
+
+.admin-filters-body > * {
+  min-width: 0;
+}
+
+.admin-filters-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+@media (max-width: 767px) {
+  .admin-search {
+    max-width: none;
+  }
+
+  .admin-toolbar-end {
+    margin-left: 0;
+  }
+
+  .admin-filters {
+    display: none;
+  }
+
+  .admin-filters.is-open {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 50;
+    display: block;
+    max-height: 85dvh;
+    overflow-y: auto;
+    padding: 12px 16px max(16px, env(safe-area-inset-bottom));
+    background: #fff;
+    border: 0;
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 -8px 24px rgb(0 0 0 / 0.2);
+  }
+
+  .admin-filters.is-open .admin-filters-body {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .admin-filters.is-open .admin-filters-body > * {
+    width: 100% !important;
+    max-width: none !important;
+  }
+}
+
+/* The table scrolls inside its box on desktop so the header row stays visible and wide tables scroll sideways. */
+.admin-table-scroll {
+  position: relative;
+  max-height: calc(100dvh - 11rem);
+  min-height: 8rem;
+  overflow: auto;
+  border: 1px solid #d4d4d4;
+  border-radius: 3px;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.admin-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 6px 10px 5px;
+  font-weight: 700;
+  color: var(--admin-bar-text);
+  text-shadow: #fff 0 1px 0;
+  white-space: nowrap;
+  background: linear-gradient(to bottom, var(--admin-bar-top), var(--admin-bar-bottom));
+  border-bottom: 1px solid #cdcdcd;
+  border-right: 1px solid #dcdcdc;
+}
+
+.admin-table thead th:last-child {
+  border-right: 0;
+}
+
+.admin-table thead th.is-sorted {
+  background: linear-gradient(to bottom, #e2e2e2, #d2d4d6);
+}
+
+.admin-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: -2px -4px;
+  padding: 2px 4px;
+  font-weight: 700;
+  color: inherit;
+  border-radius: 2px;
+}
+
+.admin-sort:hover {
+  color: #111;
+}
+
+.admin-sort-mark {
+  font-size: 10px;
+  color: #8a9095;
+}
+
+.is-sorted .admin-sort-mark {
+  color: #3d4246;
+}
+
+.admin-table tbody td {
+  padding: 6px 10px;
+  vertical-align: middle;
+  border-bottom: 1px solid #e8e8e8;
+  background: #fff;
+}
+
+.admin-table tbody tr:nth-child(even) td {
+  background: var(--admin-row-alt);
+}
+
+.admin-table tbody tr:hover td {
+  background: var(--admin-row-hover);
+}
+
+.admin-table tbody tr.is-clickable {
+  cursor: pointer;
+}
+
+.admin-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* First column stays put while a wide table scrolls sideways. */
+.admin-table :is(thead th, tbody td):first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.admin-table thead th:first-child {
+  z-index: 3;
+}
+
+.admin-table-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.admin-cards {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-card {
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #d8dde3;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.06);
+}
+
+.admin-card-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.admin-card-title {
+  grid-column: 1 / -1;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1f2427;
+}
+
+.admin-card-field dt {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.admin-card-field dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-card-actions {
+  justify-content: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #eef0f1;
+}
+
+.admin-empty {
+  margin-top: 8px;
+  padding: 28px 16px;
+  text-align: center;
+  font-size: 15px;
+  color: #555;
+  background: #fafafa;
+  border: 1px dashed #d4d4d4;
+  border-radius: 3px;
+}
+
+.admin-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 5px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--admin-bar-text);
+  background: linear-gradient(to bottom, var(--admin-bar-top), var(--admin-bar-bottom));
+  border: 1px solid var(--admin-bar-border);
+  border-radius: 3px;
+}
+
+.admin-pager p {
+  margin: 0;
+}
+
+.admin-pager .form-control {
+  min-height: 26px;
+}
+
+/* ---------- 5. Forms (AdminFormModal) ---------- */
+.admin-form-grid {
+  display: grid;
+  gap: 12px 18px;
+}
+
+/* Two columns when the dialog body (a size container, see BaseModal) is wide enough, whatever the viewport. */
+@container (min-width: 34rem) {
+  .admin-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-form-grid > .is-wide {
+    grid-column: 1 / -1;
+  }
+}
+
+.admin-form-grid label,
+.admin-form-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #333;
+}
+
+.admin-required {
+  margin-left: 2px;
+  color: #b02a26;
+}
+
+.admin-form-section {
+  grid-column: 1 / -1;
+  margin: 6px 0 -2px;
+  padding-bottom: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5e6469;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.admin-form-label.is-required::after {
+  content: " *";
+  color: #b02a26;
+}
+
+.admin-field-error {
+  display: flex;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #a94442;
+}
+
+.admin-field-error::before {
+  content: "!";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+  font-size: 10px;
+  color: #fff;
+  background: #a94442;
+  border-radius: 50%;
+}
+
+.admin-ui [aria-invalid="true"].form-control,
+.admin-ui [aria-invalid="true"] .form-control {
+  border-color: #b94a48;
+  background-color: #fff8f8;
+}
+
+}
+
+/*
+ * BaseButton inside the admin (body.admin-ui): the legacy Bootstrap 2 button look in two compact sizes. Unlayered,
+ * so it wins over the Tailwind utilities BaseButton is built from.
+ */
+.admin-ui .ui-btn:not(.ui-btn--link) {
+  min-height: 30px;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 20px;
+  color: #333;
+  white-space: nowrap;
+  text-shadow: 0 1px 1px rgb(255 255 255 / 0.75);
+  background-color: #f5f5f5;
+  background-image: linear-gradient(to bottom, #fff, #e6e6e6);
+  border: 1px solid #ccc;
+  border-bottom-color: #b3b3b3;
+  border-radius: 4px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 1px 2px rgb(0 0 0 / 0.05);
+}
+
+.admin-ui .ui-btn.ui-btn--default:hover {
+  color: #333;
+  background-color: #e6e6e6;
+  background-image: none;
+}
+
+.admin-ui .ui-btn.ui-btn--primary {
+  color: #fff;
+  text-shadow: 0 -1px 0 rgb(0 0 0 / 0.25);
+  background-color: #0055b3;
+  background-image: linear-gradient(to bottom, #0070cc, #0050a8);
+  border-color: #0050a8 #0050a8 #003570;
+}
+
+.admin-ui .ui-btn.ui-btn--primary:hover {
+  color: #fff;
+  background-color: #00448f;
+  background-image: none;
+}
+
+.admin-ui .ui-btn.ui-btn--danger {
+  color: #fff;
+  text-shadow: 0 -1px 0 rgb(0 0 0 / 0.25);
+  background-color: #a82824;
+  background-image: linear-gradient(to bottom, #c9302c, #a82824);
+  border-color: #a82824 #a82824 #7a1d1a;
+}
+
+.admin-ui .ui-btn.ui-btn--danger:hover {
+  color: #fff;
+  background-color: #8f221f;
+  background-image: none;
+}
+
+.admin-ui .ui-btn.ui-btn--sm {
+  min-height: 24px;
+  padding: 1px 8px;
+  font-size: 12px;
+}
+
+.admin-ui .ui-btn.ui-btn--lg {
+  min-height: 34px;
+  padding: 6px 16px;
+  font-size: 14px;
+}
+
+.admin-ui .ui-btn:disabled {
+  opacity: 0.65;
+  box-shadow: none;
+}
+
+@media (max-width: 767px), (pointer: coarse) {
+  .admin-ui .ui-btn:not(.ui-btn--link) {
+    position: relative;
+    min-height: 36px;
+  }
+
+  .admin-ui .ui-btn.ui-btn--sm {
+    min-height: 32px;
+  }
+
+  .admin-ui .ui-btn::after {
+    content: "";
+    position: absolute;
+    inset: -5px 0;
+  }
+}
+
+@layer components {
+  .admin-table-actions .a2-actions {
+    flex-wrap: nowrap;
+  }
+}
+
+@layer components {
+  /* Short cells stay on one line (columns can opt out with whitespace-normal); the actions column stays pinned
+     to the right edge while a wide table scrolls. */
+  .admin-table tbody td {
+    white-space: nowrap;
+  }
+
+  .admin-table :is(thead th, tbody td).admin-table-actions {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    box-shadow: -1px 0 0 #dcdcdc;
+  }
+
+  .admin-table thead th.admin-table-actions {
+    z-index: 3;
+  }
+}
+
+/* ---------- 6. Rich text editor (components/admin/RichTextEditor.vue) ---------- */
+.rte-modebar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.rte-mode-text {
+  font-size: 12px;
+  color: #5e6469;
+}
+
+.rte-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background-image: linear-gradient(to bottom, var(--admin-bar-top), var(--admin-bar-bottom));
+  border: 1px solid var(--admin-bar-border);
+  border-bottom: 0;
+  border-radius: 3px 3px 0 0;
+}
+
+.rte-btn[aria-pressed="true"] {
+  color: #111;
+  background: var(--admin-row-selected);
+  border-color: #8c8c8c;
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.15);
+}
+
+.rte-divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 2px;
+  background: #c4c4c4;
+}
+
+.rte-select-font {
+  width: 10rem;
+}
+
+.rte-select-size {
+  width: 8rem;
+}
+
+.rte-color {
+  width: 34px;
+  height: 28px;
+  padding: 2px;
+  background: #fff;
+  border: 1px solid #c4c4c4;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.rte-content {
+  min-height: 140px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 0 0 3px 3px;
+  outline: none;
+}
+
+.rte-content:focus-visible {
+  border-color: rgb(82 168 236 / 0.9);
+  box-shadow: 0 0 6px rgb(82 168 236 / 0.5);
+  outline: none;
+}
+
+.rte.is-invalid .rte-content,
+.rte.is-invalid .rte-raw {
+  border-color: var(--color-danger);
+}
+
+.rte-content a {
+  color: #005580;
+  text-decoration: underline;
+}
+
+.rte-content :is(p, h1, h2, h3, h4, h5, h6):first-child {
+  margin-top: 0;
+}
+
+.rte-opaque {
+  margin: 6px 0;
+  padding: 4px 8px;
+  overflow-x: auto;
+  background: #fcf8e3;
+  border: 1px dashed #c09853;
+  border-radius: 3px;
+}
+
+.rte-opaque.ProseMirror-selectednode {
+  outline: 2px solid var(--color-brand);
+}
+
+.rte-opaque-label {
+  margin: 0 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b4f1d;
+}
+
+.rte-opaque-note {
+  font-size: 11px;
+  color: #6b4f1d;
+}
+
+.admin-ui .rte-raw {
+  min-height: 140px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.rte-help,
+.rte-counter {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #5e6469;
+}
+
+.rte-counter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.rte-counter.is-over {
+  font-weight: 600;
+  color: #a94442;
+}
+
+/* Phones and touch screens: 44px toolbar targets and 16px text (no zoom on focus). */
+@media (max-width: 767px), (pointer: coarse) {
+  .rte-toolbar .rte-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .rte-toolbar .rte-btn::after {
+    content: none;
+  }
+
+  .rte-color {
+    width: 44px;
+    height: 44px;
+  }
+
+  .rte-select-font,
+  .rte-select-size {
+    width: calc(50% - 4px);
+    min-width: 9rem;
+    flex-grow: 1;
+  }
+
+  .rte-content,
+  .admin-ui .rte-raw {
+    font-size: 16px;
+    line-height: 1.5;
+  }
+}
+
+/* ---------- 7. Row actions (components/admin/AdminRowActions.vue) ---------- */
+@layer components {
+  .admin-row-actions {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .admin-row-actions .a2-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .admin-row-more .admin-icon {
+    stroke-width: 3.5;
+  }
+
+  .admin-actions-popover {
+    position: fixed;
+    z-index: 60;
+    min-width: 13rem;
+    max-width: min(20rem, calc(100vw - 16px));
+    padding: 4px 0;
+    background: #fff;
+    border: 1px solid #c4c4c4;
+    border-radius: 4px;
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.18);
+  }
+
+  .admin-actions-menu {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .admin-actions-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 6px 14px;
+    font-size: 13px;
+    line-height: 20px;
+    color: #333;
+    text-align: left;
+    text-decoration: none;
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+
+  .admin-actions-item:hover,
+  .admin-actions-item:focus-visible {
+    color: #111;
+    background: var(--admin-row-hover);
+  }
+
+  .admin-actions-item:focus-visible {
+    outline-offset: -2px;
+  }
+
+  .admin-actions-item .admin-icon {
+    color: #4b5563;
+  }
+
+  .admin-actions-item.is-danger,
+  .admin-actions-item.is-danger .admin-icon {
+    color: #a82824;
+  }
+
+  .admin-actions-item.is-danger:hover,
+  .admin-actions-item.is-danger:focus-visible {
+    background: #fbeaea;
+  }
+
+  .admin-actions-item[aria-disabled="true"] {
+    color: #6b6b6b;
+    cursor: not-allowed;
+  }
+
+  .admin-actions-item[aria-disabled="true"] .admin-icon {
+    opacity: 0.55;
+  }
+
+  .admin-actions-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  /* Desktop: the hint is the tooltip (title); it stays in the accessibility tree through aria-describedby. */
+  .admin-actions-popover .admin-actions-hint {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .admin-actions-sep {
+    margin: 4px 0;
+    border-top: 1px solid #e3e3e3;
+  }
+
+  .admin-actions-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 59;
+    background: rgb(0 0 0 / 0.4);
+  }
+
+  .admin-actions-sheet {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 60;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 6px 0 calc(10px + env(safe-area-inset-bottom));
+    background: #fff;
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 -6px 24px rgb(0 0 0 / 0.25);
+  }
+
+  .admin-actions-sheet-title {
+    margin: 0;
+    padding: 10px 18px 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #4f5559;
+    border-bottom: 1px solid #eef0f1;
+  }
+
+  .admin-actions-sheet .admin-actions-item {
+    min-height: 52px;
+    gap: 14px;
+    padding: 8px 18px;
+    font-size: 16px;
+    line-height: 22px;
+  }
+
+  .admin-actions-sheet .admin-actions-item .admin-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .admin-actions-sheet .admin-actions-hint {
+    font-size: 13px;
+    line-height: 18px;
+    color: #5f6368;
+  }
+
+  /* Cards: the two row buttons share the card width and use phone-sized text. */
+  .admin-card-actions {
+    display: flex;
+  }
+
+  .admin-card-actions .admin-row-actions {
+    display: flex;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .admin-card-actions .admin-row-actions .a2-btn {
+    flex: 1 1 0;
+    justify-content: center;
+    min-height: 40px;
+    font-size: 15px;
+  }
+
+  .admin-card.is-clickable {
+    cursor: pointer;
+  }
+}

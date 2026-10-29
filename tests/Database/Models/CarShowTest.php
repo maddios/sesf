@@ -137,6 +137,20 @@ test('imageURL uses the generic image unless the show has an image', function ()
         ->and($with->imageURL)->toBe('images/shows/'.$with->id.'.jpg');
 });
 
+test('imageURL appends the file mtime as a cache-bust when the show image exists', function () {
+    $root = sys_get_temp_dir().'/sesf-show-img-'.bin2hex(random_bytes(4)).'/';
+    mkdir($root);
+    config(['sesf.show_image_root' => $root]);
+    $show = CarShow::factory()->create(['has_image' => true]);
+    file_put_contents($root.$show->id.'.jpg', 'x');
+    touch($root.$show->id.'.jpg', 1700000000);
+
+    expect($show->imageURL)->toBe('images/shows/'.$show->id.'.jpg?1700000000');
+
+    unlink($root.$show->id.'.jpg');
+    rmdir($root);
+});
+
 test('URLName strips non-alphanumerics and profileURL builds the hash URL', function () {
     $show = CarShow::factory()->create(['name' => "Hershey's Car-Show 2026!"]);
 
@@ -350,4 +364,10 @@ test('mass assignment ignores guarded prices and state flags', function () {
 
     expect($show->getAttributes())->not->toHaveKeys(['price_car', 'price_adult', 'price_child', 'is_active', 'is_judging_released'])
         ->and($show->short_name)->toBe('FORGE');
+});
+
+test('shortDescription fallback strips tags before cutting', function () {
+    $show = CarShow::factory()->create(['short_description' => null, 'description' => '<p>Hello <b>world</b></p>']);
+
+    expect($show->shortDescription)->toBe('Hello world...');
 });

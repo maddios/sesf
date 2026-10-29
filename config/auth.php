@@ -64,7 +64,7 @@ return [
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
-            'model' => env('AUTH_MODEL', User::class),
+            'model' => User::class,
         ],
 
         // 'users' => [
@@ -95,7 +95,9 @@ return [
     'passwords' => [
         'users' => [
             'provider' => 'users',
-            'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
+            // The shared DB has the legacy Laravel 4 `password_reminder` table (email, token, created_at);
+            // same columns the current database token repository expects, and we cannot create tables.
+            'table' => 'password_reminder',
             'expire' => 60,
             'throttle' => 60,
         ],
@@ -113,5 +115,17 @@ return [
     */
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Remember-me Duration
+    |--------------------------------------------------------------------------
+    |
+    | Minutes the "remember me" cookie lasts when a member logs in with
+    | remember=true. Applied by SessionController::login(). 30 days.
+    |
+    */
+
+    'remember_minutes' => 60 * 24 * 30,
 
 ];

@@ -27,7 +27,7 @@ test('uses the gallery_item table with timestamps and guards its privilege and m
     expect($item->getTable())->toBe('gallery_item')
         ->and($item->getKeyName())->toBe('id')
         ->and($item->usesTimestamps())->toBeTrue()
-        ->and($item->getGuarded())->toBe(['id', 'user_id']);
+        ->and($item->getGuarded())->toBe(['id', 'user_id', 'file_name']);
 });
 
 test('casts type_id to GalleryItemType and date_taken to a datetime', function (): void {

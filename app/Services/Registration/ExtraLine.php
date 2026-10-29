@@ -14,6 +14,7 @@ final readonly class ExtraLine
     public function __construct(
         public int $priceCents,
         public int $quantity,
+        public ?string $name = null,
     ) {
         if ($priceCents < 0) {
             throw new InvalidArgumentException('Extra price must not be negative.');
@@ -23,8 +24,8 @@ final readonly class ExtraLine
         }
     }
 
-    public static function fromDecimal(string|float $price, int $quantity): self
+    public static function fromDecimal(string|float $price, int $quantity, ?string $name = null): self
     {
-        return new self(Money::toCents($price), $quantity);
+        return new self(Money::toCents($price), $quantity, $name);
     }
 }

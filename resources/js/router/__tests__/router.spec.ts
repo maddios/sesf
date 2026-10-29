@@ -1,11 +1,13 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/vue';
 import { createApp } from 'vue';
+import { createPinia, setActivePinia } from 'pinia';
 import { createMemoryHistory, createWebHashHistory } from 'vue-router';
 import { axe } from 'vitest-axe';
 import { createAppRouter } from '../index';
 import HomePage from '../../pages/HomePage.vue';
 import NotFoundPage from '../../pages/NotFoundPage.vue';
+import { stubFetch } from '../../test/helpers';
 
 /** Creates a hash-mode router and installs it on a throwaway app so the initial navigation runs. */
 async function startHashRouter() {
@@ -16,6 +18,12 @@ async function startHashRouter() {
 }
 
 describe('app router (hash mode)', () => {
+  beforeEach(() => {
+    // The auth guard reads the store and checks the session on every navigation.
+    setActivePinia(createPinia());
+    stubFetch();
+  });
+
   afterEach(() => {
     window.location.hash = '';
   });
@@ -54,6 +62,14 @@ describe('app router (hash mode)', () => {
     expect(router.currentRoute.value.name).toBe('not-found');
     expect(router.currentRoute.value.query).toEqual({ x: '1' });
     expect(router.currentRoute.value.fullPath).toBe('/unknown?x=1');
+  });
+
+  it('resolves the legacy car address in the full route table without clashing with other areas', () => {
+    const router = createAppRouter(createMemoryHistory());
+    expect(router.resolve('/1972-BMW-2002/c78').name).toBe('car-profile-alias');
+    expect(router.resolve('/car/78').name).toBe('car-profile');
+    expect(router.resolve('/ShawnB/u44').name).toBe('member-profile');
+    expect(router.resolve('/Sharkfest-2026/e12').name).not.toBe('car-profile-alias');
   });
 
   it('works with an in-memory history for isolated tests', async () => {

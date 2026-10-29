@@ -1,15 +1,24 @@
 <script setup lang="ts">
-import { RouterView } from 'vue-router';
+import { computed } from 'vue';
+import { RouterView, useRoute } from 'vue-router';
+import AppLayout from './layouts/AppLayout.vue';
+
+/** Placeholder until the contact form lands: Contact Us currently does nothing visible. */
+function openContact(): void {
+  // The contact modal is added in a later task.
+}
+
+// Admin pages (/#/admin/...) bring their own shell: the /admin route component is AdminLayout.
+const route = useRoute();
+const isAdmin = computed(() => route.meta.layout === 'admin');
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col">
-    <header class="border-b border-slate-200 bg-white px-4 py-3">
-      <!-- Header placeholder: navigation and auth controls land here -->
-      <span class="font-semibold">Southeast Sharkfest</span>
-    </header>
-    <main class="flex-1 px-4 py-6">
-      <RouterView />
-    </main>
-  </div>
+  <RouterView v-if="isAdmin" />
+  <AppLayout
+    v-else
+    @contact="openContact"
+  >
+    <RouterView />
+  </AppLayout>
 </template>

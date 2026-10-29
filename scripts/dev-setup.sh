@@ -53,8 +53,17 @@ if [ "${#missing[@]}" -gt 0 ]; then
     exit 1
 fi
 
+# Repo mountpoint for a store path: same relative path, except the legacy waiver PDFs, which are
+# mounted outside public/ so the web server never serves them.
+mountpoint_for() {
+    case "$1" in
+        public/waivers) echo storage/legacy-waivers ;;
+        *) echo "$1" ;;
+    esac
+}
+
 for rel in "${REQUIRED_DIRS[@]}"; do
-    mkdir -p -- "$REPO_ROOT/$rel"
+    mkdir -p -- "$REPO_ROOT/$(mountpoint_for "$rel")"
 done
 echo "Mountpoint dirs ready (owner: $(id -un))."
 

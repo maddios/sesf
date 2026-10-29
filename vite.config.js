@@ -6,7 +6,7 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.ts'],
+            input: ['resources/css/app.css', 'resources/js/app.ts', 'resources/js/waiver/main.ts', 'resources/js/judging/judge.ts'],
             refresh: true,
         }),
         vue(),
@@ -35,10 +35,10 @@ export default defineConfig({
             exclude: ['resources/js/test/**', 'resources/js/**/*.d.ts', 'resources/js/**/__tests__/**'],
             reporter: ['text', 'html', 'lcov'],
             thresholds: {
-                lines: 80,
-                statements: 80,
-                functions: 80,
-                branches: 80,
+                lines: 85,
+                statements: 85,
+                functions: 85,
+                branches: 85,
             },
         },
     },

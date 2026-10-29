@@ -4,6 +4,7 @@ namespace App\Services\Registration;
 
 /**
  * One priced row of a registration invoice. All amounts are integer cents.
+ * detail names the item (car, guest name, shirt type, extra) when the caller passed it.
  */
 final readonly class LineItem
 {
@@ -15,6 +16,7 @@ final readonly class LineItem
         public int $quantity = 1,
         public bool $free = false,
         public ?string $label = null,
+        public ?string $detail = null,
     ) {
         $this->totalCents = $unitCents * $quantity;
     }

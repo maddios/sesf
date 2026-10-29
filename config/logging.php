@@ -1,5 +1,6 @@
 <?php
 
+use Monolog\Formatter\JsonFormatter;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -88,6 +89,17 @@ return [
             'path' => storage_path('logs/mail-debug.log'),
             'level' => 'info',
             'max_files' => 7,
+        ],
+
+        // Admin audit trail (App\Support\Admin\AuditLog): one JSON line per admin write. Deliberately
+        // not part of the default stack. Entries carry ids and field names, never passwords or tokens.
+        'audit' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/audit.log'),
+            'level' => 'info',
+            'days' => (int) env('LOG_AUDIT_DAYS', 90),
+            'formatter' => JsonFormatter::class,
+            'replace_placeholders' => false,
         ],
 
         'slack' => [
