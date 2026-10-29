@@ -14,6 +14,8 @@ export interface TabNavItem {
   exact?: boolean;
   /** Shown as a filled button inside the bar (legacy "Sponsors" btn-info tab). */
   emphasis?: boolean;
+  /** Shown as a red call-to-action button inside the bar ("Register now"). */
+  danger?: boolean;
 }
 
 defineProps<{
@@ -59,6 +61,9 @@ function onKeydown(event: KeyboardEvent): void {
 function tabClass(tab: TabNavItem): string {
   if (tab.emphasis === true) {
     return `my-1 ml-1 block rounded-sm bg-brand px-3.5 py-1.5 text-[0.8125rem] font-semibold text-white hover:bg-brand-dark hover:text-white ${isActive(tab) ? 'underline underline-offset-2' : 'no-underline'}`;
+  }
+  if (tab.danger === true) {
+    return `my-1 ml-1 block rounded-sm bg-danger px-3.5 py-1.5 text-[0.8125rem] font-semibold text-white hover:bg-danger-hover hover:text-white ${isActive(tab) ? 'underline underline-offset-2' : 'no-underline'}`;
   }
   const base = 'block rounded-t-sm border px-3 py-2 text-sm no-underline';
   return isActive(tab)

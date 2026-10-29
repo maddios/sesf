@@ -22,7 +22,7 @@ describe('EventLayout tabs', () => {
   it('shows every tab for an event with judging, a schedule and open registration', async () => {
     await renderEventRoute(BASE);
     await screen.findByRole('navigation', { name: 'Event sections' });
-    expect(tabLabels()).toEqual(['Event Info', 'Judging', 'Schedule', 'Directions', "Who's Coming", 'Register', 'Sponsors']);
+    expect(tabLabels()).toEqual(['Event Info', 'Judging', 'Schedule', 'Directions', "Who's Coming", 'Register now', 'Sponsors']);
   });
 
   it('hides Judging, Schedule and Register when they do not apply', async () => {
@@ -31,9 +31,9 @@ describe('EventLayout tabs', () => {
     expect(tabLabels()).toEqual(['Event Info', 'Directions', "Who's Coming", 'Sponsors']);
   });
 
-  it('links Register to the registration path only while registration is open', async () => {
+  it('links Register now to the registration path only while registration is open', async () => {
     await renderWithInfo({ regOpen: true });
-    const register = await screen.findByRole('link', { name: 'Register' });
+    const register = await screen.findByRole('link', { name: 'Register now' });
     expect(register.getAttribute('href')).toBe('/SoutheastSharkfest2026/e36/register');
   });
 

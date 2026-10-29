@@ -39,7 +39,7 @@ const tabs = computed<TabNavItem[]>(() => {
   items.push({ label: 'Directions', to: { name: 'event-directions', params } });
   items.push({ label: "Who's Coming", to: { name: 'event-members', params } });
   if (current.registrationOpen) {
-    items.push({ label: 'Register', to: `${current.path}/register` });
+    items.push({ label: 'Register now', to: `${current.path}/register`, danger: true });
   }
   items.push({ label: 'Sponsors', to: { name: 'event-sponsors', params }, emphasis: true });
   return items;

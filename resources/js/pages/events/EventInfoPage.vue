@@ -6,7 +6,6 @@
 import { computed } from 'vue';
 import AsyncBlock from '../../components/events/AsyncBlock.vue';
 import SafeHtml from '../../components/events/SafeHtml.vue';
-import BaseButton from '../../components/ui/BaseButton.vue';
 import SafeImage from '../../components/ui/SafeImage.vue';
 import { fetchAgenda, fetchEventSponsors } from '../../api/events';
 import { useEventContext, useEventData } from '../../composables/events/useEventData';
@@ -17,7 +16,6 @@ const sponsors = useEventData(() => context.eventId.value, fetchEventSponsors);
 
 const items = computed(() => agenda.data.value ?? []);
 const sponsorList = computed(() => sponsors.data.value?.sponsors ?? []);
-const registrationPath = computed(() => (context.info.value?.registrationOpen ? `${context.info.value.path}/register` : null));
 
 function reloadAll(): void {
   void agenda.reload();
@@ -27,19 +25,6 @@ function reloadAll(): void {
 
 <template>
   <div class="space-y-8">
-    <div
-      v-if="registrationPath"
-      class="flex flex-wrap items-start justify-end gap-4"
-    >
-      <BaseButton
-        v-if="registrationPath"
-        :to="registrationPath"
-        variant="danger"
-      >
-        Register now
-      </BaseButton>
-    </div>
-
     <AsyncBlock
       :status="agenda.status.value"
       loading-label="Loading event details"
